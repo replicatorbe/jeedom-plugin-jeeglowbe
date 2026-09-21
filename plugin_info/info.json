@@ -1,10 +1,10 @@
 {
     "id": "jeeglowbe",
     "name": "jeeGlow",
-    "pluginVersion": "0.1",
+    "pluginVersion": "0.2",
     "description": {
-        "fr_FR": "Dashboard moderne pour Jeedom, pensé pour l'écran mural comme pour le téléphone. Il n'altère rien : le dashboard d'origine reste en place, jeeGlow en construit un second à côté, en relisant vos objets, équipements et commandes. Les cartes sont déduites des types génériques — lumière, volet, prise, capteur — et se mettent à jour en temps réel. Un mode plein écran sans menu permet d'en faire un tableau de bord permanent sur tablette.",
-        "en_US": "A modern dashboard for Jeedom, designed for wall tablets as much as for phones. It changes nothing: the original dashboard stays where it is, jeeGlow builds a second one beside it by reading your objects, devices and commands. Cards are derived from generic types — light, shutter, socket, sensor — and refresh in real time. A full screen mode without any menu turns it into a permanent wall dashboard."
+        "fr_FR": "Dashboard moderne pour Jeedom, pensé pour l'écran mural comme pour le téléphone. Il n'altère rien : le dashboard d'origine reste en place, jeeGlow en construit un second à côté, en relisant vos objets, équipements et commandes. Les cartes sont déduites des types génériques — lumière, volet, prise, chauffage, caméra, multimédia, capteur — et se mettent à jour en temps réel. L'accueil dit ce qui est en marche et se coupe sur place, la vue Santé rassemble les piles faibles et les équipements qui ne répondent plus, et vos scénarios s'y lancent en un appui. Un mode kiosque sans menu en fait un tableau de bord permanent sur tablette.",
+        "en_US": "A modern dashboard for Jeedom, designed for wall tablets as much as for phones. It changes nothing: the original dashboard stays where it is, jeeGlow builds a second one beside it by reading your objects, devices and commands. Cards are derived from generic types — light, shutter, socket, heating, camera, media, sensor — and refresh in real time. The home view shows what is running and switches it off on the spot, the Health view gathers low batteries and devices that stopped answering, and your scenarios start from it in one tap. A kiosk mode without any menu turns it into a permanent wall dashboard."
     },
     "licence": "AGPL",
     "author": "sMug (Jérôme Fafchamps)",

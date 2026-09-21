@@ -1,6 +1,6 @@
 /* jeeGlow — feuille de style du dashboard.
  *
- * Deux principes :
+ * Trois principes :
  *
  * 1. Rien ne fuit hors de #jg-root. Toutes les règles sont préfixées par .jg- et
  *    portées par le conteneur : la page vit à l'intérieur de Jeedom, et un
@@ -10,114 +10,318 @@
  *    de Jeedom et pose data-tone="light|dark" ; les couleurs sont définies deux
  *    fois, une par ambiance. Cela fonctionne aussi avec un thème que nous ne
  *    connaissons pas, ce qu'une liste de noms de thèmes ne permettrait pas.
+ *
+ * 3. Aucune valeur n'est écrite deux fois. Tailles, espacements, rayons,
+ *    couleurs, durées : tout part du bloc de jetons ci-dessous. C'est ce qui
+ *    permet au kiosque de n'être qu'un réglage de densité, et non une seconde
+ *    feuille de style à tenir à jour.
  */
 
+/* ------------------------------------------------------------------ jetons */
+
 .jg-root {
-    --jg-radius: 20px;
-    --jg-gap: 14px;
-    --jg-surface: #ffffff;
-    --jg-surface-2: rgba(120, 130, 150, 0.08);
-    --jg-border: rgba(20, 24, 33, 0.07);
-    --jg-text: #1d2129;
-    --jg-muted: #6b7280;
-    --jg-accent: #2f80ed;
-    --jg-on-bg: linear-gradient(140deg, #ffd479 0%, #ffb340 100%);
-    --jg-on-text: #4a3208;
-    --jg-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 8px 24px rgba(16, 24, 40, 0.07);
+    /* Espacement en base 4. Une page qui mélange 5, 7, 9 et 13 pixels n'a pas
+     * de rythme : l'oeil ne retrouve pas deux fois le même intervalle. */
+    --jg-space-1: 4px;
+    --jg-space-2: 8px;
+    --jg-space-3: 12px;
+    --jg-space-4: 16px;
+    --jg-space-5: 20px;
+    --jg-space-6: 24px;
+    --jg-space-8: 32px;
 
-    color: var(--jg-text);
-    font-size: 14px;
-    padding-bottom: 32px;
+    /* Toute la typographie passe par ce facteur. Le kiosque n'est alors plus un
+     * mode avec ses propres tailles, mais une distance de lecture : un seul
+     * réglage et les noms de carte grandissent avec les boutons. */
+    --jg-scale: 1;
+    --jg-fs-xs: calc(11px * var(--jg-scale));
+    --jg-fs-sm: calc(12px * var(--jg-scale));
+    --jg-fs-md: calc(13px * var(--jg-scale));
+    --jg-fs-base: calc(14px * var(--jg-scale));
+    --jg-fs-lg: calc(15px * var(--jg-scale));
+    --jg-fs-xl: calc(17px * var(--jg-scale));
+    --jg-fs-2xl: calc(20px * var(--jg-scale));
+    --jg-fs-3xl: calc(26px * var(--jg-scale));
+    --jg-fs-4xl: calc(42px * var(--jg-scale));
+
+    --jg-radius-sm: 10px;
+    --jg-radius-md: 12px;
+    --jg-radius-lg: 16px;
+    --jg-radius-xl: 20px;
+    --jg-radius-pill: 999px;
+    /* Nom historique, gardé : il est écrit dans des règles que d'autres mains
+     * ajouteront à la suite. */
+    --jg-radius: var(--jg-radius-xl);
+
+    /* Densité. La largeur minimale d'une carte et l'écart de la grille sont des
+     * jetons parce que le kiosque les change, et eux seuls. */
+    --jg-card-min: 230px;
+    --jg-gap: 16px;
+    /* Cible tactile. 40 px au doigt, 36 pour ce qui se pose en rangée serrée ;
+     * le kiosque monte les deux. Un pouce ne vise pas 19 pixels. */
+    --jg-tap: 40px;
+    --jg-tap-sm: 36px;
+    --jg-thumb: 24px;
+    --jg-track: 8px;
+
+    /* Neutres clairs. --jg-ink-2 est une encre, pas une opacité : un gris posé
+     * en opacity change de valeur avec le fond qu'il traverse, et ce qui passait
+     * sur blanc échoue sur une carte teintée. */
+    --jg-ink: #171a21;
+    --jg-ink-2: #545c69;
+    /* La carte est blanche, et la page de Jeedom ne l'est pas : c'est cet écart
+     * qui la pose. Dérivée à 35 % du fond hôte, elle sortait à #f7f7f8 sur le
+     * thème clair du coeur (#e8e8ea) — 1,14:1, un écart que l'ombre seule ne
+     * rattrape pas et des cartes qui flottent. À 10 % elle sort à #fdfdfd,
+     * 1,20:1, du blanc franc. La dérivation reste : un thème clair teinté garde
+     * son ton, et sur un thème blanc pur la carte ne peut plus être plus claire
+     * que sa page — aucune formule ne le peut — il ne lui reste que le filet et
+     * l'ombre. */
+    --jg-surface: color-mix(in srgb, rgb(var(--bg-color, 255, 255, 255)) 10%, #ffffff);
+    --jg-surface-2: rgba(23, 26, 33, 0.06);
+    /* Le panneau est le plan le plus haut : il doit donc rester le plus clair,
+     * et tirer moins du fond hôte que la carte, non davantage. */
+    --jg-surface-3: color-mix(in srgb, rgb(var(--bg-color, 255, 255, 255)) 4%, #ffffff);
+    /* Deux traits, deux métiers : --jg-border sépare deux zones de même plan et
+     * peut rester discret ; --jg-line dessine le contour d'une commande et doit
+     * tenir le 3:1 du critère 1.4.11, y compris sur une carte teintée. */
+    --jg-border: rgba(23, 26, 33, 0.08);
+    --jg-line: rgba(23, 26, 33, 0.50);
+
+    --jg-accent: #175fc7;
+    --jg-success: #136b43;
+    --jg-warning: #8a5a00;
+    --jg-danger: #c0342a;
+    --jg-danger-ink: #b3261e;
+    /* Le rouge plein de l'alerte. Il est le même dans les deux ambiances : une
+     * fumée détectée ne se lit pas différemment le jour et la nuit. */
+    --jg-danger-solid: #b3261e;
+
+    /* Quatre plans. En ambiance claire c'est l'ombre qui les sépare — la
+     * bordure reste un filet — et l'ombre grandit avec la hauteur. */
+    --jg-elev-0: none;
+    --jg-elev-1: 0 1px 2px rgba(16, 24, 40, 0.06);
+    --jg-elev-2: 0 1px 2px rgba(16, 24, 40, 0.06), 0 6px 16px rgba(16, 24, 40, 0.07);
+    --jg-elev-3: 0 2px 4px rgba(16, 24, 40, 0.07), 0 12px 28px rgba(16, 24, 40, 0.10);
+    --jg-elev-4: 0 4px 8px rgba(16, 24, 40, 0.08), 0 24px 56px rgba(16, 24, 40, 0.16);
+    --jg-shadow: var(--jg-elev-2);
+
+    /* États. Le survol et la pression sont des voiles, posés en image de fond :
+     * un filter: brightness() ne produit rien sur un fond à 8 % d'opacité, alors
+     * qu'un voile se voit sur n'importe quelle surface, teintée comprise. */
+    --jg-state-hover: rgba(23, 26, 33, 0.07);
+    --jg-state-press: rgba(23, 26, 33, 0.14);
+    --jg-state-disabled: 0.45;
+    --jg-focus: #1a56c4;
+    --jg-focus-halo: rgba(26, 86, 196, 0.28);
+    --jg-flash: rgba(23, 95, 199, 0.28);
+
+    /* Mouvement. Une seule courbe pour tout ce qui entre et sort, une durée par
+     * intention. --jg-dur-veil est à part : le voile de nuit doit passer
+     * inaperçu, il dure donc une seconde entière. */
+    --jg-dur-fast: 120ms;
+    --jg-dur: 180ms;
+    --jg-dur-slow: 320ms;
+    --jg-dur-veil: 1200ms;
+    --jg-ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+    --jg-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+    /* 1300 : au-dessus des boîtes du coeur (1020-1200), en dessous de
+     * l'agrandissement d'image d'un widget de plugin (1400-1500), qui s'ouvre
+     * depuis le panneau. */
+    --jg-z-rail: 40;
+    --jg-z-backdrop: 1290;
+    --jg-z-panel: 1300;
+    --jg-z-dim: 2000;
+
+    /* La teinte de l'état allumé, et le piège qu'elle cachait : un seul jeton y
+     * servait deux métiers opposés. La teinte ne porte jamais de texte — elle
+     * remplit la pastille, teinte le fond de la carte, colore un bouton — et
+     * n'a donc à tenir que le 3:1 non textuel du critère 1.4.11. La choisir à
+     * 4,5:1 de TEXTE la condamnait à l'ocre : pastilles brunes, fond de carte
+     * café au lait, et un glyphe blanc qui n'y tenait même pas ses 4,5:1
+     * (#a87200 contre blanc : 4,07:1). Le remplissage est donc vif et franc, et
+     * c'est le glyphe posé dessus qui est sombre : 9,1:1 sur l'ambre, contre
+     * 2,0:1 pour un glyphe blanc sur la même pastille.
+     *
+     * Les deux jetons dérivés — le trait et le glyphe — sont déclarés plus bas,
+     * sur la carte : une dérivation ne se calcule qu'à l'endroit où la teinte
+     * de la catégorie est connue. */
+    --jg-tint-default: #F2A93B;
+    --jg-tint: var(--jg-tint-default);
+    /* Encre d'un aplat d'accent : le compteur d'un raccourci, la pastille d'un
+     * scénario qui tourne. L'accent est sombre en ambiance claire, la teinte y
+     * est vive — une même encre ne peut plus servir les deux, celle-ci reste
+     * celle de l'accent. */
+    --jg-tint-ink: #ffffff;
+    /* 16 % d'une teinte vive éclairent plus que 14 % d'un brun : le lavis se
+     * repère d'un bout à l'autre de la pièce sans virer au beige. */
+    --jg-tint-fill: 16%;
+    --jg-tint-btn: 26%;
+    --jg-select-fill: 14%;
+    /* Noms historiques de l'état allumé, gardés pour ne rien casser. */
+    --jg-on-bg: var(--jg-surface);
+    --jg-on-text: var(--jg-ink);
+
+    color: var(--jg-ink);
+    font-size: var(--jg-fs-base);
+    padding-bottom: var(--jg-space-8);
 }
 
+/* En ambiance sombre, c'est la bordure qui sépare les plans et non l'ombre :
+ * une ombre noire sur un fond noir ne dessine rien, et les cartes portaient
+ * jusqu'ici le dispositif de l'autre thème pour rien. */
 .jg-root[data-tone="dark"] {
-    --jg-surface: #1e222b;
-    --jg-surface-2: rgba(255, 255, 255, 0.07);
-    --jg-border: rgba(255, 255, 255, 0.08);
-    --jg-text: #e9ebf0;
-    --jg-muted: #9aa3b2;
-    --jg-accent: #6ea8fe;
-    --jg-on-bg: linear-gradient(140deg, #f2b544 0%, #e08c1d 100%);
-    --jg-on-text: #2a1c03;
-    --jg-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 26px rgba(0, 0, 0, 0.32);
+    --jg-ink: #eceef4;
+    --jg-ink-2: #c3cad7;
+    /* La surface est dérivée du fond de l'hôte, jamais fixée : un thème sombre
+     * à #272c33 rendait les cartes plus sombres que la page, et l'élévation
+     * s'inversait. On éclaircit ce qu'on trouve, quel qu'il soit — mais moins
+     * qu'avant, et vers un bleu franc. À 92 % d'un blanc bleuté, la carte
+     * sortait à #2a2a2b sur le thème sombre du coeur (25, 25, 25) : un gris
+     * neutre déjà clair, dans lequel la moindre trace d'ambre vire au kaki. À
+     * 94 % d'un bleu, elle sort à #1f2124 — profonde, froide, et encore à
+     * 1,09:1 au-dessus de sa page. */
+    --jg-surface: color-mix(in srgb, rgb(var(--bg-color, 30, 32, 38)) 94%, #7f9fd8);
+    --jg-surface-2: rgba(255, 255, 255, 0.08);
+    --jg-surface-3: color-mix(in srgb, rgb(var(--bg-color, 30, 32, 38)) 88%, #7f9fd8);
+    --jg-border: rgba(255, 255, 255, 0.13);
+    --jg-line: rgba(236, 238, 244, 0.58);
+
+    --jg-accent: #93bcff;
+    --jg-success: #4ec78d;
+    --jg-warning: #e8b34a;
+    --jg-danger: #ff9a8c;
+    --jg-danger-ink: #ffb0a3;
+
+    --jg-elev-0: none;
+    --jg-elev-1: none;
+    --jg-elev-2: none;
+    --jg-elev-3: 0 8px 24px rgba(0, 0, 0, 0.40);
+    --jg-elev-4: 0 18px 48px rgba(0, 0, 0, 0.55);
+
+    --jg-state-hover: rgba(255, 255, 255, 0.10);
+    --jg-state-press: rgba(255, 255, 255, 0.18);
+    --jg-focus: #93bcff;
+    --jg-focus-halo: rgba(147, 188, 255, 0.30);
+    --jg-flash: rgba(147, 188, 255, 0.30);
+
+    /* L'accent de nuit est clair : son encre est sombre, à l'inverse du jour. */
+    --jg-tint-ink: #12151b;
+    /* Même famille de teintes que le jour : une couleur d'état ne change pas de
+     * nom avec l'heure. C'est la DOSE qui change. Mêler 18 % d'ambre à une
+     * surface déjà claire donnait #4c4331, un olive boueux ; 10 % dans une
+     * surface profonde donnent #332f28, une braise. */
+    --jg-tint-fill: 10%;
+    --jg-tint-btn: 28%;
+    --jg-select-fill: 12%;
 }
 
-/* Teintes par catégorie Jeedom : ce qui est allumé ne se colore pas au hasard,
- * une lampe est chaude, un volet est froid, une alarme est rouge. */
-.jg-root .jg-card[data-category="opening"] { --jg-on-bg: linear-gradient(140deg, #8fc4ff 0%, #4a94f0 100%); --jg-on-text: #08233f; }
-.jg-root .jg-card[data-category="security"] { --jg-on-bg: linear-gradient(140deg, #ff9b8f 0%, #ec5b4a 100%); --jg-on-text: #3d0d06; }
-.jg-root .jg-card[data-category="heating"] { --jg-on-bg: linear-gradient(140deg, #ffb27a 0%, #f2703a 100%); --jg-on-text: #3d1704; }
-.jg-root .jg-card[data-category="energy"] { --jg-on-bg: linear-gradient(140deg, #9ee8b8 0%, #3fbd74 100%); --jg-on-text: #05301a; }
-.jg-root .jg-card[data-category="multimedia"] { --jg-on-bg: linear-gradient(140deg, #cdb4ff 0%, #8b63f0 100%); --jg-on-text: #21093f; }
-
-/* --------------------------------------------------------------- barre haute */
-
-.jg-topbar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 6px 2px 14px;
-    flex-wrap: wrap;
+/* Les deux jetons dérivés de la teinte. Ils sont posés sur la carte et sur la
+ * tuile, et non sur .jg-root, parce qu'une propriété personnalisée qui en
+ * appelle une autre est résolue là où elle est DÉCLARÉE : écrite sur la racine,
+ * elle y figerait l'ambre par défaut et les sept catégories n'y changeraient
+ * plus rien. Déclarée sur la carte, elle suit la teinte de la carte — y compris
+ * la couleur de pièce que Jeedom pose en style en ligne, dont nous ne savons
+ * rien.
+ *
+ * --jg-tint-line est la teinte quand elle devient trait ou encre : le liseré de
+ * l'état allumé, le contour de la carte, l'icône d'une tuile de pièce. Assombrie
+ * de 28 %, elle tient le 3:1 du critère 1.4.11 contre la surface comme contre le
+ * lavis (l'ambre : 3,68:1 et 3,4:1), ce qu'aucun remplissage vif ne peut tenir —
+ * l'ambre pleine est à 1,96:1 sur du blanc.
+ *
+ * --jg-tint-glyph est l'encre du glyphe posé sur la pastille. Sombre, tirée de
+ * la teinte elle-même pour en garder la chaleur : 9,1:1 sur l'ambre, là où le
+ * blanc d'avant tombait à 2,0:1.
+ *
+ * La teinte par défaut est reposée ici parce que le repli des équipements sans
+ * catégorie, écrit en fin de feuille sur .jg-root, ne peut pas être rattrapé
+ * par une déclaration de même portée. */
+.jg-root .jg-card,
+.jg-root .jg-domain {
+    --jg-tint: var(--jg-tint-default);
+    --jg-tint-line: color-mix(in srgb, var(--jg-tint) 72%, #000000);
+    --jg-tint-glyph: color-mix(in srgb, var(--jg-tint) 12%, #000000);
 }
 
-.jg-brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 20px;
-    font-weight: 600;
-    letter-spacing: -0.2px;
+/* De nuit, la teinte est déjà claire sur un fond profond : elle est son propre
+ * trait — 8,1:1 pour l'ambre sur #1f2124 — et l'assombrir la ferait disparaître.
+ * L'encre du glyphe est alors écrite en dur, la dérivation n'ayant plus rien à
+ * corriger. */
+.jg-root[data-tone="dark"] .jg-card,
+.jg-root[data-tone="dark"] .jg-domain {
+    --jg-tint: var(--jg-tint-default);
+    --jg-tint-line: var(--jg-tint);
+    --jg-tint-glyph: #12151b;
 }
 
-.jg-brand-mark {
-    color: var(--jg-accent);
-    font-size: 18px;
+/* Une WebView de tablette murale peut ignorer color-mix() — et une déclaration
+ * qui contient var() n'a pas de repli implicite : elle devient simplement
+ * nulle, laissant les cartes transparentes sur le fond de Jeedom. D'où ces
+ * valeurs plates, et un état allumé qui se lit alors au liseré et à la
+ * pastille, tous deux en couleur pleine. */
+@supports not (color: color-mix(in srgb, red, blue)) {
+    .jg-root {
+        --jg-surface: #ffffff;
+        --jg-surface-3: #ffffff;
+    }
+
+    .jg-root[data-tone="dark"] {
+        --jg-surface: #1f2124;
+        --jg-surface-3: #252930;
+    }
+
+    /* Les deux jetons dérivés le sont par color-mix() : ici, ils ne valent
+     * rien, et une couleur invalide à l'instant du calcul ne laisse pas de
+     * liseré gris, elle n'en laisse aucun. Le trait redevient donc la teinte
+     * pleine, et le glyphe une encre sombre unique — les sept teintes de
+     * remplissage sont toutes assez claires pour la porter. La règle sombre
+     * ci-dessus, elle, n'emploie aucun color-mix et continue de valoir. */
+    .jg-root .jg-card,
+    .jg-root .jg-domain {
+        --jg-tint-line: var(--jg-tint);
+        --jg-tint-glyph: #1d1407;
+    }
+
+    .jg-root .jg-card[data-on="1"],
+    .jg-root .jg-domain-on {
+        background: var(--jg-surface);
+        border-color: var(--jg-tint-line);
+    }
+
+    .jg-root .jg-card[data-on="1"] .jg-btn,
+    .jg-root .jg-card[data-on="1"] .jg-select,
+    .jg-root .jg-battery,
+    .jg-root .jg-tab-on,
+    .jg-root .jg-rail-on,
+    .jg-root .jg-warning {
+        background: var(--jg-surface-2);
+    }
 }
 
-.jg-topbar-tools {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: auto;
-}
-
-.jg-search {
-    display: flex;
-    align-items: center;
-    /* Bootstrap met tous les label en gras : la zone de recherche est un
-     * label, son texte sortirait en gras sans cette remise à zéro. */
-    font-weight: 400;
-    gap: 8px;
-    background: var(--jg-surface-2);
-    border-radius: 999px;
-    padding: 0 14px;
-    height: 38px;
-    margin: 0;
-    color: var(--jg-muted);
-}
-
-.jg-search input {
-    background: transparent;
-    border: 0;
-    outline: none;
-    color: var(--jg-text);
-    width: 150px;
-    height: 36px;
-    font-size: 14px;
-}
-
-.jg-icon-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 999px;
-    border: 0;
-    background: var(--jg-surface-2);
-    color: var(--jg-text);
-    cursor: pointer;
-    transition: background 0.15s ease;
-}
-
-.jg-icon-btn:hover { background: var(--jg-border); }
+/* Teintes par catégorie. Les sept du coeur, sans exception : sans règle pour
+ * « light » et « automatism », les deux retombaient sur l'orange du chauffage,
+ * et un automatisme actif se lisait « lampe allumée ».
+ *
+ * La catégorie seule décide. Les teintes par domaine qui doublaient cette
+ * table ne visaient plus rien depuis que les tuiles de domaines de l'accueil
+ * sont devenues des raccourcis, et que les tuiles de pièces portent la couleur
+ * choisie dans Jeedom — une couleur posée en ligne, que le style ne connaît
+ * pas et n'a pas à connaître. */
+/* Une seule table pour les deux ambiances, là où il y en avait deux : ce sont
+ * des couleurs de REMPLISSAGE, et un remplissage vif se pose aussi bien sur du
+ * blanc que sur une surface profonde. La plus sombre des sept, le violet, est
+ * encore à 3,75:1 sur la surface claire et à 4,22:1 sur la surface sombre ; la
+ * plus claire, l'ambre, est à 8,07:1 de nuit. Ce qui change avec l'ambiance,
+ * c'est la dose du lavis et la dérivation du trait — pas la teinte. */
+.jg-root .jg-card[data-category="light"] { --jg-tint: #F2A93B; }
+.jg-root .jg-card[data-category="heating"] { --jg-tint: #F2714A; }
+.jg-root .jg-card[data-category="opening"] { --jg-tint: #4C9AF5; }
+.jg-root .jg-card[data-category="security"] { --jg-tint: #F2545B; }
+.jg-root .jg-card[data-category="energy"] { --jg-tint: #2FBF71; }
+.jg-root .jg-card[data-category="multimedia"] { --jg-tint: #8B6CF0; }
+.jg-root .jg-card[data-category="automatism"] { --jg-tint: #06B6D4; }
 
 /* --------------------------------------------------------------- ossature */
 
@@ -128,18 +332,103 @@
 .jg-root {
     display: flex;
     align-items: flex-start;
-    gap: 6px;
+    gap: var(--jg-space-2);
     --jg-rail-top: 64px;
 }
 
-.jg-root[data-kiosk="1"] { --jg-rail-top: 10px; }
+.jg-root[data-kiosk="1"] { --jg-rail-top: var(--jg-space-3); }
+
+.jg-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* --------------------------------------------------------------- barre haute */
+
+.jg-topbar {
+    display: flex;
+    align-items: center;
+    gap: var(--jg-space-3);
+    padding: var(--jg-space-2) 2px var(--jg-space-4);
+    flex-wrap: wrap;
+}
+
+.jg-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--jg-space-3);
+    font-size: var(--jg-fs-2xl);
+    font-weight: 600;
+    /* En em, et non en pixels : un interlettrage de -0.2px cessait d'exister
+     * dès que le kiosque doublait la taille du texte. */
+    letter-spacing: -0.01em;
+}
+
+.jg-brand-mark {
+    color: var(--jg-accent);
+    font-size: var(--jg-fs-xl);
+}
+
+.jg-topbar-tools {
+    display: flex;
+    align-items: center;
+    gap: var(--jg-space-2);
+    margin-left: auto;
+}
+
+.jg-search {
+    display: flex;
+    align-items: center;
+    /* Bootstrap met tous les label en gras : la zone de recherche est un
+     * label, son texte sortirait en gras sans cette remise à zéro. */
+    font-weight: 400;
+    gap: var(--jg-space-2);
+    background: var(--jg-surface-2);
+    border: 1px solid var(--jg-border);
+    border-radius: var(--jg-radius-pill);
+    padding: 0 var(--jg-space-4);
+    min-height: var(--jg-tap);
+    margin: 0;
+    color: var(--jg-ink-2);
+}
+
+/* Le champ n'a pas d'anneau propre — il n'a pas de bord visible : c'est la
+ * pastille entière qui prend le focus, sinon l'anneau flotterait au milieu. */
+.jg-search:focus-within {
+    border-color: var(--jg-focus);
+    box-shadow: 0 0 0 3px var(--jg-focus-halo);
+}
+
+.jg-search input {
+    background: transparent;
+    border: 0;
+    outline: none;
+    color: var(--jg-ink);
+    width: 150px;
+    height: calc(var(--jg-tap) - 4px);
+    font-size: var(--jg-fs-base);
+}
+
+.jg-icon-btn {
+    width: var(--jg-tap);
+    height: var(--jg-tap);
+    border-radius: var(--jg-radius-pill);
+    border: 1px solid var(--jg-border);
+    background: var(--jg-surface-2);
+    color: var(--jg-ink);
+    font-size: var(--jg-fs-base);
+    cursor: pointer;
+    transition: background-color var(--jg-dur) var(--jg-ease);
+}
+
+/* ------------------------------------------------------------------- rail */
 
 .jg-rail {
     flex: 0 0 88px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 4px;
+    gap: var(--jg-space-1);
+    padding: var(--jg-space-1);
     position: sticky;
     /* Sous l'en-tête de Jeedom, qui est fixe : collé plus haut, le rail
      * disparaîtrait derrière lui. En kiosque il n'y a plus d'en-tête. */
@@ -150,39 +439,40 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5px;
-    padding: 12px 4px;
-    border: 0;
-    border-radius: 16px;
+    justify-content: center;
+    gap: var(--jg-space-1);
+    min-height: var(--jg-tap);
+    padding: var(--jg-space-3) var(--jg-space-1);
+    border: 1px solid transparent;
+    border-radius: var(--jg-radius-lg);
     background: transparent;
-    color: var(--jg-muted);
-    font-size: 11px;
+    color: var(--jg-ink-2);
+    font-size: var(--jg-fs-xs);
     font-weight: 600;
     cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease;
+    transition: background-color var(--jg-dur) var(--jg-ease), color var(--jg-dur) var(--jg-ease);
 }
 
-.jg-rail-item i { font-size: 18px; }
-.jg-rail-item:hover { background: var(--jg-surface-2); color: var(--jg-text); }
+.jg-rail-item i { font-size: var(--jg-fs-xl); }
+.jg-rail-item:hover { background: var(--jg-surface-2); color: var(--jg-ink); }
 
-.jg-rail-on {
-    background: var(--jg-surface);
+/* Une seule grammaire de sélection dans toute la page : un fond teinté par
+ * l'accent, un contour de la même couleur, l'étiquette en accent. Le rail,
+ * les sous-onglets et le kiosque disent « ici » de la même façon. */
+.jg-rail-on,
+.jg-rail-on:hover {
+    background: color-mix(in srgb, var(--jg-accent) var(--jg-select-fill), var(--jg-surface));
+    border-color: color-mix(in srgb, var(--jg-accent) 48%, var(--jg-surface));
     color: var(--jg-accent);
-    box-shadow: var(--jg-shadow);
-}
-
-.jg-main {
-    flex: 1 1 auto;
-    min-width: 0;
 }
 
 /* --------------------------------------------------------- sous-onglets */
 
 .jg-subtabs {
     display: flex;
-    gap: 8px;
+    gap: var(--jg-space-2);
     overflow-x: auto;
-    padding: 2px 2px 16px;
+    padding: 2px 2px var(--jg-space-4);
     scrollbar-width: none;
 }
 
@@ -191,108 +481,141 @@
 
 .jg-tab {
     flex: 0 0 auto;
-    border: 1px solid var(--jg-border);
+    /* Un onglet de 32 pixels de haut se vise mal au doigt, et c'est la première
+     * chose qu'on touche en arrivant sur la page. */
+    min-height: var(--jg-tap);
+    border: 1px solid var(--jg-line);
     background: var(--jg-surface);
-    color: var(--jg-muted);
-    border-radius: 999px;
-    padding: 7px 16px;
-    font-size: 13px;
+    color: var(--jg-ink-2);
+    border-radius: var(--jg-radius-pill);
+    padding: 0 var(--jg-space-4);
+    font-size: var(--jg-fs-md);
     font-weight: 500;
     cursor: pointer;
     white-space: nowrap;
-    transition: all 0.15s ease;
+    transition: background-color var(--jg-dur) var(--jg-ease), color var(--jg-dur) var(--jg-ease);
 }
 
-.jg-tab-on {
-    background: var(--jg-text);
-    border-color: var(--jg-text);
-    color: var(--jg-surface);
+.jg-tab:hover { background-image: linear-gradient(var(--jg-state-hover), var(--jg-state-hover)); }
+.jg-tab:active { background-image: linear-gradient(var(--jg-state-press), var(--jg-state-press)); }
+
+.jg-tab-on,
+.jg-tab-on:hover {
+    background-color: color-mix(in srgb, var(--jg-accent) var(--jg-select-fill), var(--jg-surface));
+    border-color: color-mix(in srgb, var(--jg-accent) 48%, var(--jg-surface));
+    color: var(--jg-accent);
+    font-weight: 600;
 }
 
 /* ------------------------------------------------------------------ accueil */
 
+.jg-clock { margin: 2px 2px var(--jg-space-5); line-height: 1.1; }
+
+.jg-clock-time {
+    font-size: var(--jg-fs-4xl);
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    /* Sans chasse fixe, l'heure se recompose à chaque minute : le 1 est deux
+     * fois plus étroit que le 8 et toute la ligne glisse. */
+    font-variant-numeric: tabular-nums;
+}
+
+.jg-clock-date {
+    font-size: var(--jg-fs-md);
+    color: var(--jg-ink-2);
+    text-transform: capitalize;
+    margin-top: var(--jg-space-1);
+}
+
 .jg-badges {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 20px;
+    gap: var(--jg-space-3);
+    margin-bottom: var(--jg-space-5);
 }
 
 .jg-badge {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 9px 18px 9px 14px;
+    gap: var(--jg-space-3);
+    padding: var(--jg-space-2) var(--jg-space-5) var(--jg-space-2) var(--jg-space-4);
     border: 1px solid var(--jg-border);
-    border-radius: 999px;
+    border-radius: var(--jg-radius-pill);
     background: var(--jg-surface);
-    box-shadow: var(--jg-shadow);
+    box-shadow: var(--jg-elev-1);
 }
 
-.jg-badge i { color: var(--jg-accent); font-size: 15px; }
+.jg-badge i { color: var(--jg-accent); font-size: var(--jg-fs-lg); }
 .jg-badge-text { display: flex; flex-direction: column; line-height: 1.2; }
-.jg-badge-value { font-size: 15px; font-weight: 700; }
-.jg-badge-name { font-size: 11px; color: var(--jg-muted); }
+.jg-badge-value { font-size: var(--jg-fs-lg); font-weight: 700; font-variant-numeric: tabular-nums; }
+.jg-badge-name { font-size: var(--jg-fs-xs); color: var(--jg-ink-2); }
 
-.jg-grid-domains { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.jg-grid-domains { grid-template-columns: repeat(auto-fill, minmax(calc(var(--jg-card-min) - 40px), 1fr)); }
 
 .jg-domain {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 6px;
-    padding: 18px 16px;
+    gap: var(--jg-space-2);
+    padding: var(--jg-space-5) var(--jg-space-4);
     min-height: 118px;
     border: 1px solid var(--jg-border);
     border-radius: var(--jg-radius);
     background: var(--jg-surface);
-    box-shadow: var(--jg-shadow);
-    color: var(--jg-text);
+    box-shadow: var(--jg-elev-2);
+    color: var(--jg-ink);
     text-align: left;
     cursor: pointer;
-    transition: transform 0.12s ease;
+    transition: transform var(--jg-dur-fast) var(--jg-ease), box-shadow var(--jg-dur) var(--jg-ease);
 }
 
-.jg-domain:hover { transform: translateY(-1px); }
-.jg-domain-icon { font-size: 20px; color: var(--jg-muted); }
-.jg-domain-name { font-size: 15px; font-weight: 600; }
-.jg-domain-count { font-size: 12px; color: var(--jg-muted); }
-
-/* Un domaine dont quelque chose tourne se signale : c'est la question qu'on se
- * pose en arrivant sur l'accueil. */
-.jg-domain-on { background: var(--jg-on-bg); color: var(--jg-on-text); border-color: transparent; }
-.jg-domain-on .jg-domain-icon,
-.jg-domain-on .jg-domain-count { color: inherit; opacity: 0.8; }
+.jg-domain:hover { transform: translateY(-1px); box-shadow: var(--jg-elev-3); }
+.jg-domain:active { transform: translateY(0); }
+.jg-domain-icon { font-size: var(--jg-fs-2xl); color: var(--jg-ink-2); }
+.jg-domain-name { font-size: var(--jg-fs-lg); font-weight: 600; }
+.jg-domain-count { font-size: var(--jg-fs-sm); color: var(--jg-ink-2); }
 
 /* -------------------------------------------------------------------- grille */
 
-.jg-section { margin-bottom: 26px; }
+.jg-section { margin-bottom: var(--jg-space-6); }
 .jg-section[hidden] { display: none; }
 
 .jg-section-title {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin: 0 0 12px 2px;
-    font-size: 15px;
+    gap: var(--jg-space-3);
+    margin: 0 0 var(--jg-space-3) 2px;
+    font-size: var(--jg-fs-lg);
     font-weight: 600;
     text-transform: none;
     border: 0;
-    color: var(--jg-text);
+    color: var(--jg-ink);
+}
+
+/* Une largeur fixe plutôt qu'une chasse naturelle : les icônes de section n'ont
+ * pas la même largeur d'une famille à l'autre, et les titres ne s'alignaient
+ * pas d'une section à la suivante. */
+.jg-section-icon {
+    flex: 0 0 auto;
+    width: 1.25em;
+    text-align: center;
+    color: var(--jg-ink-2);
 }
 
 .jg-section-count {
-    font-size: 11px;
+    font-size: var(--jg-fs-xs);
     font-weight: 600;
-    color: var(--jg-muted);
+    font-variant-numeric: tabular-nums;
+    color: var(--jg-ink-2);
     background: var(--jg-surface-2);
-    border-radius: 999px;
-    padding: 2px 8px;
+    border-radius: var(--jg-radius-pill);
+    padding: 2px var(--jg-space-2);
 }
 
 .jg-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(var(--jg-card-min), 1fr));
     gap: var(--jg-gap);
     align-items: start;
 }
@@ -300,67 +623,147 @@
 /* --------------------------------------------------------------- les cartes */
 
 .jg-card {
+    /* Repère du liseré de l'état allumé et de la barre d'attente, tous deux
+     * posés en absolu pour ne pas devenir des éléments de la colonne flex. */
+    position: relative;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: var(--jg-space-3);
     background: var(--jg-surface);
     border: 1px solid var(--jg-border);
     border-radius: var(--jg-radius);
-    box-shadow: var(--jg-shadow);
-    padding: 14px 16px 16px;
+    box-shadow: var(--jg-elev-2);
+    padding: var(--jg-space-4);
     min-height: 116px;
-    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.2s ease, color 0.2s ease;
+    transition: transform var(--jg-dur-fast) var(--jg-ease),
+                box-shadow var(--jg-dur) var(--jg-ease),
+                background-color var(--jg-dur-slow) var(--jg-ease);
 }
 
 .jg-card[hidden] { display: none; }
 
 .jg-tappable { cursor: pointer; }
-.jg-tappable:hover { transform: translateY(-1px); }
+.jg-tappable:hover { transform: translateY(-1px); box-shadow: var(--jg-elev-3); }
 .jg-tappable:active { transform: translateY(0); }
 
-/* L'état allumé se voit à la couleur de toute la carte, pas à une pastille :
- * c'est ce qui permet de savoir d'un regard, depuis l'autre bout de la pièce,
- * ce qui tourne encore dans la maison. */
-.jg-card[data-on="1"] {
-    background: var(--jg-on-bg);
-    color: var(--jg-on-text);
-    border-color: transparent;
+/* Un widget de plugin ne tient pas dans une colonne. */
+.jg-card[data-span="2"] { grid-column: span 2; }
+
+/* ------------------------------------------------------------ état allumé */
+
+/* L'aplat saturé est parti à l'alerte. Ce qui est allumé porte désormais une
+ * surface teintée : le fond bouge assez pour se repérer d'un bout à l'autre de
+ * la pièce, mais l'encre ne change pas, et c'est cela qui rend les sept
+ * catégories lisibles d'office au lieu d'avoir à choisir sept encres. La
+ * saturation pleine se concentre là où elle est utile : un liseré latéral
+ * épais, et la pastille d'icône. */
+.jg-card[data-on="1"],
+.jg-domain-on {
+    background-color: color-mix(in srgb, var(--jg-tint) var(--jg-tint-fill), var(--jg-surface));
+    /* Le contour est un trait : il prend la teinte de trait. Le remplissage vif
+     * y donnait un filet à 1,3:1, c'est-à-dire aucun contour. */
+    border-color: color-mix(in srgb, var(--jg-tint-line) 40%, var(--jg-surface));
 }
 
-/* color: inherit ne convient pas ici : le parent .jg-metrics porte déjà le gris
- * des mesures, et l'héritage ramènerait ce gris sur une carte colorée, où il
- * devient illisible. La couleur est donc nommée. */
-.jg-card[data-on="1"] .jg-metrics,
-.jg-card[data-on="1"] .jg-metric-value,
-.jg-card[data-on="1"] .jg-row-value { color: var(--jg-on-text); }
+.jg-card[data-on="1"]::before,
+.jg-domain-on::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: var(--jg-space-3);
+    bottom: var(--jg-space-3);
+    width: 5px;
+    border-radius: var(--jg-radius-pill);
+    /* Le liseré porte le signal quand le lavis est discret : c'est le seul
+     * élément de la carte allumée dont le 3:1 ne se négocie pas, et il le tient
+     * parce qu'il est en teinte de trait et non en remplissage. */
+    background: var(--jg-tint-line);
+}
 
-.jg-card[data-on="1"] .jg-card-sub,
-.jg-card[data-on="1"] .jg-metric-name,
-.jg-card[data-on="1"] .jg-row-name { color: var(--jg-on-text); opacity: 0.72; }
+/* La pastille, elle, est bien un remplissage : couleur pleine et vive, glyphe
+ * sombre par-dessus. C'est l'endroit de la page où la catégorie se lit d'un
+ * coup d'oeil, et il n'y en a qu'un. */
+.jg-card[data-on="1"] .jg-card-icon {
+    background: var(--jg-tint);
+    color: var(--jg-tint-glyph);
+}
 
-.jg-card[data-on="1"] .jg-battery { color: var(--jg-on-text); opacity: 0.8; }
+/* Une teinte plus sombre que son encre ne peut pas porter un glyphe sombre. La
+ * caméra qui détecte quelque chose prend le rouge d'attention (en fin de
+ * feuille) : c'est la seule de la page dans ce cas, et sa pastille repasse donc
+ * au blanc — 6,5:1. De nuit, ce même rouge est clair et le glyphe sombre
+ * reprend sa place. */
+.jg-root[data-tone="light"] .jg-card[data-card-type="camera"][data-on="1"] {
+    --jg-tint-glyph: #ffffff;
+}
 
-.jg-card.jg-busy { opacity: 0.55; }
+/* L'icône d'une tuile de pièce est une encre posée sur la surface, et sa teinte
+ * est celle que l'utilisateur a choisie dans Jeedom — une couleur dont nous ne
+ * savons rien. La dérivation en trait lui donne un plancher de contraste que la
+ * couleur brute ne garantissait pas. */
+.jg-domain-on .jg-domain-icon { color: var(--jg-tint-line); }
+
+/* L'aplat saturé, lui, dit maintenant quelque chose : fumée, fuite, sabotage,
+ * alarme. C'est le seul endroit de la page où toute une carte se remplit, et
+ * c'est ce qui lui donne sa force. Le JS pose l'attribut. */
+/* [data-tone] n'ajoute aucune condition — l'attribut est toujours posé — mais
+ * il porte cette règle au même poids que les teintes de catégorie de
+ * l'ambiance sombre, qui autrement l'emportaient : une fuite d'eau détectée
+ * dans la nuit gardait la pastille orange de la catégorie. */
+.jg-root[data-tone] .jg-card[data-alert="1"] {
+    --jg-ink: #ffffff;
+    --jg-ink-2: #f7dad7;
+    --jg-surface-2: rgba(255, 255, 255, 0.18);
+    --jg-border: rgba(255, 255, 255, 0.45);
+    --jg-line: rgba(255, 255, 255, 0.70);
+    --jg-state-hover: rgba(255, 255, 255, 0.14);
+    --jg-state-press: rgba(255, 255, 255, 0.26);
+    --jg-danger-ink: #ffffff;
+    /* Le liseré et la pastille passent en blanc : du rouge sur du rouge ne
+     * signale rien. Le trait suit le remplissage — sur un aplat rouge, du blanc
+     * est déjà le contraste maximal, il n'y a rien à dériver — et le glyphe
+     * reprend le rouge de l'aplat. --jg-focus suit aussi, sinon l'anneau bleu
+     * disparaîtrait. */
+    --jg-tint: #ffffff;
+    --jg-tint-line: #ffffff;
+    --jg-tint-glyph: var(--jg-danger-solid);
+    --jg-focus: #ffffff;
+    --jg-focus-halo: rgba(255, 255, 255, 0.35);
+    background-color: var(--jg-danger-solid);
+    border-color: var(--jg-danger-solid);
+    color: var(--jg-ink);
+}
+
+.jg-card[data-alert="1"] .jg-battery { background: var(--jg-surface-2); }
+
+/* ------------------------------------------------------- contenu des cartes */
 
 .jg-card-head {
     display: flex;
     align-items: flex-start;
-    gap: 10px;
+    gap: var(--jg-space-3);
 }
 
+/* La pastille est tantôt un span, tantôt un bouton — sur une carte qui pilote,
+ * c'est elle qui ouvre le détail. D'où la remise à zéro du décor que le
+ * navigateur ajoute d'office aux boutons : sans elle, un liseré gris apparaît
+ * sur la moitié des cartes et sur elles seules. */
 .jg-card-icon {
-    font-size: 17px;
-    width: 34px;
-    height: 34px;
-    flex: 0 0 34px;
-    border-radius: 12px;
+    font-size: var(--jg-fs-xl);
+    width: calc(var(--jg-fs-xl) * 2);
+    height: calc(var(--jg-fs-xl) * 2);
+    flex: 0 0 calc(var(--jg-fs-xl) * 2);
+    border: 0;
+    padding: 0;
+    -webkit-appearance: none;
+    appearance: none;
+    border-radius: var(--jg-radius-md);
     background: var(--jg-surface-2);
+    color: var(--jg-ink-2);
     display: flex;
     align-items: center;
     justify-content: center;
 }
-
-.jg-card[data-on="1"] .jg-card-icon { background: rgba(255, 255, 255, 0.38); }
 
 .jg-card-titles {
     display: flex;
@@ -371,7 +774,7 @@
 
 .jg-card-name {
     font-weight: 600;
-    font-size: 14px;
+    font-size: var(--jg-fs-base);
     line-height: 1.25;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -379,290 +782,79 @@
 }
 
 .jg-card-sub {
-    font-size: 12px;
-    color: var(--jg-muted);
+    font-size: var(--jg-fs-sm);
+    color: var(--jg-ink-2);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
+/* Le seul signal d'alerte permanent de la page était jusqu'ici son texte le
+ * moins lisible. Il devient une pastille : le fond est alors connu, donc le
+ * contraste aussi, quelle que soit la teinte de la carte en dessous. */
 .jg-battery {
     display: flex;
     align-items: center;
-    gap: 4px;
-    font-size: 11px;
+    gap: var(--jg-space-1);
+    padding: 2px var(--jg-space-2);
+    border-radius: var(--jg-radius-pill);
+    background: color-mix(in srgb, var(--jg-danger) 12%, var(--jg-surface));
+    font-size: var(--jg-fs-xs);
     font-weight: 600;
-    color: #e0654b;
+    font-variant-numeric: tabular-nums;
+    color: var(--jg-danger-ink);
 }
 
 .jg-card-body {
     display: flex;
     align-items: baseline;
-    gap: 8px;
+    gap: var(--jg-space-2);
     margin-top: auto;
 }
 
-.jg-state { font-size: 15px; font-weight: 600; }
-.jg-value { font-size: 26px; font-weight: 600; letter-spacing: -0.5px; line-height: 1.1; }
+.jg-state { font-size: var(--jg-fs-lg); font-weight: 600; }
+
+.jg-value {
+    font-size: var(--jg-fs-3xl);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
 
 .jg-metrics {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px 14px;
-    font-size: 12px;
-    color: var(--jg-muted);
+    gap: var(--jg-space-1) var(--jg-space-4);
+    font-size: var(--jg-fs-sm);
+    color: var(--jg-ink-2);
 }
 
-.jg-metric { display: flex; gap: 5px; }
-.jg-metric-value { font-weight: 600; color: var(--jg-text); }
+.jg-metric { display: flex; gap: var(--jg-space-1); }
+.jg-metric-name { color: var(--jg-ink-2); }
+.jg-metric-value { font-weight: 600; color: var(--jg-ink); font-variant-numeric: tabular-nums; }
 
-.jg-rows { display: flex; flex-direction: column; gap: 5px; }
+.jg-rows { display: flex; flex-direction: column; gap: var(--jg-space-1); }
 
 .jg-row {
     display: flex;
     justify-content: space-between;
-    gap: 12px;
-    font-size: 12.5px;
+    gap: var(--jg-space-3);
+    font-size: var(--jg-fs-sm);
 }
 
-.jg-row-name { color: var(--jg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; }
+.jg-row-name { color: var(--jg-ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; }
 
 /* Le résumé d'une structure est une phrase : il doit pouvoir être coupé plutôt
  * que pousser le nom de la commande hors de la carte. */
 .jg-row-value {
     font-weight: 600;
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
     text-align: right;
-}
-
-/* Une valeur qui cache une structure : le pointillé annonce qu'il y a
- * davantage à voir, sans le bruit d'un bouton de plus sur chaque ligne. */
-.jg-expand {
-    cursor: pointer;
-    border-bottom: 1px dotted currentColor;
-}
-
-.jg-expand:focus-visible {
-    outline: 2px solid var(--jg-accent);
-    outline-offset: 2px;
-}
-
-/* Un texte n'est pas une mesure : la taille d'un relevé de température rendrait
- * une phrase illisible. */
-.jg-value-text {
-    font-size: 15px;
-    font-weight: 600;
-    line-height: 1.35;
-    letter-spacing: 0;
-    white-space: normal;
-}
-
-.jg-json {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    margin-top: 2px;
-    padding: 8px 10px;
-    border-radius: 10px;
-    background: var(--jg-surface-2);
-    font-size: 12px;
-}
-
-.jg-card[data-on="1"] .jg-json { background: rgba(255, 255, 255, 0.3); }
-
-.jg-json-row { display: flex; justify-content: space-between; gap: 10px; }
-/* Le nom d'un élément peut être long et passer à la ligne ; son état, lui, ne
- * doit jamais se couper — « RIEN » écrit « RI EN » sur deux lignes ne veut plus
- * rien dire. */
-.jg-json-key { color: var(--jg-muted); flex: 1 1 auto; min-width: 0; overflow-wrap: break-word; }
-.jg-card[data-on="1"] .jg-json-key { color: var(--jg-on-text); opacity: 0.72; }
-
-/* Ni coupé au milieu d'un mot, ni tronqué : « RIEN » doit rester « RIEN ». Le
- * texte passe à la ligne entre les mots, et seule une suite de caractères plus
- * large que la colonne peut être brisée. */
-.jg-json-value {
-    flex: 0 1 auto;
-    max-width: 60%;
-    text-align: right;
-    white-space: normal;
-    word-break: normal;
-    overflow-wrap: break-word;
-}
-.jg-json-more { color: var(--jg-muted); text-align: center; }
-
-/* ----------------------------------------------------------- les commandes */
-
-.jg-actions { display: flex; gap: 8px; }
-.jg-actions-wrap { flex-wrap: wrap; }
-
-.jg-btn {
-    flex: 1 1 auto;
-    /* Sans min-width, un bouton flex ne descend pas sous la largeur de son
-     * libellé : trois commandes aux noms longs sur une carte de 230 pixels
-     * débordaient au lieu de passer à la ligne. */
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-height: 38px;
-    padding: 0 12px;
-    border-radius: 12px;
-    border: 1px solid var(--jg-border);
-    background: var(--jg-surface-2);
-    color: inherit;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: filter 0.15s ease;
-}
-
-.jg-btn:hover { filter: brightness(0.96); }
-.jg-btn:active { filter: brightness(0.9); }
-.jg-btn-icon { flex: 1 1 0; font-size: 14px; }
-.jg-btn.jg-busy { opacity: 0.5; }
-
-.jg-select {
-    flex: 1;
-    min-height: 38px;
-    border-radius: 12px;
-    border: 1px solid var(--jg-border);
-    background: var(--jg-surface-2);
-    color: inherit;
-    padding: 0 10px;
-    font-size: 13px;
-}
-
-.jg-slider { display: flex; align-items: center; gap: 10px; }
-
-/* Un curseur au milieu d'une rangée de boutons prend la ligne pour lui : à
- * partager la largeur avec eux, il devient intouchable au doigt. */
-.jg-slider-inline { flex: 1 1 100%; }
-
-.jg-color {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0;
-    font-size: 13px;
-    font-weight: 400;
-}
-
-.jg-color input[type="color"] {
-    width: 34px;
-    height: 34px;
-    padding: 0;
-    border: 1px solid var(--jg-border);
-    border-radius: 10px;
-    background: transparent;
-    cursor: pointer;
-}
-
-.jg-slider input[type="range"] {
-    flex: 1;
-    /* Un input range a une largeur intrinsèque d'environ 130 pixels, et un
-     * élément flex ne descend pas sous son contenu sans y être autorisé : sur
-     * une carte étroite, le curseur débordait et poussait sa valeur hors de la
-     * carte. */
-    min-width: 0;
-    -webkit-appearance: none;
-    appearance: none;
-    height: 8px;
-    border-radius: 999px;
-    background: var(--jg-surface-2);
-    outline: none;
-}
-
-.jg-card[data-on="1"] .jg-slider input[type="range"] { background: rgba(255, 255, 255, 0.4); }
-
-.jg-slider input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: var(--jg-surface);
-    border: 1px solid var(--jg-border);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-    cursor: pointer;
-}
-
-.jg-slider input[type="range"]::-moz-range-thumb {
-    width: 20px;
-    height: 20px;
-    border: 1px solid var(--jg-border);
-    border-radius: 50%;
-    background: var(--jg-surface);
-    cursor: pointer;
-}
-
-.jg-slider-value { font-size: 12px; font-weight: 600; color: var(--jg-muted); min-width: 34px; text-align: right; }
-.jg-card[data-on="1"] .jg-slider-value { color: inherit; }
-
-/* ------------------------------------------------------------------ à vide */
-
-.jg-empty {
-    text-align: center;
-    padding: 60px 20px;
-    color: var(--jg-muted);
-}
-
-.jg-empty i { font-size: 34px; opacity: 0.5; }
-.jg-empty-title { font-size: 16px; font-weight: 600; color: var(--jg-text); margin: 14px 0 6px; }
-.jg-empty-hint { max-width: 460px; margin: 0 auto; font-size: 13px; }
-
-/* ------------------------------------------------------------------ kiosque */
-
-/* En plein écran, la page n'est plus consultée mais regardée : on gagne la
- * place du menu disparu, et les cibles tactiles grandissent. */
-.jg-root[data-kiosk="1"] { padding: 14px 4px 40px; }
-.jg-root[data-kiosk="1"] .jg-btn,
-.jg-root[data-kiosk="1"] .jg-select { min-height: 44px; }
-.jg-root[data-kiosk="1"] .jg-chip { padding: 10px 18px; font-size: 14px; }
-.jg-root[data-kiosk="1"] .jg-icon-btn { width: 44px; height: 44px; }
-
-/* --------------------------------------------------------------- téléphone */
-
-@media (max-width: 767px) {
-    .jg-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
-    .jg-card { padding: 12px 13px 14px; min-height: 104px; border-radius: 16px; }
-    .jg-value { font-size: 22px; }
-    .jg-search input { width: 90px; }
-    .jg-brand { font-size: 17px; }
-    .jg-topbar { padding-top: 2px; }
-    /* Le pouce passe avant la densité : une carte étroite garde des boutons
-     * atteignables plutôt que trois boutons côte à côte de 28 pixels. */
-    .jg-btn { min-height: 40px; }
-    /* Le pourcentage de batterie mange le nom de l'équipement sur une carte de
-     * 150 pixels ; l'icône seule dit déjà qu'il faut s'en occuper. */
-    .jg-battery span { display: none; }
-}
-
-@media (max-width: 380px) {
-    .jg-grid { grid-template-columns: 1fr; }
-}
-
-/* ------------------------------------------------------------------- avis */
-
-.jg-warning {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 16px;
-    padding: 10px 14px;
-    border-radius: 12px;
-    background: rgba(240, 173, 78, 0.16);
-    color: var(--jg-text);
-    font-size: 13px;
-}
-
-/* Le focus clavier doit se voir : une carte qui s'active à la touche Entrée
- * sans anneau de focus est une promesse invisible. */
-.jg-tappable:focus-visible {
-    outline: 2px solid var(--jg-accent);
-    outline-offset: 2px;
 }
 
 /* Une valeur trop longue pour tenir à côté de son nom passe dessous : le nom
@@ -680,37 +872,95 @@
     max-width: 100%;
 }
 
+/* Une valeur qui cache une structure : le pointillé annonce qu'il y a
+ * davantage à voir, sans le bruit d'un bouton de plus sur chaque ligne. */
+.jg-expand {
+    cursor: pointer;
+    border-bottom: 1px dotted currentColor;
+}
+
+/* Un texte n'est pas une mesure : la taille d'un relevé de température rendrait
+ * une phrase illisible. */
+.jg-value-text {
+    font-size: var(--jg-fs-lg);
+    font-weight: 600;
+    line-height: 1.35;
+    letter-spacing: 0;
+    white-space: normal;
+}
+
+.jg-json {
+    display: flex;
+    flex-direction: column;
+    gap: var(--jg-space-1);
+    margin-top: 2px;
+    padding: var(--jg-space-2) var(--jg-space-3);
+    border-radius: var(--jg-radius-sm);
+    background: var(--jg-surface-2);
+    font-size: var(--jg-fs-sm);
+}
+
+.jg-json-row { display: flex; justify-content: space-between; gap: var(--jg-space-3); }
+/* Le nom d'un élément peut être long et passer à la ligne ; son état, lui, ne
+ * doit jamais se couper — « RIEN » écrit « RI EN » sur deux lignes ne veut plus
+ * rien dire. */
+.jg-json-key { color: var(--jg-ink-2); flex: 1 1 auto; min-width: 0; overflow-wrap: break-word; }
+
+/* Ni coupé au milieu d'un mot, ni tronqué : « RIEN » doit rester « RIEN ». Le
+ * texte passe à la ligne entre les mots, et seule une suite de caractères plus
+ * large que la colonne peut être brisée. */
+.jg-json-value {
+    flex: 0 1 auto;
+    max-width: 60%;
+    text-align: right;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: break-word;
+    font-variant-numeric: tabular-nums;
+}
+.jg-json-more { color: var(--jg-ink-2); text-align: center; }
+
+/* Ce qui reste à voir. Discret : c'est une invitation, pas une commande — mais
+ * une invitation de 19 pixels de haut ne s'attrape pas au pouce. Le retrait
+ * négatif garde le texte aligné sur le reste de la carte. */
+.jg-more {
+    align-self: flex-start;
+    display: flex;
+    align-items: center;
+    min-height: var(--jg-tap-sm);
+    margin: 0 calc(var(--jg-space-2) * -1);
+    border: 0;
+    border-radius: var(--jg-radius-sm);
+    background: transparent;
+    color: var(--jg-ink-2);
+    padding: 0 var(--jg-space-2);
+    font-size: var(--jg-fs-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.jg-more:hover { color: var(--jg-ink); background: var(--jg-surface-2); }
+
 /* --------------------------------------------------------------- images */
 
 .jg-media {
     margin-top: 2px;
-    border-radius: 12px;
+    border-radius: var(--jg-radius-md);
     overflow: hidden;
     background: var(--jg-surface-2);
     line-height: 0;
+    /* La place de la vignette est réservée avant son arrivée : sans cela, une
+     * caméra qui répond en deux secondes fait sauter toute la grille sous les
+     * doigts de celui qui visait un bouton. */
+    aspect-ratio: 16 / 9;
 }
 
 .jg-media img {
     display: block;
     width: 100%;
-    max-height: 190px;
+    height: 100%;
     object-fit: cover;
 }
-
-/* Ce qui reste à voir. Discret : c'est une invitation, pas une commande. */
-.jg-more {
-    align-self: flex-start;
-    border: 0;
-    background: transparent;
-    color: var(--jg-muted);
-    padding: 2px 0;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.jg-more:hover { color: var(--jg-text); }
-.jg-card[data-on="1"] .jg-more { color: var(--jg-on-text); opacity: 0.8; }
 
 /* ------------------------------------------------- widgets de plugin */
 
@@ -721,7 +971,7 @@
 .jg-widget {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: var(--jg-space-1);
     min-width: 0;
 }
 
@@ -733,27 +983,205 @@
 }
 
 .jg-widget-ready .cmdName {
-    font-size: 12px;
-    color: var(--jg-muted);
+    font-size: var(--jg-fs-sm);
+    color: var(--jg-ink-2);
 }
+
+/* ----------------------------------------------------------- les commandes */
+
+.jg-actions { display: flex; gap: var(--jg-space-2); }
+.jg-actions-wrap { flex-wrap: wrap; }
+
+.jg-btn {
+    position: relative;
+    flex: 1 1 auto;
+    /* Sans min-width, un bouton flex ne descend pas sous la largeur de son
+     * libellé : trois commandes aux noms longs sur une carte de 230 pixels
+     * débordaient au lieu de passer à la ligne. */
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-height: var(--jg-tap);
+    padding: 0 var(--jg-space-3);
+    border-radius: var(--jg-radius-md);
+    /* Un contour franc, et non un filet à 7 % : sur une carte en couleur, les
+     * trois flèches d'un volet cessaient d'être des boutons. */
+    border: 1px solid var(--jg-line);
+    background-color: var(--jg-surface-2);
+    color: var(--jg-ink);
+    font-size: var(--jg-fs-md);
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color var(--jg-dur) var(--jg-ease), transform var(--jg-dur-fast) var(--jg-ease);
+}
+
+.jg-btn:hover { background-image: linear-gradient(var(--jg-state-hover), var(--jg-state-hover)); }
+.jg-btn:active { background-image: linear-gradient(var(--jg-state-press), var(--jg-state-press)); transform: translateY(1px); }
+.jg-btn-icon { flex: 1 1 0; font-size: var(--jg-fs-base); }
+
+.jg-icon-btn:hover { background-image: linear-gradient(var(--jg-state-hover), var(--jg-state-hover)); }
+.jg-icon-btn:active { background-image: linear-gradient(var(--jg-state-press), var(--jg-state-press)); }
+
+.jg-select {
+    flex: 1;
+    min-height: var(--jg-tap);
+    border-radius: var(--jg-radius-md);
+    border: 1px solid var(--jg-line);
+    background-color: var(--jg-surface-2);
+    color: var(--jg-ink);
+    padding: 0 var(--jg-space-3);
+    font-size: var(--jg-fs-md);
+}
+
+/* Une commande posée sur une carte teintée reprend la teinte, en plus soutenu
+ * que le fond : c'est ce qui la détache sans lui inventer une couleur à elle. */
+.jg-card[data-on="1"] .jg-btn,
+.jg-card[data-on="1"] .jg-select,
+.jg-card[data-on="1"] .jg-color input[type="color"] {
+    background-color: color-mix(in srgb, var(--jg-tint) var(--jg-tint-btn), var(--jg-surface));
+}
+
+.jg-color {
+    display: flex;
+    align-items: center;
+    gap: var(--jg-space-2);
+    margin: 0;
+    font-size: var(--jg-fs-md);
+    font-weight: 400;
+}
+
+.jg-color input[type="color"] {
+    width: var(--jg-tap);
+    height: var(--jg-tap);
+    padding: 0;
+    border: 1px solid var(--jg-line);
+    border-radius: var(--jg-radius-sm);
+    background: transparent;
+    cursor: pointer;
+}
+
+.jg-slider { display: flex; align-items: center; gap: var(--jg-space-3); }
+
+/* Un curseur au milieu d'une rangée de boutons prend la ligne pour lui : à
+ * partager la largeur avec eux, il devient intouchable au doigt. */
+.jg-slider-inline { flex: 1 1 100%; }
+
+/* La hauteur est celle de la cible, pas celle de la piste : régler height sur
+ * l'input lui-même donnait un variateur haut de huit pixels. La piste est
+ * dessinée par ::-webkit-slider-runnable-track et ::-moz-range-track, qui
+ * restent fins pendant que la zone sensible grandit. */
+.jg-slider input[type="range"] {
+    flex: 1;
+    /* Un input range a une largeur intrinsèque d'environ 130 pixels, et un
+     * élément flex ne descend pas sous son contenu sans y être autorisé : sur
+     * une carte étroite, le curseur débordait et poussait sa valeur hors de la
+     * carte. */
+    min-width: 0;
+    -webkit-appearance: none;
+    appearance: none;
+    height: var(--jg-tap);
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    outline: none;
+    cursor: pointer;
+}
+
+.jg-slider input[type="range"]::-webkit-slider-runnable-track {
+    height: var(--jg-track);
+    border-radius: var(--jg-radius-pill);
+    background: var(--jg-surface-2);
+    border: 1px solid var(--jg-border);
+}
+
+.jg-slider input[type="range"]::-moz-range-track {
+    height: var(--jg-track);
+    border-radius: var(--jg-radius-pill);
+    background: var(--jg-surface-2);
+    border: 1px solid var(--jg-border);
+}
+
+.jg-slider input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: var(--jg-thumb);
+    height: var(--jg-thumb);
+    /* WebKit pose le pouce en haut de la piste : sans ce recentrage manuel, il
+     * flotte au-dessus d'elle dès que la piste est plus fine que lui. */
+    margin-top: calc((var(--jg-track) - var(--jg-thumb)) / 2);
+    border-radius: 50%;
+    background: var(--jg-surface);
+    border: 1px solid var(--jg-line);
+    box-shadow: var(--jg-elev-1);
+    cursor: pointer;
+}
+
+.jg-slider input[type="range"]::-moz-range-thumb {
+    width: var(--jg-thumb);
+    height: var(--jg-thumb);
+    border: 1px solid var(--jg-line);
+    border-radius: 50%;
+    background: var(--jg-surface);
+    cursor: pointer;
+}
+
+.jg-slider-value {
+    font-size: var(--jg-fs-sm);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--jg-ink-2);
+    min-width: 34px;
+    text-align: right;
+}
+
+/* ------------------------------------------------------------------ à vide */
+
+.jg-empty {
+    text-align: center;
+    padding: 60px var(--jg-space-5);
+    color: var(--jg-ink-2);
+}
+
+.jg-empty i { font-size: calc(34px * var(--jg-scale)); color: var(--jg-ink-2); }
+.jg-empty-title { font-size: var(--jg-fs-xl); font-weight: 600; color: var(--jg-ink); margin: var(--jg-space-3) 0 var(--jg-space-2); }
+.jg-empty-hint { max-width: 460px; margin: 0 auto; font-size: var(--jg-fs-md); }
+
+/* ------------------------------------------------------------------- avis */
+
+.jg-warning {
+    display: flex;
+    align-items: center;
+    gap: var(--jg-space-3);
+    margin-bottom: var(--jg-space-4);
+    padding: var(--jg-space-3) var(--jg-space-4);
+    border-radius: var(--jg-radius-md);
+    border: 1px solid color-mix(in srgb, var(--jg-warning) 40%, var(--jg-surface));
+    background: color-mix(in srgb, var(--jg-warning) 12%, var(--jg-surface));
+    color: var(--jg-ink);
+    font-size: var(--jg-fs-md);
+}
+
+.jg-warning i { color: var(--jg-warning); }
 
 /* --------------------------------------------------------- panneau de détail */
 
-/* La carte montre l'essentiel, le panneau montre tout. 1300 : au-dessus des
- * boîtes du coeur (1020-1200), en dessous de l'agrandissement d'image d'un
- * widget de plugin (1400-1500), qui s'ouvre depuis ce panneau. */
+/* La carte montre l'essentiel, le panneau montre tout. C'est un plan au-dessus
+ * des cartes et non la même surface : en clair il porte l'ombre la plus haute,
+ * en sombre une surface plus claire et un bord franc. */
 .jg-panel {
     position: fixed;
     top: 0;
     right: 0;
     bottom: 0;
-    z-index: 1300;
+    z-index: var(--jg-z-panel);
     display: flex;
     flex-direction: column;
     width: 430px;
     max-width: 92vw;
-    background: var(--jg-surface);
-    box-shadow: -10px 0 40px rgba(10, 14, 20, 0.22);
+    background: var(--jg-surface-3);
+    border-left: 1px solid var(--jg-border);
+    box-shadow: var(--jg-elev-4);
 }
 
 .jg-panel[hidden] { display: none; }
@@ -761,119 +1189,196 @@
 .jg-panel-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 1290;
+    z-index: var(--jg-z-backdrop);
     background: rgba(10, 12, 16, 0.42);
 }
 
 .jg-panel-backdrop[hidden] { display: none; }
 
 .jg-panel-head {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: 16px 18px;
+    gap: var(--jg-space-3);
+    padding: var(--jg-space-4);
     border-bottom: 1px solid var(--jg-border);
 }
 
-.jg-panel-title { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.jg-panel-body { flex: 1 1 auto; overflow-y: auto; padding: 16px 18px 24px; }
+.jg-panel-title {
+    flex: 1 1 auto;
+    font-size: var(--jg-fs-xl);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.jg-panel-rename[hidden] { display: none; }
+.jg-panel-body { flex: 1 1 auto; overflow-y: auto; padding: var(--jg-space-4) var(--jg-space-4) var(--jg-space-6); }
 
 .jg-detail {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: var(--jg-space-4);
     background: transparent;
     border: 0;
     box-shadow: none;
     padding: 0;
 }
 
-.jg-detail .jg-actions-wrap .jg-btn { flex: 1 1 calc(50% - 4px); }
-.jg-detail-foot { font-size: 11px; color: var(--jg-muted); }
+.jg-detail .jg-actions-wrap .jg-btn { flex: 1 1 calc(50% - var(--jg-space-1)); }
+.jg-detail-foot { font-size: var(--jg-fs-xs); color: var(--jg-ink-2); }
 
 /* L'en-tête d'une carte ouvre le détail ; le corps agit. */
-.jg-head-open { cursor: pointer; border-radius: 12px; }
+.jg-head-open { cursor: pointer; border-radius: var(--jg-radius-md); }
 .jg-head-open:hover .jg-card-name { text-decoration: underline; }
-.jg-head-open:focus-visible { outline: 2px solid var(--jg-accent); outline-offset: 2px; }
-
-/* Un widget de plugin ne tient pas dans une colonne. */
-.jg-card[data-span="2"] { grid-column: span 2; }
-
-/* ------------------------------------------------- tablette et téléphone */
-
-@media (max-width: 1100px) {
-    .jg-rail { flex-basis: 72px; }
-    .jg-rail-label { display: none; }
-    .jg-rail-item { padding: 14px 4px; }
-    .jg-rail-item i { font-size: 20px; }
-}
-
-@media (max-width: 767px) {
-    /* Le rail descend en barre basse : même liste, même place dans le
-     * document, déplacée par la seule CSS. Le pouce y arrive, pas en haut. */
-    .jg-root { display: block; padding-bottom: 78px; }
-    .jg-rail {
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        top: auto;
-        flex-direction: row;
-        justify-content: space-around;
-        background: var(--jg-surface);
-        border-top: 1px solid var(--jg-border);
-        padding: 4px 2px calc(4px + env(safe-area-inset-bottom));
-        z-index: 40;
-    }
-    .jg-rail-item { flex: 1; padding: 8px 2px; border-radius: 12px; }
-    .jg-rail-label { display: block; font-size: 10px; }
-    .jg-card[data-span="2"] { grid-column: span 1; }
-    .jg-panel {
-        top: auto;
-        left: 0;
-        width: auto;
-        max-width: none;
-        height: 84vh;
-        border-radius: 20px 20px 0 0;
-    }
-}
-
-@media (max-width: 600px) {
-    .jg-grid-domains { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-    .jg-domain { min-height: 100px; padding: 14px 12px; }
-}
-
-/* ------------------------------------------------------- renommer, courbes */
-
-.jg-panel-head { position: relative; }
-.jg-panel-title { flex: 1 1 auto; }
-.jg-panel-rename[hidden] { display: none; }
 
 .jg-rename {
     flex: 1 1 auto;
     min-width: 0;
-    font-size: 16px;
+    font-size: var(--jg-fs-xl);
     font-weight: 600;
-    color: var(--jg-text);
+    color: var(--jg-ink);
     background: var(--jg-surface-2);
-    border: 1px solid var(--jg-border);
-    border-radius: 10px;
-    padding: 6px 10px;
+    border: 1px solid var(--jg-line);
+    border-radius: var(--jg-radius-sm);
+    padding: var(--jg-space-2) var(--jg-space-3);
 }
 
 .jg-chart-title {
-    font-size: 12px;
+    font-size: var(--jg-fs-sm);
     font-weight: 600;
-    color: var(--jg-muted);
-    margin-top: 4px;
+    color: var(--jg-ink-2);
+    margin-top: var(--jg-space-1);
 }
 
 .jg-chart {
     min-height: 170px;
-    border-radius: 12px;
+    border-radius: var(--jg-radius-md);
     overflow: hidden;
     background: var(--jg-surface-2);
+}
+
+.jg-room-row { align-items: center; gap: var(--jg-space-3); }
+.jg-room-row .jg-select { max-width: 60%; }
+
+/* ------------------------------------------------------------------- focus */
+
+/* Le focus clavier doit se voir partout, et pas seulement sur les trois
+ * éléments qui y avaient droit : une carte qui s'active à la touche Entrée
+ * sans anneau est une promesse invisible. Le halo double l'anneau d'un voile
+ * de la même couleur, qui le détache d'une surface teintée ou d'un aplat
+ * d'alerte, là où un trait seul se noyait. */
+.jg-root :focus-visible {
+    outline: 3px solid var(--jg-focus);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 6px var(--jg-focus-halo);
+}
+
+/* Une commande que le JS vient de désactiver — le temps d'un aller-retour avec
+ * le serveur — le dit par l'atténuation, qui est le vocabulaire du désactivé et
+ * ne sert qu'à cela : ce qui travaille, lui, porte la barre de .jg-busy. */
+.jg-root :disabled {
+    opacity: var(--jg-state-disabled);
+    cursor: not-allowed;
+}
+
+/* Une carte garde son plan pendant qu'elle a le focus : sans cela, elle
+ * retombe à plat dès qu'on l'atteint au clavier. */
+.jg-root .jg-card:focus-visible,
+.jg-root .jg-domain:focus-visible,
+.jg-root .jg-badge:focus-visible {
+    box-shadow: var(--jg-elev-3), 0 0 0 6px var(--jg-focus-halo);
+}
+
+/* ---------------------------------------------------------------- mouvement */
+
+/* Trois signaux, tous posés par le JS. Le premier dit « cette valeur vient de
+ * changer », le deuxième « cette carte vient d'être rafraîchie », le troisième
+ * « l'ordre est parti ». Ce dernier ne peut pas être une opacité : atténuer un
+ * bouton pendant qu'il travaille, c'est le vocabulaire du bouton désactivé. */
+@keyframes jg-flash {
+    from { background-color: var(--jg-flash); }
+    to { background-color: transparent; }
+}
+
+.jg-flash {
+    animation: jg-flash var(--jg-dur-slow) var(--jg-ease-out);
+    border-radius: var(--jg-space-1);
+}
+
+@keyframes jg-card-ping {
+    from { box-shadow: var(--jg-elev-2), 0 0 0 0 var(--jg-focus-halo); }
+    to { box-shadow: var(--jg-elev-2), 0 0 0 14px transparent; }
+}
+
+.jg-card-ping { animation: jg-card-ping 900ms var(--jg-ease-out); }
+
+@keyframes jg-busy-sweep {
+    from { background-position: -60% 0; }
+    to { background-position: 160% 0; }
+}
+
+.jg-card.jg-busy::after,
+.jg-btn.jg-busy::after {
+    content: '';
+    position: absolute;
+    left: var(--jg-space-4);
+    right: var(--jg-space-4);
+    bottom: var(--jg-space-2);
+    height: 3px;
+    border-radius: var(--jg-radius-pill);
+    background-image: linear-gradient(90deg, transparent, var(--jg-accent), transparent);
+    background-size: 45% 100%;
+    background-repeat: no-repeat;
+    animation: jg-busy-sweep 900ms linear infinite;
+}
+
+.jg-btn.jg-busy::after { left: var(--jg-space-2); right: var(--jg-space-2); bottom: 4px; }
+
+/* Un input et un select n'acceptent pas de pseudo-élément : la barre est alors
+ * peinte dans leur propre fond, ou dans la piste du curseur. */
+.jg-select.jg-busy,
+.jg-rename.jg-busy {
+    background-image: linear-gradient(90deg, transparent, var(--jg-accent), transparent);
+    background-size: 45% 3px;
+    background-position: -60% 100%;
+    background-repeat: no-repeat;
+    animation: jg-busy-sweep 900ms linear infinite;
+}
+
+.jg-slider input[type="range"].jg-busy::-webkit-slider-runnable-track {
+    background-image: linear-gradient(90deg, transparent, var(--jg-accent), transparent);
+    background-size: 45% 100%;
+    background-repeat: no-repeat;
+    animation: jg-busy-sweep 900ms linear infinite;
+}
+
+.jg-slider input[type="range"].jg-busy::-moz-range-track {
+    background-image: linear-gradient(90deg, transparent, var(--jg-accent), transparent);
+    background-size: 45% 100%;
+    background-repeat: no-repeat;
+    animation: jg-busy-sweep 900ms linear infinite;
+}
+
+/* Une page qui soulève des cartes et fait tomber un voile de nuit sur plus
+ * d'une seconde doit savoir s'arrêter : pour qui souffre de troubles
+ * vestibulaires, ce mouvement est un malaise, pas une élégance. */
+@media (prefers-reduced-motion: reduce) {
+    .jg-root,
+    .jg-root *,
+    .jg-root *::before,
+    .jg-root *::after {
+        animation-duration: 1ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 1ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .jg-tappable:hover,
+    .jg-domain:hover,
+    .jg-btn:active { transform: none; }
 }
 
 /* ------------------------------------------------------------- nuit kiosque */
@@ -885,44 +1390,1174 @@
     content: '';
     position: fixed;
     inset: 0;
-    z-index: 2000;
+    z-index: var(--jg-z-dim);
     pointer-events: none;
     background: rgba(0, 0, 0, var(--jg-dim, 0));
-    transition: background 1.2s ease;
+    transition: background var(--jg-dur-veil) ease;
 }
 
-/* ------------------------------------------------------------------ horloge */
+/* ------------------------------------------------------------------ kiosque */
 
-.jg-clock { margin: 2px 2px 18px; line-height: 1.1; }
-
-.jg-clock-time {
-    font-size: 42px;
-    font-weight: 700;
-    letter-spacing: -1.5px;
+/* Le kiosque n'est pas un mode, c'est une distance de lecture. Il ne règle donc
+ * que la densité : l'échelle typographique, la largeur des cartes, l'écart de
+ * la grille et les cibles. Tout le reste suit, y compris les noms de carte, qui
+ * restaient à 14 pixels pour être lus à deux mètres. */
+.jg-root[data-kiosk="1"] {
+    --jg-scale: 1.3;
+    --jg-card-min: 300px;
+    --jg-gap: 20px;
+    --jg-tap: 56px;
+    --jg-tap-sm: 48px;
+    --jg-thumb: 32px;
+    --jg-track: 12px;
+    padding: var(--jg-space-3) var(--jg-space-1) var(--jg-space-8);
 }
-
-.jg-clock-date {
-    font-size: 13px;
-    color: var(--jg-muted);
-    text-transform: capitalize;
-    margin-top: 2px;
-}
-
-/* En kiosque, l'heure est ce qu'on lit de loin. */
-.jg-root[data-kiosk="1"] .jg-clock-time { font-size: 54px; }
-
-.jg-room-row { align-items: center; gap: 12px; }
-.jg-room-row .jg-select { max-width: 60%; }
 
 /* Le kiosque au bas du rail, séparé des vues : ce n'est pas un endroit où
  * aller, c'est une manière de regarder. */
 .jg-rail-kiosk {
-    margin-top: 10px;
+    margin-top: var(--jg-space-3);
     border-top: 1px solid var(--jg-border);
-    padding-top: 14px;
-    border-radius: 16px;
+    padding-top: var(--jg-space-4);
+    border-radius: var(--jg-radius-lg);
+}
+
+/* Au-delà de cette largeur, l'écran n'est plus une tablette au mur mais un
+ * téléviseur, et la distance de lecture augmente encore. */
+@media (min-width: 1800px) {
+    .jg-root[data-kiosk="1"] {
+        --jg-scale: 1.55;
+        --jg-card-min: 340px;
+        --jg-gap: 24px;
+    }
+}
+
+/* ------------------------------------------------- tablette et téléphone */
+
+@media (max-width: 1100px) {
+    .jg-rail { flex-basis: 72px; }
+    .jg-rail-label { display: none; }
+    .jg-rail-item { padding: var(--jg-space-4) var(--jg-space-1); }
+    .jg-rail-item i { font-size: var(--jg-fs-2xl); }
 }
 
 @media (max-width: 767px) {
-    .jg-rail-kiosk { margin-top: 0; border-top: 0; padding-top: 8px; }
+    .jg-root {
+        /* Le rail descend en barre basse : même liste, même place dans le
+         * document, déplacée par la seule CSS. Le pouce y arrive, pas en haut. */
+        display: block;
+        padding-bottom: 78px;
+        --jg-card-min: 150px;
+        --jg-gap: var(--jg-space-2);
+        --jg-fs-3xl: calc(22px * var(--jg-scale));
+    }
+
+    .jg-rail {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        top: auto;
+        flex-direction: row;
+        justify-content: space-around;
+        background: var(--jg-surface);
+        border-top: 1px solid var(--jg-border);
+        padding: var(--jg-space-1) 2px calc(var(--jg-space-1) + env(safe-area-inset-bottom));
+        z-index: var(--jg-z-rail);
+    }
+
+    .jg-rail-item { flex: 1; padding: var(--jg-space-2) 2px; border-radius: var(--jg-radius-md); }
+    .jg-rail-label { display: block; font-size: calc(10px * var(--jg-scale)); }
+    .jg-rail-kiosk { margin-top: 0; border-top: 0; padding-top: var(--jg-space-2); }
+
+    .jg-card { padding: var(--jg-space-3); min-height: 104px; border-radius: var(--jg-radius-lg); }
+    .jg-card[data-span="2"] { grid-column: span 1; }
+    .jg-search input { width: 90px; }
+    .jg-brand { font-size: var(--jg-fs-xl); }
+    .jg-topbar { padding-top: 2px; }
+    /* Le pourcentage de batterie mange le nom de l'équipement sur une carte de
+     * 150 pixels ; l'icône seule dit déjà qu'il faut s'en occuper. */
+    .jg-battery span { display: none; }
+
+    .jg-panel {
+        top: auto;
+        left: 0;
+        width: auto;
+        max-width: none;
+        height: 84vh;
+        border-left: 0;
+        border-top: 1px solid var(--jg-border);
+        border-radius: var(--jg-radius-xl) var(--jg-radius-xl) 0 0;
+    }
 }
+
+@media (max-width: 600px) {
+    .jg-grid-domains { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+    .jg-domain { min-height: 100px; padding: var(--jg-space-4) var(--jg-space-3); }
+}
+
+@media (max-width: 380px) {
+    .jg-grid { grid-template-columns: 1fr; }
+}
+
+/* ===========================================================================
+ * Fin du socle. Ce qui suit est ajouté après coup : nouveaux composants, aucune
+ * reprise des règles ci-dessus.
+ * ======================================================================== */
+
+/* --------------------------------------------- qui ouvre, qui agit */
+
+/* La pastille d'icône devient un bouton sur les cartes qui pilotent quelque
+ * chose : elle seule ouvre le détail, tout le reste de la carte bascule. Sur
+ * les autres — un capteur, une carte d'information — il n'y a rien à basculer,
+ * l'en-tête entier reprend l'ouverture et la pastille redevient muette. */
+.jg-card-open {
+    border: 0;
+    padding: 0;
+    font: inherit;
+    cursor: pointer;
+    transition: transform var(--jg-dur-fast) var(--jg-ease),
+                background-color var(--jg-dur) var(--jg-ease);
+}
+
+.jg-card-open:hover { transform: scale(1.08); }
+.jg-card-open:active { transform: scale(0.96); }
+
+/* Ronde quand on peut agir, carrée quand on ne peut que lire. La forme dit ce
+ * que la couleur ne dit pas : jusqu'ici, un variateur sans allumage était
+ * visuellement identique à une lampe pilotable et ne répondait à rien. */
+.jg-card[data-actionable="1"] .jg-card-icon { border-radius: var(--jg-radius-pill); }
+
+/* ------------------------------------------------------ ce qui cloche */
+
+/* Les fanions de l'en-tête. Ils tiennent sur une colonne à droite du nom,
+ * parce qu'un équipement peut très bien être muet ET en pile faible, et que
+ * l'un ne doit pas chasser l'autre. */
+.jg-flags {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--jg-space-1);
+    flex: 0 0 auto;
+}
+
+.jg-flag {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--jg-space-1);
+    padding: 2px var(--jg-space-2);
+    border-radius: var(--jg-radius-pill);
+    font-size: var(--jg-fs-xs);
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.jg-flag-mute {
+    color: var(--jg-danger-ink);
+    background: color-mix(in srgb, var(--jg-danger) 16%, transparent);
+}
+
+/* ------------------------------------------------------- rangées d'options */
+
+/* Chaque réglage prend sa ligne, sur toute la largeur. Un curseur qui partage
+ * sa rangée avec deux boutons devient intouchable au doigt, et un petit bouton
+ * logé dans un coin de tuile mange la cible principale sans rien apporter —
+ * c'est le reproche le plus constant fait aux dashboards qui ont essayé. */
+.jg-features {
+    display: flex;
+    flex-direction: column;
+    gap: var(--jg-space-2);
+    margin-top: var(--jg-space-1);
+}
+
+.jg-features .jg-btn,
+.jg-features .jg-select { min-height: var(--jg-tap); }
+
+.jg-features .jg-slider { flex: 1 1 100%; }
+
+/* Deux boutons de consigne assez larges pour le pouce, et la mesure entre les
+ * deux : régler un demi-degré ne doit pas demander d'ouvrir un panneau. */
+.jg-thermo .jg-btn-step {
+    flex: 0 0 calc(var(--jg-tap) * 1.4);
+    font-size: var(--jg-fs-2xl);
+    font-weight: 600;
+    line-height: 1;
+}
+
+.jg-target {
+    font-size: var(--jg-fs-md);
+    font-weight: 600;
+    color: var(--jg-ink-2);
+    margin-left: auto;
+}
+
+/* ------------------------------------------------------------- la caméra */
+
+.jg-cam-body {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--jg-space-2);
+}
+
+.jg-cam-event {
+    font-size: var(--jg-fs-md);
+    font-weight: 600;
+    line-height: 1.35;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+/* Ce qui bouge maintenant. La pastille n'apparaît que le temps de la détection :
+ * une caméra qui affiche « mouvement » en permanence ne dit plus rien. */
+.jg-live {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--jg-space-2);
+    padding: 3px var(--jg-space-3);
+    border-radius: var(--jg-radius-pill);
+    font-size: var(--jg-fs-xs);
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--jg-danger-ink);
+    background: color-mix(in srgb, var(--jg-danger) 16%, transparent);
+}
+
+.jg-live[hidden] { display: none; }
+
+/* --------------------------------------------------------- l'accueil */
+
+/* Ce qui ne va pas, dit une fois en tête, plutôt que dispersé sur quatre cents
+ * cartes qu'il faudrait parcourir des yeux pour l'apprendre. */
+.jg-alertbar {
+    display: flex;
+    align-items: center;
+    gap: var(--jg-space-3);
+    width: 100%;
+    margin-bottom: var(--jg-space-5);
+    padding: var(--jg-space-3) var(--jg-space-4);
+    border: 1px solid color-mix(in srgb, var(--jg-danger) 35%, transparent);
+    border-radius: var(--jg-radius-lg);
+    background: color-mix(in srgb, var(--jg-danger) 10%, var(--jg-surface));
+    color: var(--jg-ink);
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+    transition: background-color var(--jg-dur) var(--jg-ease);
+}
+
+.jg-alertbar:hover { background: color-mix(in srgb, var(--jg-danger) 16%, var(--jg-surface)); }
+
+.jg-alertbar-mark {
+    flex: 0 0 var(--jg-tap-sm);
+    height: var(--jg-tap-sm);
+    border-radius: var(--jg-radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--jg-danger-ink);
+    background: color-mix(in srgb, var(--jg-danger) 18%, transparent);
+}
+
+.jg-alertbar-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.jg-alertbar-title { font-size: var(--jg-fs-base); font-weight: 700; }
+
+.jg-alertbar-detail {
+    font-size: var(--jg-fs-sm);
+    color: var(--jg-ink-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.jg-alertbar-go {
+    flex: 0 0 auto;
+    font-size: var(--jg-fs-md);
+    font-weight: 700;
+    color: var(--jg-danger-ink);
+}
+
+/* Le bouton d'une section : « tout éteindre » appartient au titre de la
+ * rangée qu'il concerne, pas à une barre d'outils lointaine. */
+.jg-section-action {
+    margin-left: auto;
+    min-height: var(--jg-tap-sm);
+    padding: 0 var(--jg-space-4);
+    border: 1px solid var(--jg-border);
+    border-radius: var(--jg-radius-md);
+    background: transparent;
+    color: var(--jg-ink);
+    font: inherit;
+    font-size: var(--jg-fs-md);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.jg-section-action:hover { background: var(--jg-state-hover); }
+.jg-section-action[disabled] { opacity: var(--jg-state-disabled); cursor: not-allowed; }
+
+/* Les scènes. Larges, tactiles, et nommées : ce sont les seuls boutons du
+ * dashboard qui agissent sur toute la maison d'un coup. */
+.jg-scenes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: var(--jg-gap);
+}
+
+.jg-scene {
+    display: flex;
+    align-items: center;
+    gap: var(--jg-space-3);
+    min-height: calc(var(--jg-tap) + var(--jg-space-5));
+    padding: var(--jg-space-3) var(--jg-space-4);
+    border: 1px solid var(--jg-border);
+    border-radius: var(--jg-radius-lg);
+    background: var(--jg-surface);
+    box-shadow: var(--jg-elev-1);
+    color: var(--jg-ink);
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+    position: relative;
+    transition: transform var(--jg-dur-fast) var(--jg-ease), box-shadow var(--jg-dur) var(--jg-ease);
+}
+
+.jg-scene:hover { transform: translateY(-1px); box-shadow: var(--jg-elev-3); }
+.jg-scene:active { transform: translateY(0); }
+
+.jg-scene-mark {
+    flex: 0 0 var(--jg-tap-sm);
+    height: var(--jg-tap-sm);
+    border-radius: var(--jg-radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--jg-accent);
+    background: var(--jg-surface-2);
+}
+
+.jg-scene-text { display: flex; flex-direction: column; min-width: 0; }
+.jg-scene-name { font-size: var(--jg-fs-base); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jg-scene-group { font-size: var(--jg-fs-sm); color: var(--jg-ink-2); }
+
+/* Un scénario qui tourne le dit, parce qu'un scénario long — fermer douze
+ * volets — ne donne sinon aucun signe entre l'appui et la fin. */
+.jg-scene[data-state="in progress"] .jg-scene-mark,
+.jg-scene[data-state="starting"] .jg-scene-mark {
+    color: var(--jg-tint-ink);
+    background: var(--jg-accent);
+}
+
+/* Les domaines, relégués en raccourcis. Ils ne méritaient pas une rangée de
+ * tuiles hautes : ce sont des portes, pas des informations. */
+.jg-shortcuts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--jg-space-2);
+    margin-top: var(--jg-space-5);
+}
+
+.jg-shortcuts .jg-tab { display: inline-flex; align-items: center; gap: var(--jg-space-2); }
+
+.jg-tab-count {
+    font-size: var(--jg-fs-xs);
+    font-weight: 800;
+    color: var(--jg-tint-ink);
+    background: var(--jg-accent);
+    border-radius: var(--jg-radius-pill);
+    padding: 1px var(--jg-space-2);
+}
+
+/* La tuile « + n » qui clôt la rangée de ce qui tourne : une invitation, pas
+ * un équipement. Elle ne doit donc pas se faire passer pour une carte. */
+.jg-more-tile {
+    justify-content: center;
+    align-items: center;
+    border-style: dashed;
+    background: transparent;
+    box-shadow: none;
+}
+
+/* --------------------------------------------------------- le compte du rail */
+
+/* Le nombre d'ennuis se porte sur le rail. Une alerte qu'il faut aller
+ * chercher dans une vue n'alerte personne. */
+.jg-rail-item { position: relative; }
+
+.jg-rail-count {
+    position: absolute;
+    top: var(--jg-space-1);
+    right: var(--jg-space-2);
+    min-width: 18px;
+    padding: 0 4px;
+    border-radius: var(--jg-radius-pill);
+    background: var(--jg-danger-solid);
+    color: #ffffff;
+    font-size: var(--jg-fs-xs);
+    font-weight: 800;
+    line-height: 18px;
+    text-align: center;
+}
+
+/* ------------------------------------------------------------- l'échec */
+
+/* Ce qui n'est pas parti se voit là où on a appuyé. Le bandeau du coeur est en
+ * haut de la page : sur un mur, il est à un mètre de la carte fautive. */
+.jg-failed {
+    box-shadow: var(--jg-elev-1), 0 0 0 2px var(--jg-danger-solid) !important;
+}
+
+/* ------------------------------------------------------ téléphone */
+
+@media (max-width: 767px) {
+    .jg-alertbar-detail { white-space: normal; }
+    .jg-scenes { grid-template-columns: 1fr 1fr; }
+    .jg-thermo .jg-btn-step { flex: 0 0 var(--jg-tap); }
+}
+
+/* ------------------------------------- reprises après essai sur l'installation */
+
+/* La teinte par défaut — quarante-trois des soixante-quatre équipements de
+ * l'installation d'essai n'ont aucune catégorie — est désormais posée dans le
+ * bloc de jetons, sous --jg-tint-default, et reposée sur la carte avec la
+ * spécificité qu'il faut. Les deux lignes qui vivaient ici ont disparu : elles
+ * fixaient l'ocre qui faisait tout beiger. */
+
+/* La carte fait la taille de son contenu. La hauteur minimale de 116 pixels
+ * creusait un vide au milieu de chaque tuile courte — le corps étant poussé en
+ * bas par margin-top: auto, une prise qui ne dit que « Allumée » affichait
+ * trente pixels de rien entre son nom et son état. La bande d'en-tête et sa
+ * pastille suffisent à donner à la carte une hauteur décente. */
+.jg-card { min-height: 0; }
+
+/* En kiosque, la tuile retrouve du corps : on la regarde de loin, pas de
+ * près, et une grille trop serrée y devient illisible. */
+.jg-root[data-kiosk="1"] .jg-card { min-height: 132px; }
+
+/* « Lundi 21 Septembre » n'est pas du français : ni le jour ni le mois ne
+ * prennent la majuscule. Seule la première lettre de la ligne la prend, parce
+ * qu'elle ouvre la phrase. */
+.jg-clock-date { text-transform: none; }
+.jg-clock-date::first-letter { text-transform: uppercase; }
+
+/* Une caméra qui détecte quelque chose n'est pas « allumée » : elle réclame un
+ * regard. L'ambre de l'état en marche dirait le contraire de ce qu'il faut
+ * comprendre, la teinte passe donc au rouge d'attention — sans aller jusqu'au
+ * remplissage plein, réservé aux alarmes véritables. */
+.jg-root .jg-card[data-card-type="camera"][data-on="1"] { --jg-tint: var(--jg-danger); }
+
+/* ------------------------------------------------------------- l'en-tête */
+
+/* Une horloge seule laissait les deux tiers d'un écran large vides, et il
+ * fallait descendre pour apprendre quoi que ce soit. La rangée dit maintenant
+ * l'essentiel d'un regard : l'heure, ce qui tourne, ce qu'il fait dehors. */
+.jg-hero {
+    display: flex;
+    align-items: stretch;
+    gap: var(--jg-space-4);
+    margin-bottom: var(--jg-space-6);
+}
+
+.jg-hero-now {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--jg-space-4);
+}
+
+.jg-hero .jg-clock { margin: 0; }
+
+.jg-hero-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--jg-space-2);
+}
+
+.jg-hero-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--jg-space-2);
+    min-height: var(--jg-tap-sm);
+    padding: 0 var(--jg-space-4);
+    border: 1px solid var(--jg-border);
+    border-radius: var(--jg-radius-pill);
+    background: var(--jg-surface);
+    color: var(--jg-ink);
+    font: inherit;
+    font-size: var(--jg-fs-md);
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.jg-hero-chip:hover { background-image: linear-gradient(var(--jg-state-hover), var(--jg-state-hover)); }
+.jg-hero-chip i { color: var(--jg-ink-2); }
+
+/* Les deux cartes de synthèse. Elles ne sont pas des équipements : elles
+ * répondent à « quel temps fait-il » et « comment va la maison », et se lisent
+ * du canapé. D'où la valeur en grand et le reste en une ligne. */
+.jg-hero-card {
+    flex: 0 0 auto;
+    width: 15rem;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--jg-space-2);
+    padding: var(--jg-space-4);
+    border: 1px solid var(--jg-border);
+    border-radius: var(--jg-radius-xl);
+    background: var(--jg-surface);
+    box-shadow: var(--jg-elev-1);
+    color: var(--jg-ink);
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+    transition: transform var(--jg-dur-fast) var(--jg-ease), box-shadow var(--jg-dur) var(--jg-ease);
+}
+
+.jg-hero-card:hover { transform: translateY(-2px); box-shadow: var(--jg-elev-3); }
+
+.jg-hero-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--jg-space-2);
+}
+
+.jg-hero-label {
+    font-size: var(--jg-fs-xs);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--jg-ink-2);
+}
+
+.jg-hero-mark { font-size: var(--jg-fs-xl); color: var(--jg-ink-2); }
+
+.jg-hero-value {
+    font-size: var(--jg-fs-3xl);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+}
+
+.jg-hero-rest {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--jg-space-1) var(--jg-space-4);
+    font-size: var(--jg-fs-sm);
+    font-weight: 600;
+    color: var(--jg-ink-2);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ----------------------------------------------------- la bande compacte */
+
+/* Deux lignes, une pastille, et toute la surface qui bascule. Le nom et le
+ * résumé suffisent : « Salon · Allumée · 42 W » se lit d'un regard là où une
+ * carte complète demandait qu'on la déchiffre. */
+.jg-grid-quick { grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); }
+
+.jg-card.jg-quick {
+    min-height: 0;
+    padding: var(--jg-space-3);
+    gap: 0;
+}
+
+.jg-quick .jg-card-head { align-items: center; }
+
+.jg-quick .jg-card-name { font-size: var(--jg-fs-lg); font-weight: 700; }
+
+.jg-quick .jg-card-sub {
+    font-size: var(--jg-fs-md);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* La pastille d'une bande est ronde et pleine : c'est le seul point vif de la
+ * rangée, et c'est lui qu'on cherche des yeux. */
+.jg-quick .jg-card-icon {
+    width: calc(var(--jg-fs-xl) * 2.4);
+    height: calc(var(--jg-fs-xl) * 2.4);
+    flex-basis: calc(var(--jg-fs-xl) * 2.4);
+    border-radius: var(--jg-radius-pill);
+}
+
+@media (max-width: 1100px) {
+    .jg-hero { flex-wrap: wrap; }
+    .jg-hero-now { flex-basis: 100%; }
+    .jg-hero-card { flex: 1 1 12rem; width: auto; }
+}
+
+/* ------------------------------------------------------------ typographie */
+
+/* Ce qui manquait le plus à l'écran par rapport à ce qui avait été dessiné.
+ *
+ * Le plugin héritait de la pile Bootstrap de Jeedom et de ses graisses 600 :
+ * une interface qui revendique une identité ne laisse pas son hôte choisir sa
+ * typographie. On ne charge rien depuis le réseau pour autant — une tablette
+ * murale peut être hors ligne, et une police qui n'arrive pas laisse un
+ * dashboard illisible. On prend donc ce que les systèmes ont de mieux, et on
+ * travaille les graisses, l'interlettrage et l'échelle, qui font l'essentiel
+ * du caractère. */
+.jg-root {
+    font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont,
+                 "Segoe UI Variable Display", "Segoe UI", Roboto,
+                 "Helvetica Neue", Arial, sans-serif;
+    /* Le rendu par défaut de Jeedom laisse les chiffres flotter ; le dashboard
+     * en affiche partout, et beaucoup changent tout seuls. */
+    font-feature-settings: "tnum" 1, "cv05" 1, "ss01" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Les titres portent le caractère. Une graisse 600 et un interlettrage nul
+ * donnent une page qui n'affirme rien : ce sont les deux réglages qui
+ * séparaient le dessin du rendu. L'interlettrage est en em, pour suivre le
+ * facteur d'échelle du kiosque. */
+.jg-clock-time {
+    font-size: calc(var(--jg-fs-4xl) * 1.35);
+    font-weight: 800;
+    letter-spacing: -0.035em;
+}
+
+.jg-clock-date {
+    font-size: var(--jg-fs-lg);
+    font-weight: 600;
+    letter-spacing: -0.005em;
+}
+
+.jg-brand { font-weight: 800; letter-spacing: -0.025em; }
+.jg-section-title { font-weight: 800; letter-spacing: -0.02em; }
+.jg-card-name { font-weight: 700; letter-spacing: -0.01em; }
+.jg-value,
+.jg-hero-value { font-weight: 800; letter-spacing: -0.03em; }
+.jg-state { font-weight: 700; letter-spacing: -0.01em; }
+.jg-domain-name { font-weight: 700; letter-spacing: -0.01em; }
+.jg-rail-item { font-weight: 700; }
+.jg-tab { font-weight: 600; }
+.jg-btn { font-weight: 600; }
+
+/* Le sous-titre d'une bande est une phrase de données : il gagne à être un
+ * cran plus présent que le gris d'une légende, sans concurrencer le nom. */
+.jg-quick .jg-card-sub { font-weight: 600; letter-spacing: -0.005em; }
+
+/* --------------------------------------------- équilibre de l'accueil */
+
+/* Trois défauts d'aplomb, visibles dès qu'on regarde la page en entier plutôt
+ * que composant par composant. */
+
+/* 1. La tuile « + n » héritait de la hauteur minimale des tuiles de domaine et
+ *    sortait trois fois plus haute que les bandes qu'elle termine. */
+.jg-grid-quick .jg-more-tile {
+    min-height: 0;
+    padding: var(--jg-space-3);
+}
+
+/* 2. L'en-tête laissait les deux tiers de la largeur vides sur un écran large :
+ *    l'horloge à gauche, une carte à l'extrême droite, et rien entre les deux.
+ *    Les deux blocs se partagent désormais la ligne. */
+.jg-hero-now { flex: 1 1 26rem; }
+.jg-hero-card { flex: 1 1 15rem; width: auto; max-width: 24rem; }
+
+/* 3. Les tuiles de pièce gardaient une hauteur minimale héritée de la grille
+ *    plate d'origine : deux lignes de texte dans une boîte de 118 px, soit
+ *    quarante pixels de rien sous chaque nom, huit fois de suite. */
+.jg-domain { min-height: 0; }
+.jg-root[data-kiosk="1"] .jg-domain { min-height: 118px; }
+
+/* ================================================================== bento
+ *
+ * L'accueil cesse d'être une pile de rangées identiques. Douze colonnes, des
+ * tuiles qui n'occupent pas toutes la même largeur, et une hiérarchie : on
+ * entre par l'heure, puis les synthèses, puis la caméra. C'est ce qui
+ * distingue un écran composé d'une grille de rectangles.
+ * ======================================================================== */
+
+.jg-bento {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: var(--jg-gap);
+    margin-bottom: var(--jg-space-5);
+}
+
+/* L'horloge tient cinq colonnes et les deux rangées : c'est le seul bloc que
+ * l'on regarde de loin, il doit dominer sans être une carte de plus. */
+.jg-bento-clock {
+    grid-column: span 5;
+    grid-row: span 2;
+    justify-content: center;
+    padding-left: var(--jg-space-1);
+}
+
+/* Les synthèses occupent une colonne, pas une case : une ou deux, elles s'y
+ * empilent en se partageant la hauteur. Sans cette enveloppe, deux cartes
+ * faisaient quinze colonnes sur douze, et une seule s'étirait à vide sur la
+ * hauteur de la vignette caméra. */
+.jg-bento-side {
+    grid-column: span 3;
+    grid-row: span 2;
+    display: flex;
+    flex-direction: column;
+    gap: var(--jg-gap);
+    min-width: 0;
+}
+
+.jg-bento-side .jg-bento-card { flex: 1 1 0; justify-content: space-between; }
+
+/* Pas de caméra : l'horloge et les synthèses se partagent toute la largeur
+ * plutôt que de laisser un trou à droite. */
+.jg-bento[data-cam="0"] .jg-bento-clock { grid-column: span 6; }
+.jg-bento[data-cam="0"] .jg-bento-side { grid-column: span 6; }
+.jg-bento[data-cards="0"] .jg-bento-clock { grid-column: span 8; }
+
+.jg-bento-cam {
+    grid-column: span 4;
+    grid-row: span 2;
+}
+
+/* La vignette prend de la hauteur : c'est une image, pas une fiche. L'événement
+ * et le bouton restent en bas, comme sur une caméra de surveillance. */
+.jg-bento-cam .jg-media { flex: 1 1 auto; aspect-ratio: auto; min-height: 7rem; }
+.jg-bento-cam .jg-media img { height: 100%; }
+
+@media (max-width: 1400px) {
+    .jg-bento-clock,
+    .jg-bento[data-cam="0"] .jg-bento-clock,
+    .jg-bento[data-cards="0"] .jg-bento-clock { grid-column: span 12; grid-row: span 1; }
+    .jg-bento-side,
+    .jg-bento[data-cam="0"] .jg-bento-side { grid-column: span 6; grid-row: span 1; flex-direction: row; }
+    .jg-bento-cam { grid-column: span 6; grid-row: span 1; }
+}
+
+@media (max-width: 900px) {
+    .jg-bento-side,
+    .jg-bento[data-cam="0"] .jg-bento-side { grid-column: span 12; flex-direction: column; }
+    .jg-bento-cam { grid-column: span 12; }
+}
+
+/* ------------------------------------------- la couleur, tout le temps */
+
+/* Une prise éteinte était un rond gris parmi vingt-huit ronds gris. La pastille
+ * porte désormais la couleur de son domaine en permanence — discrète au repos,
+ * pleine quand l'équipement tourne. C'est ce qui fait qu'on reconnaît un volet
+ * d'une lampe sans lire, et que la page cesse d'être grise.
+ *
+ * Le domaine et non la catégorie : deux équipements sur trois n'ont pas de
+ * catégorie, et :not([data-category]) laisse la catégorie l'emporter quand
+ * elle existe, sans jouer sur l'ordre des règles. */
+.jg-root .jg-card:not([data-category])[data-domain="light"] { --jg-tint: #F2A93B; }
+.jg-root .jg-card:not([data-category])[data-domain="socket"] { --jg-tint: #2FBF71; }
+.jg-root .jg-card:not([data-category])[data-domain="cover"] { --jg-tint: #4C9AF5; }
+.jg-root .jg-card:not([data-category])[data-domain="climate"] { --jg-tint: #F2714A; }
+.jg-root .jg-card:not([data-category])[data-domain="security"] { --jg-tint: #F2545B; }
+.jg-root .jg-card:not([data-category])[data-domain="camera"] { --jg-tint: #8B6CF0; }
+.jg-root .jg-card:not([data-category])[data-domain="media"] { --jg-tint: #8B6CF0; }
+.jg-root .jg-card:not([data-category])[data-domain="appliance"] { --jg-tint: #06B6D4; }
+.jg-root .jg-card:not([data-category])[data-domain="weather"] { --jg-tint: #4C9AF5; }
+.jg-root .jg-card:not([data-category])[data-domain="energy"] { --jg-tint: #2FBF71; }
+.jg-root .jg-card:not([data-category])[data-domain="sensor"] { --jg-tint: #06B6D4; }
+.jg-root .jg-card:not([data-category])[data-domain="info"] { --jg-tint: #8B95A6; }
+
+/* Au repos : un lavis de la teinte et le glyphe dans le trait. Allumé, la règle
+ * du socle reprend la main et remplit la pastille. */
+.jg-root .jg-card:not([data-on="1"]):not([data-alert="1"]) .jg-card-icon {
+    background: color-mix(in srgb, var(--jg-tint) 16%, transparent);
+    color: var(--jg-tint-line);
+}
+
+/* ------------------------------------------------- resserrer l'écran */
+
+/* Trop d'espace perdu : les sections respiraient comme des chapitres d'un
+ * document, alors qu'un dashboard se lit d'un seul regard. On resserre les
+ * intervalles sans toucher aux cibles tactiles, qui elles ne bougent pas. */
+.jg-section { margin-bottom: var(--jg-space-5); }
+.jg-section-title { margin-bottom: var(--jg-space-3); }
+.jg-shortcuts { margin-top: var(--jg-space-4); }
+.jg-alertbar { margin-bottom: var(--jg-space-5); }
+
+/* La rangée des pièces : la première tuile est double, et la grille se cale sur
+ * des colonnes assez larges pour que deux lignes de texte n'y flottent pas. */
+.jg-grid-rooms { grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); }
+.jg-grid-rooms .jg-room-tile[data-wide="1"] { grid-column: span 2; }
+
+@media (max-width: 700px) {
+    .jg-grid-rooms .jg-room-tile[data-wide="1"] { grid-column: span 1; }
+}
+
+/* =============================================== le langage des tuiles
+ *
+ * Une révision de fond, après confrontation avec le dashboard que
+ * l'utilisateur regarde tous les jours. Ce qui était fait ici tenait de la
+ * carte d'administration : surface grise, petite pastille colorée, grand
+ * rayon, ombre portée, hiérarchie portée par le texte. Ce qu'il attend tient
+ * de la tuile : fond franchement teinté, grande icône, rayon court, aucune
+ * ombre, hiérarchie portée par la couleur et par la forme.
+ *
+ * On ne copie pas un produit — on adopte l'idiome, qui est celui de tous les
+ * écrans domotiques posés au mur : on doit viser une tuile du doigt et la
+ * reconnaître de trois mètres, sans lire.
+ * ======================================================================== */
+
+.jg-root {
+    /* Un rayon court. Vingt pixels sur une tuile de cent de haut arrondissent
+     * la forme au point qu'on ne la distingue plus de sa voisine. */
+    --jg-radius-lg: 12px;
+    --jg-radius-xl: 12px;
+    --jg-radius-md: 10px;
+    --jg-radius-sm: 8px;
+    /* Les tuiles ne flottent pas : elles sont posées. L'ombre servait à
+     * séparer des cartes grises sur un fond gris — la couleur le fait
+     * désormais, et mieux. */
+    --jg-elev-1: none;
+    --jg-elev-2: none;
+    --jg-elev-3: none;
+    /* La teinte au repos, franche et non plus anecdotique. */
+    --jg-rest-fill: 16%;
+    --jg-rest-edge: 34%;
+}
+
+.jg-root[data-tone="dark"] {
+    --jg-rest-fill: 20%;
+    --jg-rest-edge: 42%;
+}
+
+/* ------------------------------------------------ la carte, teintée au repos */
+
+/* Le changement qui porte tout le reste : une carte n'est plus grise en
+ * attendant d'être allumée. Elle porte la couleur de ce qu'elle pilote, en
+ * sourdine, et s'illumine quand l'équipement tourne. Vingt-huit prises grises
+ * deviennent vingt-huit prises vertes, et l'écran cesse d'être un tableau. */
+.jg-root .jg-card:not([data-alert="1"]) {
+    background-color: color-mix(in srgb, var(--jg-tint) var(--jg-rest-fill), var(--jg-surface));
+    border-color: color-mix(in srgb, var(--jg-tint) var(--jg-rest-edge), var(--jg-surface));
+}
+
+/* Allumé : la teinte monte d'un cran et le liseré devient franc. L'écart entre
+ * repos et marche doit rester lisible de loin, maintenant que le repos est
+ * lui-même coloré. */
+.jg-root .jg-card[data-on="1"] {
+    background-color: color-mix(in srgb, var(--jg-tint) 34%, var(--jg-surface));
+    border-color: var(--jg-tint);
+}
+
+.jg-root .jg-card[data-on="1"]::before { width: 0; }
+
+/* La pastille garde son rôle, mais discrètement : la couleur est partout
+ * maintenant, elle n'a plus besoin d'être criée par un rond plein. */
+.jg-root .jg-card:not([data-on="1"]):not([data-alert="1"]) .jg-card-icon {
+    background: transparent;
+    color: var(--jg-tint);
+    font-size: calc(var(--jg-fs-xl) * 1.15);
+}
+
+.jg-root .jg-card[data-on="1"] .jg-card-icon {
+    background: transparent;
+    color: var(--jg-tint);
+}
+
+/* ------------------------------------------------------- la grande icône */
+
+/* Une tuile se reconnaît à sa forme avant de se lire. L'icône occupe donc la
+ * place, centrée, dans la teinte de la tuile. */
+.jg-tile-art {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: var(--jg-space-2) 0 var(--jg-space-1);
+    color: var(--jg-tint);
+    font-size: calc(2.6rem * var(--jg-scale));
+    line-height: 1;
+}
+
+.jg-domain,
+.jg-launch {
+    align-items: center;
+    text-align: center;
+    gap: var(--jg-space-1);
+    padding: var(--jg-space-4) var(--jg-space-3);
+    border-radius: var(--jg-radius-lg);
+    background-color: color-mix(in srgb, var(--jg-tint) var(--jg-rest-fill), var(--jg-surface));
+    border: 1px solid color-mix(in srgb, var(--jg-tint) var(--jg-rest-edge), var(--jg-surface));
+    box-shadow: none;
+}
+
+.jg-domain::before { content: none; }
+
+.jg-domain-on,
+.jg-launch-on {
+    background-color: color-mix(in srgb, var(--jg-tint) 34%, var(--jg-surface));
+    border-color: var(--jg-tint);
+}
+
+.jg-domain-name,
+.jg-launch-name {
+    font-size: var(--jg-fs-lg);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.jg-domain-count,
+.jg-launch-count {
+    font-size: var(--jg-fs-sm);
+    font-weight: 600;
+    color: var(--jg-ink-2);
+}
+
+.jg-domain-on .jg-domain-count,
+.jg-launch-on .jg-launch-count { color: var(--jg-ink); }
+
+/* Le lanceur de domaines : des tuiles franches, pas une rangée de pilules. */
+.jg-grid-launch { grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); }
+
+.jg-launch {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    color: var(--jg-ink);
+    font: inherit;
+    cursor: pointer;
+    transition: transform var(--jg-dur-fast) var(--jg-ease),
+                background-color var(--jg-dur) var(--jg-ease);
+}
+
+.jg-launch:hover { transform: translateY(-2px); }
+
+/* Chaque domaine sa couleur, y compris au repos : c'est le lanceur, il doit se
+ * lire comme une palette et non comme une liste. */
+.jg-root .jg-launch[data-domain="light"] { --jg-tint: #F2A93B; }
+.jg-root .jg-launch[data-domain="socket"] { --jg-tint: #2FBF71; }
+.jg-root .jg-launch[data-domain="cover"] { --jg-tint: #4C9AF5; }
+.jg-root .jg-launch[data-domain="climate"] { --jg-tint: #F2714A; }
+.jg-root .jg-launch[data-domain="security"] { --jg-tint: #F2545B; }
+.jg-root .jg-launch[data-domain="camera"] { --jg-tint: #8B6CF0; }
+.jg-root .jg-launch[data-domain="media"] { --jg-tint: #8B6CF0; }
+.jg-root .jg-launch[data-domain="appliance"] { --jg-tint: #06B6D4; }
+.jg-root .jg-launch[data-domain="weather"] { --jg-tint: #4C9AF5; }
+.jg-root .jg-launch[data-domain="energy"] { --jg-tint: #2FBF71; }
+.jg-root .jg-launch[data-domain="sensor"] { --jg-tint: #06B6D4; }
+.jg-root .jg-launch[data-domain="info"] { --jg-tint: #8B95A6; }
+
+/* ------------------------------------------------- le reste, mis au diapason */
+
+.jg-hero-card,
+.jg-scene,
+.jg-alertbar,
+.jg-hero-chip,
+.jg-tab,
+.jg-badge { box-shadow: none; }
+
+.jg-hero-card { border-radius: var(--jg-radius-lg); }
+
+/* Les titres de section s'effacent : ce sont les tuiles qui parlent. */
+.jg-section-title {
+    font-size: var(--jg-fs-md);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--jg-ink-2);
+}
+
+.jg-section-count { background: transparent; padding: 0; }
+
+/* Les cartes de synthèse prennent elles aussi une couleur : « Intérieur » et
+ * « Dehors » restaient les deux seuls blocs gris d'un écran devenu coloré, et
+ * c'est précisément là que l'oeil se pose en premier. */
+.jg-hero-card {
+    --jg-tint: #4C9AF5;
+    background-color: color-mix(in srgb, var(--jg-tint) var(--jg-rest-fill), var(--jg-surface));
+    border-color: color-mix(in srgb, var(--jg-tint) var(--jg-rest-edge), var(--jg-surface));
+}
+
+.jg-hero-card:first-child { --jg-tint: #F2714A; }
+.jg-hero-mark { color: var(--jg-tint); font-size: calc(var(--jg-fs-2xl) * 1.1); }
+
+/* La tuile « + n » n'est pas un équipement : elle ne prend aucune couleur, et
+ * son pointillé suffit à dire qu'elle est d'une autre nature. Partout, y
+ * compris au bas d'une section écrêtée. */
+.jg-root .jg-more-tile {
+    background-color: transparent;
+    border-color: var(--jg-border);
+    border-style: dashed;
+}
+
+/* ================================================== le lanceur, en tête
+ *
+ * L'accueil est d'abord un endroit d'où l'on part. Les douze domaines y
+ * prennent la forme de grandes tuiles pleines, nom en haut, état en bas, et
+ * l'icône en filigrane débordant du coin — on reconnaît la tuile à sa
+ * silhouette avant de la lire, ce qui est exactement ce qu'on demande à un
+ * écran posé au mur.
+ * ======================================================================== */
+
+.jg-grid-launch {
+    /* Des tuiles larges et peu nombreuses plutôt que douze vignettes : c'est
+     * un lanceur, on le vise du doigt. */
+    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+    margin-bottom: var(--jg-space-5);
+}
+
+.jg-launch {
+    position: relative;
+    overflow: hidden;
+    align-items: flex-start;
+    text-align: left;
+    justify-content: space-between;
+    /* Une forme imposée, identique pour toutes. Sans elle, la hauteur suivait
+     * le texte : « 18 équipements » passait à la ligne là où « 1/4 » tenait, et
+     * la rangée devenait un assemblage de rectangles dépareillés. */
+    /* Le rapport SEUL, sans hauteur minimale : avec les deux, la hauteur
+     * devenait définie, la largeur s'en déduisait, et la tuile débordait de sa
+     * colonne — la rangée sortait de l'écran par la droite. C'est la grille qui
+     * donne la largeur, et le rapport qui en déduit la hauteur. */
+    aspect-ratio: 16 / 10;
+    padding: var(--jg-space-4);
+    border: 0;
+    /* Un aplat et non un lavis : le lanceur est le seul endroit de la page qui
+     * se remplit de couleur, et c'est ce qui le distingue du reste. */
+    background-image: linear-gradient(145deg,
+        color-mix(in srgb, var(--jg-tint) 88%, #ffffff) 0%,
+        var(--jg-tint) 100%);
+    background-color: var(--jg-tint);
+    color: var(--jg-tint-glyph);
+}
+
+.jg-launch-on {
+    background-image: linear-gradient(145deg,
+        color-mix(in srgb, var(--jg-tint) 70%, #ffffff) 0%,
+        var(--jg-tint) 100%);
+}
+
+/* Le filigrane. Il déborde volontairement : une icône entière et centrée
+ * redeviendrait un pictogramme à lire, là où on veut une masse à reconnaître. */
+.jg-launch-mark {
+    position: absolute;
+    /* Entière, et jamais rognée.
+     *
+     * Le filigrane débordait du coin, par goût du cadrage. Mais un glyphe
+     * FontAwesome n'a ni la largeur ni le centrage de son voisin : le même
+     * débord coupe la caméra en rectangle, prive la prise de ses broches et
+     * tranche la puce en deux. On lit alors une forme abîmée, pas une icône —
+     * et c'est exactement le reproche qui a été fait. L'icône reste donc
+     * grande, discrète, et complète. */
+    right: var(--jg-space-3);
+    bottom: var(--jg-space-3);
+    display: block;
+    width: calc(3.4rem * var(--jg-scale));
+    height: calc(3.4rem * var(--jg-scale));
+    font-size: calc(3.4rem * var(--jg-scale));
+    line-height: 1;
+    text-align: center;
+    color: color-mix(in srgb, var(--jg-tint-glyph) 30%, transparent);
+    pointer-events: none;
+}
+
+/* Le libellé et le compte ne passent jamais sous l'icône : la tuile leur
+ * réserve la place, sans quoi un nom long viendrait s'y superposer. */
+.jg-launch-name,
+.jg-launch-count { padding-right: calc(3.6rem * var(--jg-scale)); }
+
+.jg-launch-name {
+    position: relative;
+    font-size: var(--jg-fs-xl);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--jg-tint-glyph);
+}
+
+/* Court, et de chasse fixe : « 9/28 » et « 1/4 » occupent alors exactement la
+ * même largeur, et la rangée retrouve son alignement. */
+.jg-launch-count {
+    position: relative;
+    font-size: var(--jg-fs-2xl);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: color-mix(in srgb, var(--jg-tint-glyph) 78%, transparent);
+    white-space: nowrap;
+}
+
+.jg-launch-on .jg-launch-count { color: var(--jg-tint-glyph); }
+
+.jg-launch:hover { transform: translateY(-2px); filter: brightness(1.06); }
+
+/* ============================================ les pages, en colonnes
+ *
+ * Une page de tableau de bord composée à la main range ses sections côte à
+ * côte : chacune sa colonne, son en-tête, et sa pile de cartes de hauteurs
+ * libres. Une grille qui étale douze sections sur toute la largeur, les unes
+ * sous les autres, donne un document ; des colonnes donnent un tableau de
+ * bord. C'est toute la différence, et elle ne coûte que quelques règles.
+ *
+ * Les colonnes CSS plutôt qu'une grille : elles équilibrent d'elles-mêmes des
+ * blocs de hauteurs très inégales — douze lumières ici, une seule caméra là —
+ * ce qu'aucune grille ne sait faire sans script.
+ * ======================================================================== */
+
+.jg-sections[data-layout="columns"] {
+    column-count: 3;
+    column-gap: var(--jg-gap);
+}
+
+.jg-sections[data-layout="columns"] .jg-section {
+    /* Une section ne se coupe pas entre deux colonnes : son titre resterait
+     * d'un côté et ses cartes de l'autre. */
+    break-inside: avoid;
+    display: inline-block;
+    width: 100%;
+    margin-bottom: var(--jg-gap);
+}
+
+/* Dans une colonne, les cartes s'empilent : c'est la colonne qui fait la
+ * largeur, pas la carte. */
+.jg-sections[data-layout="columns"] .jg-grid {
+    grid-template-columns: 1fr;
+    gap: var(--jg-space-2);
+}
+
+.jg-sections[data-layout="columns"] .jg-card[data-span="2"] { grid-column: span 1; }
+
+@media (min-width: 1700px) { .jg-sections[data-layout="columns"] { column-count: 4; } }
+@media (max-width: 1200px) { .jg-sections[data-layout="columns"] { column-count: 2; } }
+@media (max-width: 800px) { .jg-sections[data-layout="columns"] { column-count: 1; } }
+
+/* ==================================== rendre à la couleur sa rareté
+ *
+ * Tout teinter revient à ne rien signaler. Une énumération — des mesures, des
+ * informations, une carte de repli qui liste ce qu'elle ne comprend pas — n'a
+ * pas d'état à montrer : elle reste neutre. La couleur est réservée à ce qui
+ * s'allume, s'ouvre, chauffe ou détecte.
+ * ======================================================================== */
+
+.jg-root .jg-card[data-card-type="sensor"]:not([data-on="1"]):not([data-alert="1"]),
+.jg-root .jg-card[data-card-type="generic"]:not([data-on="1"]):not([data-alert="1"]),
+.jg-root .jg-card[data-domain="info"]:not([data-on="1"]):not([data-alert="1"]) {
+    background-color: var(--jg-surface);
+    border-color: var(--jg-border);
+}
+
+.jg-root .jg-card[data-card-type="sensor"]:not([data-on="1"]) .jg-card-icon,
+.jg-root .jg-card[data-card-type="generic"]:not([data-on="1"]) .jg-card-icon,
+.jg-root .jg-card[data-domain="info"]:not([data-on="1"]) .jg-card-icon {
+    color: var(--jg-ink-2);
+}
+
+/* Les tuiles de pièce sans rien d'allumé retombent elles aussi au neutre : une
+ * pièce endormie n'a pas à porter la couleur d'une pièce vivante. */
+.jg-root .jg-room-tile:not(.jg-domain-on) {
+    background-color: var(--jg-surface);
+    border-color: var(--jg-border);
+}
+
+.jg-root .jg-room-tile:not(.jg-domain-on) .jg-tile-art { color: var(--jg-ink-2); }

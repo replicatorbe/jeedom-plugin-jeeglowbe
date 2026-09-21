@@ -16,6 +16,19 @@ if (!isConnect('admin')) {
 			</div>
 		</div>
 		<div class="form-group">
+			<label class="col-md-4 control-label">{{Ambiance}}</label>
+			<div class="col-md-3">
+				<select class="configKey form-control" data-l1key="tone">
+					<option value="auto">{{Suivre Jeedom}}</option>
+					<option value="light">{{Toujours clair}}</option>
+					<option value="dark">{{Toujours sombre}}</option>
+				</select>
+			</div>
+			<div class="col-md-5">
+				<span class="help-block" style="margin:0;">{{jeeGlow mesure la luminosité du thème de Jeedom et s'y accorde, y compris quand le thème bascule en cours de journée. Imposer une ambiance rend le dashboard sombre sur un Jeedom resté clair — ce que veut souvent une tablette murale — et le thème de Jeedom ne le ramènera plus. L'atténuation de nuit du mode kiosque, elle, s'applique dans les deux cas.}}</span>
+			</div>
+		</div>
+		<div class="form-group">
 			<label class="col-md-4 control-label">{{Noms courts}}</label>
 			<div class="col-md-1">
 				<input type="checkbox" class="configKey" data-l1key="shortNames" checked>

@@ -20,16 +20,29 @@ $jeeglowbeUser = isset($_SESSION['user']) ? $_SESSION['user'] : null;
 sendVarToJS('jeeglowbeModel', jeeglowbe::model($jeeglowbeUser));
 ?>
 
-<div id="jg-root" class="jg-root" data-kiosk="0" data-tone="light" data-view="functions" data-panel="0">
+<div id="jg-root" class="jg-root" data-kiosk="0" data-tone="light" data-view="home" data-panel="0">
 
 	<script>
 		/* L'ambiance est posée ici, pendant l'analyse de la page, et non dans
 		 * jeeglowbe.js qui est chargé à la fin : sur un Jeedom en thème sombre,
 		 * l'écart suffirait à faire apparaître un dashboard blanc le temps d'un
 		 * battement de cil. Le script qui suit se contente d'entretenir la
-		 * valeur quand le thème change. */
+		 * valeur quand le thème change.
+		 *
+		 * L'ambiance imposée par la configuration court-circuite la mesure.
+		 * sendVarToJS() écrit sa balise de script sur-le-champ, quelques
+		 * lignes plus haut (core/php/utils.inc.php, ligne 167) : jeeglowbeModel
+		 * est donc déjà une variable globale quand ceci s'exécute. Le
+		 * typeof n'en reste pas moins nécessaire — le banc d'essai reconstruit
+		 * cette page et y pose le modèle après le corps — et il ne coûte rien
+		 * face au dashboard blanc qu'une erreur ici laisserait. */
 		(function () {
 			var root = document.getElementById('jg-root')
+			var model = (typeof jeeglowbeModel !== 'undefined' && jeeglowbeModel) ? jeeglowbeModel : null
+			if (model && (model.tone === 'light' || model.tone === 'dark')) {
+				root.dataset.tone = model.tone
+				return
+			}
 			var raw = getComputedStyle(document.documentElement).getPropertyValue('--bg-color').trim()
 			var parts = raw.split(',').map(function (part) { return parseInt(part, 10) })
 			if (parts.length < 3 || parts.some(isNaN)) {

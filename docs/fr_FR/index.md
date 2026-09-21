@@ -13,33 +13,34 @@ la vue courante. Sur téléphone, le rail devient une barre en bas.
 
 | Vue | Ce qu'elle montre |
 |---|---|
-| **Accueil** | L'état de la maison : quelques mesures en pastilles, puis une tuile par domaine avec ce qui est en marche |
-| **Fonctions** | Le rangement par défaut : Lumières, Prises, Volets, Chauffage, Sécurité, Caméras, Multimédia, Appareils, Météo, Énergie, Capteurs, Information |
+| **Accueil** | L'état de la maison : l'heure, quelques mesures, ce qui est en marche, vos scènes, vos pièces |
+| **Fonctions** | Le rangement par domaine : Lumières, Prises, Volets, Chauffage, Sécurité, Caméras, Multimédia, Appareils, Météo, Énergie, Capteurs, Information |
 | **Pièces** | Vos objets Jeedom, plus « Non classé » |
+| **Santé** | Ce qui réclame une intervention |
 | **Système** | Vos équipements par plugin — la vue du dépannage |
 
-Le rangement par défaut est **la fonction, pas la pièce**, pour une raison
-tenace : sur une installation ordinaire, la moitié des équipements
-n'appartiennent à aucun objet. Un dashboard rangé par pièce y est vide de moitié
-le premier jour. Les pièces restent une vue à part entière, qui devient la bonne
-à mesure que vous rangez.
+On arrive sur **l'Accueil**. C'est la vue faite pour le coup d'œil, et c'était
+pourtant la seule qu'on ne voyait jamais sans un clic — alors que c'est déjà
+celle vers laquelle une tablette revient d'elle-même quand plus personne ne la
+regarde.
+
+Le rangement des équipements, lui, part de **la fonction et non de la pièce**,
+pour une raison tenace : sur une installation ordinaire, la moitié des
+équipements n'appartiennent à aucun objet. Un dashboard rangé par pièce y est
+vide de moitié le premier jour. Les pièces restent une vue à part entière, qui
+devient la bonne à mesure que vous rangez.
 
 Le domaine d'un équipement est déduit des familles de types génériques du cœur.
 Un équipement dont aucune commande n'est typée se range dans « Information ».
 
-L'adresse porte la vue et l'onglet — `#view=functions&tab=light` — donc une
-tablette peut démarrer exactement où vous voulez.
+L'adresse porte la vue et l'onglet. `#view=functions&tab=light` ouvre les
+lumières, `#view=rooms&tab=5` la pièce numéro 5, `#view=health&tab=all` la liste
+de ce qui ne va pas. `tab=all` montre la vue entière. Une tablette peut donc
+démarrer exactement où vous voulez :
 
-## Le panneau de détail
-
-Une carte ne montre que l'essentiel : son état, ses commandes principales, et
-jusqu'à trois mesures. **Un appui sur l'en-tête de la carte ouvre le détail**,
-en panneau latéral sur ordinateur, en feuille par le bas sur tablette et
-téléphone : toutes les informations, toutes les commandes, le widget du plugin.
-
-Le corps de la carte, lui, agit : un appui allume, éteint, monte ou descend.
-Deux gestes distincts, sans appui long — sur une tablette murale, un appui long
-est une loterie.
+```
+index.php?v=d&m=jeeglowbe&p=jeeglowbe&fullscreen=1#view=rooms&tab=5
+```
 
 ## Ouvrir le dashboard
 
@@ -49,6 +50,76 @@ Menu **Plugins → Autre → jeeGlow**, ou directement :
 index.php?v=d&m=jeeglowbe&p=jeeglowbe
 ```
 
+## L'accueil
+
+L'accueil ne montre pas des équipements : il répond à la question qu'on se pose
+en entrant dans une pièce. Dans l'ordre, du haut vers le bas :
+
+**L'heure et la date**, dans la langue de Jeedom — pas celle du navigateur, qui
+n'est pas forcément la vôtre sur une tablette. Rien à calculer, mais c'est ce
+qui distingue un écran mural d'une page web laissée ouverte.
+
+**Quelques mesures en pastilles** : la consommation, la température intérieure,
+celle du dehors, l'humidité, quand votre installation les mesure. Chaque
+pastille **nomme sa source** et mène à l'équipement qui l'a dite : « 21,4 °C »
+relevé on ne sait où n'est la température de personne. Un capteur dédié passe
+devant la sonde interne d'un autre appareil, qui mesure surtout la chaleur de
+son propre boîtier.
+
+**Un bandeau « points à surveiller »**, s'il y a lieu, qui compte les ennuis et
+mène à la vue Santé.
+
+**« En ce moment »** : les cartes de ce qui est réellement en marche, huit au
+plus, puis une tuile « + n » qui bascule vers la vue Fonctions. Ce sont de
+vraies cartes, qu'on peut éteindre sur place — une tuile de domaine ne répondait
+que par un nombre qu'il fallait aller vérifier ailleurs. Dès que plusieurs de
+ces équipements savent s'éteindre, un bouton **« Tout éteindre »** apparaît dans
+le titre de la rangée. Il demande confirmation, et il espace les commandes de
+120 millisecondes : quinze exécutions simultanées font tomber certains démons de
+plugin.
+
+**Les scènes**, quand vous avez des scénarios. Ne sont proposés que ceux qui
+sont actifs, visibles, et que vous avez le droit de lancer. Un scénario en cours
+le dit, parce qu'un scénario long — fermer douze volets — ne donne sinon aucun
+signe entre l'appui et la fin. Le journal du scénario enregistre un lancement
+manuel, à votre nom, comme s'il partait du cœur.
+
+**Les pièces**, une tuile chacune, avec **l'icône et la couleur que vous avez
+déjà choisies dans Jeedom** : les ignorer pour coller la même porte ouverte sur
+le garage, le jardin et la cuisine, c'était jeter un travail déjà fait. Chaque
+tuile résume sa pièce — le nombre d'équipements en marche, et une température
+quand la pièce en mesure une.
+
+**Les domaines**, enfin, réduits à une rangée de raccourcis compacts. Ce sont
+des portes, pas des informations : ils n'avaient pas à occuper une rangée de
+grandes tuiles au-dessus des pièces.
+
+## La vue Santé
+
+Une pile morte, un équipement qui ne répond plus, un seuil franchi : le
+dashboard d'origine ne le dit nulle part, et il fallait jusqu'ici parcourir
+quatre cents tuiles à l'œil pour l'apprendre. La vue Santé les rassemble, et le
+rail porte une pastille avec leur nombre — une alerte qu'il faut aller chercher
+dans une vue n'alerte personne.
+
+Quatre sections, dans cet ordre :
+
+- **Ne répondent plus** : le `timeout` que le cœur pose lui-même quand un
+  équipement dépasse le délai que vous lui avez donné.
+- **Hors plage** : les alertes `warning` et `danger`, posées par le cœur sur les
+  seuils que vous avez réglés sur vos commandes.
+- **Piles faibles** : 25 % ou moins.
+- **Muets depuis deux jours** : plus aucune valeur datée depuis 48 heures.
+
+Aucun seuil n'est inventé, sauf celui de la pile : les trois autres sont ceux de
+Jeedom, tels que vous les avez réglés. Le niveau de pile est lu dans le statut
+que le cœur tient, et à défaut sur une commande de type générique `BATTERY` :
+beaucoup de plugins ne renseignent jamais le premier alors qu'ils remontent bel
+et bien leur niveau.
+
+Un équipement qui ne répond plus est rangé là et nulle part ailleurs. Une pile
+qu'on ne peut plus lire n'est pas un second problème, c'est le même.
+
 ## Ce que jeeGlow affiche
 
 Pour chaque objet (une pièce, un étage), jeeGlow liste les équipements
@@ -57,13 +128,21 @@ carte d'après les **types génériques** de ses commandes :
 
 | Carte | Reconnue à |
 |---|---|
-| Lumière | `LIGHT_STATE`, `LIGHT_ON`, `LIGHT_OFF`, `LIGHT_TOGGLE`, `LIGHT_SLIDER` |
-| Volet | `FLAP_STATE`, `FLAP_UP`, `FLAP_DOWN`, `FLAP_STOP`, `FLAP_SLIDER` |
+| Lumière | `LIGHT_STATE`, `LIGHT_ON`, `LIGHT_OFF`, `LIGHT_TOGGLE`, `LIGHT_SLIDER`, `LIGHT_BRIGHTNESS` |
+| Volet | `FLAP_STATE`, `FLAP_UP`, `FLAP_DOWN`, `FLAP_STOP`, `FLAP_SLIDER`, et leurs équivalents BSO |
 | Prise | `ENERGY_STATE`, `ENERGY_ON`, `ENERGY_OFF`, `ENERGY_SLIDER` |
+| Caméra | le domaine caméra, ou `CAMERA_TAKE` et `CAMERA_URL` |
+| Climat | `THERMOSTAT_TEMPERATURE`, `THERMOSTAT_SETPOINT`, `THERMOSTAT_SET_SETPOINT`, `THERMOSTAT_MODE`, `THERMOSTAT_STATE` |
+| Multimédia | `MEDIA_STATE`, `MEDIA_STATUS`, `MEDIA_TITLE`, `MEDIA_PAUSE`, `MEDIA_RESUME` |
 | Capteur | aucune commande d'action visible : l'équipement ne fait que mesurer |
 | Générique | tout le reste : les infos visibles, puis les actions visibles |
 
-Un équipement qui répond à plusieurs cartes prend la première de la liste.
+Les trois premières lignes décident en premier, parce qu'elles décrivent ce qui
+se pilote : une lampe sur prise commandée est d'abord une lampe. Caméra, climat
+et multimédia ne sont examinés que si rien de pilotable n'a été reconnu — ces
+trois familles n'ont aucun rôle au sens des trois premières, et elles
+retombaient toutes sur la carte générique, qui réduisait dix-huit caméras à
+« Perte vidéo — » suivi de trois lignes binaires.
 
 **Si une carte vous semble mal choisie**, la cause est presque toujours la même :
 les commandes n'ont pas de type générique. Ouvrez l'équipement, onglet
@@ -71,19 +150,122 @@ les commandes n'ont pas de type générique. Ouvrez l'équipement, onglet
 immédiatement — c'est aussi ce qui améliore le reste de Jeedom, l'application
 mobile et les assistants vocaux.
 
+Au-delà de quatre cents équipements, la liste est tronquée et la page le dit :
+ce n'est plus un dashboard mais un inventaire, et chaque équipement se paie en
+lectures côté serveur.
+
+## Agir, ou ouvrir le détail
+
+Une carte ne montre que l'essentiel. Le reste — toutes les informations, toutes
+les commandes, le widget du plugin, les courbes — vit dans un **panneau de
+détail**, latéral sur ordinateur, en feuille par le bas sur tablette et
+téléphone.
+
+Deux gestes, jamais un appui long : sur une tablette murale, un appui long est
+une loterie.
+
+- **Sur une carte qui pilote quelque chose**, toute la carte agit, et **seule la
+  pastille d'icône ouvre le détail**. C'était l'inverse : l'en-tête entier
+  ouvrait le détail, et la bascule ne disposait que du bas de la carte, soit la
+  moitié de la cible perdue sur une tuile courte.
+- **Sur une carte qui ne pilote rien** — un capteur, une carte d'information —
+  il n'y a pas de conflit : l'en-tête entier ouvre le détail.
+
+La forme de la pastille le dit sans qu'on ait à essayer : **ronde quand on peut
+agir, carrée quand on ne peut que lire**. Jusqu'ici, un variateur sans commande
+d'allumage était visuellement identique à une lampe pilotable et ne répondait à
+rien.
+
+Hors de la vue Pièces, le sous-titre d'une carte indique **la pièce** : en vue
+Fonctions, « Plafonnier » et « Plafonnier » sont deux cartes identiques, et rien
+n'indiquait laquelle était la cuisine. En vue Pièces, la section porte déjà le
+nom : le répéter serait du bruit.
+
+Deux fanions peuvent apparaître à droite du nom : **pile faible**, avec son
+pourcentage, et **« ne répond plus »**. Ils tiennent chacun sur leur ligne,
+parce qu'un équipement peut très bien être muet *et* en pile faible.
+
 ## Les cartes en pratique
 
-- **Lumière et prise** : un appui n'importe où sur la carte bascule l'état. La
-  carte entière se colore quand c'est allumé. Le curseur, s'il existe, n'envoie
-  la valeur qu'au relâchement.
-- **Volet** : monter, stop, descendre, et la position en pourcentage quand
-  l'équipement la donne.
-- **Capteur** : la première mesure en grand, les suivantes en dessous.
-- **Générique** : les informations visibles, puis les actions sous forme de
-  boutons, de listes ou de curseurs.
+**Lumière et prise** : un appui n'importe où sur la carte bascule l'état. Si
+l'équipement ne dit pas dans quel état il se trouve, la carte donne deux boutons
+explicites, *Allumer* et *Éteindre*, plutôt qu'une bascule qui se tromperait une
+fois sur deux.
+
+**Volet** : monter, stop, descendre, et la position en pourcentage quand
+l'équipement la donne. Un volet ne se bascule pas d'un appui — monter et
+descendre sont deux gestes — mais il se pilote : sa pastille ouvre donc le
+détail, comme sur une lampe, et ses trois flèches gardent toute la largeur.
+
+**Climat** : la température mesurée en grand, la consigne à côté, le mode en
+sous-titre, et deux boutons qui règlent la consigne par pas de **un demi**
+dans l'unité de la commande — un demi-degré sur un thermostat en Celsius.
+Ouvrir un panneau pour gagner un demi-degré est le geste qu'on ne fait jamais.
+Les deux boutons n'apparaissent que si l'équipement expose une commande de
+consigne, et ils ne partent que si la consigne actuelle est connue : ils y
+ajoutent un demi-degré, ils ne l'inventent pas.
+
+**Caméra** : le dernier événement en toutes lettres, une pastille
+**« Mouvement »** tant qu'une détection est vraie, et un bouton *Capturer* quand
+l'équipement sait prendre un instantané. L'instantané ou le rendu du plugin, s'il
+y en a un, passe avant tout le reste : une image vaut mieux que n'importe quelle
+phrase. Le détail du diagnostic — perte vidéo, véhicule détecté, dix lignes
+binaires — reste dans le panneau.
+
+**Multimédia** : le titre et l'artiste sur une ligne, l'état en sous-titre, et
+les boutons de transport que l'équipement expose — précédent, pause, lecture,
+suivant.
+
+**Capteur** : la première mesure en grand, les suivantes en dessous.
+
+**Générique** : les informations visibles, puis les actions sous forme de
+boutons, de listes, de curseurs ou d'un sélecteur de couleur.
+
+Sur toutes les cartes, **les réglages occupent chacun une rangée pleine
+largeur** : un curseur qui partage sa ligne avec deux boutons devient
+intouchable au doigt, et un petit bouton logé dans un coin de tuile mange la
+cible principale sans rien apporter. Un curseur n'envoie sa valeur qu'au
+relâchement.
+
+## Ce qu'une carte ne montre pas d'emblée
+
+Une carte affiche au plus **trois informations et quatre commandes**. Au-delà,
+elle l'annonce : **« + 4 · détail »**, d'un appui le panneau s'ouvre sur le
+reste. Rien ne disparaît en silence.
+
+Une image et le widget d'un plugin ne comptent pas dans ce quota : ce sont les
+éléments les plus parlants d'une carte, et les reléguer au panneau derrière
+trois nombres serait exactement l'inverse de ce qu'on cherche.
+
+## Ce qui se voit bouger
 
 Les valeurs se mettent à jour **en temps réel**, sans rechargement : jeeGlow
-écoute le même flux d'événements que le dashboard d'origine.
+écoute le même flux d'événements que le dashboard d'origine. Et comme un
+dashboard temps réel qui remplace un texte sans un pixel de signal oblige à
+relire l'écran entier pour savoir ce qui vient de bouger :
+
+- **une valeur qui change clignote** — jamais au premier affichage, sans quoi
+  tout serait marqué neuf en même temps au chargement ;
+- **une bascule d'état se signale sur toute la carte** : c'est le changement
+  qu'on cherche des yeux depuis l'autre bout de la pièce ;
+- **une commande en cours d'envoi le montre**, et l'attente dure ce que dure
+  l'aller-retour, pas une durée décidée d'avance — une commande Zigbee de trois
+  secondes affichait un dashboard immobile, et une commande instantanée gardait
+  une carte grisée bien après coup ;
+- **un échec se voit sur la carte fautive**, cerclée de rouge quelques secondes,
+  et plus seulement dans le bandeau de Jeedom : sur un mur, ce bandeau est à un
+  mètre de ce qui a raté.
+
+Si votre système est réglé pour **limiter les animations**, jeeGlow s'y conforme
+et n'anime plus rien. Pour qui souffre de troubles vestibulaires, ce mouvement
+est un malaise, pas une élégance.
+
+**Quand l'onglet passe en arrière-plan, jeeGlow cesse de redessiner.** Les
+valeurs continuent d'être suivies, le dessin attend le réveil et tout est repeint
+d'un coup. Jeedom diffuse ses changements à tous les clients, quelle que soit la
+vue affichée : une tablette murale reçoit les cent mises à jour par seconde
+d'une installation active même écran éteint, et repeindre alors est du travail
+pur perdu — c'est précisément ce qui fait ramer les dalles bon marché.
 
 La liste des équipements, elle, est relue quand la page redevient visible après
 plus de cinq minutes. Un équipement ajouté, renommé ou rangé dans une autre
@@ -93,6 +275,36 @@ toucher.
 Seules les commandes **visibles** apparaissent, plus celles dont la carte a
 besoin. Pour retirer une information du dashboard, décochez *Afficher* sur la
 commande ; pour la faire apparaître, cochez-la.
+
+## Les couleurs, et ce qu'elles veulent dire
+
+Un équipement en marche porte une **surface teintée** : le fond bouge assez pour
+se repérer d'un bout à l'autre de la pièce, la saturation pleine se concentre
+sur la pastille d'icône et sur un liseré latéral, et le texte garde son encre.
+
+Ce n'était pas le cas avant, et le motif est mesurable : sur l'aplat saturé, le
+sous-titre d'une carte allumée n'atteignait pas le rapport de contraste de
+4,5:1 exigé par le niveau AA, sur aucune des sept catégories, et l'anneau de
+focus au clavier y devenait presque invisible. Une teinte posée en surface
+laisse l'encre tranquille, et les sept catégories redeviennent lisibles d'office
+au lieu qu'il faille choisir sept encres.
+
+La teinte est celle de la **catégorie** que vous avez cochée sur l'équipement —
+lumière, chauffage, ouvrant, sécurité, énergie, multimédia, automatisme. Sans
+catégorie, c'est l'ambre.
+
+**Le remplissage plein rouge est réservé aux alarmes** : fumée, gaz, monoxyde,
+inondation, fuite d'eau, sabotage, alarme déclenchée. C'est le seul endroit de
+la page où une carte entière se remplit, et c'est ce qui lui donne sa force —
+une couleur saturée ne garde son pouvoir d'alerte que si elle est rare.
+
+**Une caméra qui détecte du mouvement se teinte en rouge**, et non en ambre :
+elle n'est pas « allumée », elle réclame un regard. Sans aller jusqu'au
+remplissage plein, qui reste aux alarmes véritables.
+
+Le thème suit celui de Jeedom, clair ou sombre. jeeGlow ne lit pas un nom de
+thème — il mesure la luminosité du fond, ce qui fonctionne aussi avec un thème
+qu'il ne connaît pas.
 
 ## Quand un plugin a écrit son propre widget
 
@@ -131,12 +343,6 @@ Une commande dont la valeur est l'adresse d'une image — la carte d'un robot, l
 photo d'un portier, l'instantané d'une caméra — est affichée **comme une
 image**, pas comme une adresse. Si le chargement échoue, la ligne de texte
 reprend sa place plutôt que de laisser un trou.
-
-## Ce qu'une carte ne montre pas d'emblée
-
-Une carte affiche au plus six informations et huit commandes. Au-delà, elle
-l'annonce : **« + 4 autres »**, d'un appui, dépliez le reste. Rien ne disparaît
-en silence.
 
 ## Des noms lisibles
 
@@ -179,38 +385,50 @@ le code d'un plugin de caméra pour ça.
 
 ## Courbes
 
-Dans le panneau de détail, les commandes **historisées** sont tracées sur les
-dernières 24 heures, deux courbes au maximum. C'est le moteur de graphiques de
-Jeedom qui dessine : mêmes données, mêmes couleurs que partout ailleurs.
+Dans le panneau de détail, les commandes **numériques historisées** sont tracées
+sur les dernières 24 heures, deux courbes au maximum. C'est le moteur de
+graphiques de Jeedom qui dessine : mêmes données, mêmes couleurs que partout
+ailleurs.
+
+## Recherche
+
+Le champ en haut à droite cherche dans le **nom affiché**, le **plugin** et la
+**pièce**. Chercher « cuisine » et ne rien trouver parce qu'aucun équipement ne
+porte le mot dans son nom serait une fausse réponse.
+
+La recherche traverse toutes les vues : chercher « volet » depuis la vue Caméras
+et ne rien trouver alors que le volet existe n'aurait aucun sens.
 
 ## Mode kiosque
 
-Le bouton en haut à droite passe en plein écran : **le menu et la barre du haut
-de Jeedom disparaissent**, ainsi que le pied de page. Il ne reste que le
-dashboard.
+Le kiosque n'est pas un mode d'affichage à part, c'est **une distance de
+lecture**. Il fait deux choses : il retire le menu et la barre du haut de
+Jeedom, ainsi que le pied de page, et il agrandit tout — toute la typographie,
+la largeur des cartes, l'écart de la grille et la taille des cibles tactiles,
+d'un seul facteur. Les noms de carte restaient sinon à quatorze pixels, à lire à
+deux mètres. Au-delà de 1800 pixels de large, l'écran n'est plus une tablette au
+mur mais un téléviseur, et tout grandit encore d'un cran.
 
 Trois façons de l'obtenir, de la plus directe à la plus durable :
 
 1. **Le bouton « Kiosque »**, en bas du rail de gauche, qui dit ce qu'il fait et
-   comment en sortir.
+   comment en sortir. Celui en haut à droite fait la même chose.
 2. **L'adresse**, pour un favori ou une page de démarrage (voir plus bas).
 3. **Le réglage « Démarrer en kiosque »**, dans la configuration du plugin :
    jeeGlow s'ouvre alors sans le menu, sur tous les appareils, sans rien avoir à
    cliquer. C'est ce qu'il faut pour une tablette murale.
 
 Le mode est **retenu par l'appareil** : une tablette qui rouvre la page la
-retrouve en kiosque, sans paramètre dans l'adresse et sans intervention. Un
-ordinateur qui ouvre la même adresse, lui, garde son menu — le réglage est
-propre au navigateur. Le même bouton en sort, et Jeedom retrouve son menu.
+retrouve en kiosque, sans paramètre dans l'adresse et sans intervention. Ce
+choix l'emporte sur le réglage de l'installation : si « Démarrer en kiosque » est
+coché mais que vous quittez le kiosque sur votre ordinateur, cet ordinateur
+garde son menu. Le même bouton en sort, et Jeedom retrouve son menu.
 
 L'adresse fonctionne aussi, pour un favori ou une page de démarrage :
 
 ```
 index.php?v=d&m=jeeglowbe&p=jeeglowbe&fullscreen=1
 ```
-
-L'heure et la date s'affichent en haut de l'accueil, dans la langue de Jeedom —
-pas celle du navigateur, qui n'est pas forcément la vôtre sur une tablette.
 
 En kiosque, jeeGlow demande aussi au navigateur de **garder l'écran allumé**.
 Cette demande n'est possible qu'en contexte sécurisé : si vous ouvrez Jeedom en
@@ -240,25 +458,16 @@ Pour une tablette murale réellement verrouillée :
 
 L'utilisateur ne voit alors que ce dashboard, et seulement ses pièces.
 
-## Choisir sa pièce
-
-Les pastilles sous le titre filtrent par pièce. Le choix s'inscrit dans
-l'adresse (`#room=5`), donc une tablette peut démarrer directement sur la
-cuisine :
-
-```
-index.php?v=d&m=jeeglowbe&p=jeeglowbe&fullscreen=1#room=5
-```
-
-La recherche, elle, traverse toutes les pièces.
-
 ## Réglages
 
 **Plugins → Gestion des plugins → jeeGlow → Configuration** :
 
 - **Titre affiché** : le nom en haut du dashboard.
+- **Noms courts** : le raccourcissement décrit plus haut, actif par défaut.
 - **Afficher les équipements sans objet** : les regroupe dans une pièce
   « Non classé ». Utile tant que le rangement n'est pas fait.
+- **Démarrer en kiosque**, **Retour à l'accueil après** et **Atténuation de
+  nuit** : voir le mode kiosque.
 
 ## Utilisateurs en lecture seule
 
@@ -267,9 +476,16 @@ ne reçoit aucun bouton, aucun curseur, aucune liste : la carte affiche l'état 
 s'arrête là. Le cœur refuserait de toute façon l'exécution, mais un dashboard
 couvert de commandes qui répondent par une alerte rouge n'aurait aucun sens.
 
+Les scénarios suivent la même règle : seuls ceux que vous avez le droit de
+lancer apparaissent en scènes, et le serveur revérifie ce droit à chaque appui —
+une liste filtrée n'est pas une porte fermée.
+
 ## Ce que jeeGlow ne fait pas
 
 - Il ne modifie **aucun** équipement, aucune commande, aucun réglage de Jeedom.
+  Les seules écritures possibles, réservées aux administrateurs, sont le nom
+  d'affichage — qui vit dans la configuration de jeeGlow — et la pièce d'un
+  équipement.
 - Il respecte ce que vous avez déjà décidé : un objet masqué du dashboard reste
   masqué, un équipement désactivé ou invisible n'apparaît pas.
 - Il ne réutilise pas les widgets natifs : les cartes sont les siennes. Un widget

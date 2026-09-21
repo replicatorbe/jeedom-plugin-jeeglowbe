@@ -93,6 +93,50 @@ try {
         ));
     }
 
+    /*
+     * Lancer un scénario. Le contrôle de droit est ici et nulle part ailleurs :
+     * jeeglowbe::model() n'envoie que les scénarios exécutables, mais une liste
+     * filtrée n'est pas une porte fermée — l'identifiant d'un scénario se
+     * devine, et core/ajax/scenario.ajax.php oppose exactement le même
+     * hasRight('x') à son action « changeState ».
+     *
+     * Les trois étiquettes reprennent celles du coeur (scenario.ajax.php,
+     * lignes 42-44) : sans elles le journal du scénario dit qu'il s'est lancé
+     * tout seul, alors que quelqu'un a appuyé. launch(false) laisse le mode de
+     * lancement au scénario, qui sait s'il doit tourner en synchrone
+     * (core/class/scenario.class.php, ligne 835).
+     */
+    if (init('action') == 'scenario') {
+        $scenario = scenario::byId(init('id'));
+        if (!is_object($scenario)) {
+            throw new Exception(__('Scénario introuvable', __FILE__));
+        }
+        $user = isset($_SESSION['user']) ? $_SESSION['user'] : null;
+        if (!$scenario->hasRight('x', $user)) {
+            throw new Exception(__('401 - Accès non autorisé', __FILE__));
+        }
+        /* Un seul état pour l'instant. Refuser les autres nommément, plutôt que
+         * de les ignorer en silence : une page qui demanderait « stop » verrait
+         * sinon une réponse de succès et un scénario qui tourne toujours. */
+        if (init('state') != 'start') {
+            throw new Exception(__('État de scénario non géré :', __FILE__) . ' ' . init('state'));
+        }
+        if ($scenario->getIsActive() != 1) {
+            throw new Exception(__('Impossible de lancer le scénario car il est désactivé', __FILE__));
+        }
+        $scenario->addTag('trigger', 'user');
+        $scenario->addTag('trigger_value', is_object($user) ? $user->getLogin() : '');
+        $scenario->addTag('trigger_message', $GLOBALS['JEEDOM_SCLOG_TEXT']['startManual']['txt']);
+        $scenario->launch(false);
+        ajax::success(array(
+            'id' => intval($scenario->getId()),
+            /* L'état relu après coup, et non « start » supposé : en mode
+             * asynchrone launch() ne fait que poser « starting » dans le cache
+             * et rendre la main, et c'est ce que la page doit afficher. */
+            'state' => $scenario->getState(),
+        ));
+    }
+
     throw new Exception(__('Aucune méthode correspondante à :', __FILE__) . ' ' . init('action'));
 } catch (Throwable $e) {
     /* Throwable et non Exception : en PHP 8 une erreur de type n'est pas une

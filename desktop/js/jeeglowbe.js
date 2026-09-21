@@ -45,6 +45,22 @@
    * le plein écran que le nouveau vient de poser — une tablette en kiosque
    * sortait du kiosque à chaque aller-retour dans le menu. */
   JG.LIVE = ROOT
+  /* Et non les seuls index.
+   *
+   * La note ci-dessus explique pourquoi les index vivent sur cet objet ; la
+   * règle est en fait plus large, et l'avoir sous-estimée a coûté un défaut
+   * silencieux. Le bloc d'enregistrement des cartes ne s'exécute qu'au PREMIER
+   * chargement : toutes les cartes construites ensuite sont des instances des
+   * classes de ce premier passage, et tout ce qu'elles lisent dans la
+   * fermeture est celui du premier passage — un panneau détaché du document,
+   * un modèle périmé. Le symptôme est muet : appuyer sur la pastille d'une
+   * carte n'ouvrait plus rien après un aller-retour dans le menu de Jeedom.
+   *
+   * La règle, désormais : rien de ce que le bloc lit ne doit vivre dans la
+   * fermeture, sauf ce qui est constant ou pur. */
+  JG.openPanel = function (deviceId) { openPanel(deviceId) }
+  JG.setRoom = function (device, roomId, source) { setRoom(device, roomId, source) }
+  JG.MODEL = MODEL
   JG.CMDS = {}
   JG.VALUES = {}
   JG.WATCH = {}
@@ -53,8 +69,25 @@
     JG.CMDS = {}
     JG.VALUES = {}
     JG.WATCH = {}
+    /* La pièce d'un équipement est demandée une fois par carte dessinée, et le
+     * modèle ne la porte que sous forme d'un identifiant. Une table plate évite
+     * de parcourir la liste des pièces quatre cents fois par rendu. */
+    JG.ROOMS = {}
+    /* À quel équipement appartient une commande. Une pastille de l'accueil doit
+     * pouvoir nommer sa source et y mener : un nombre sans attribution n'est
+     * pas une information. */
+    JG.OWNER = {}
+    /* Les commandes qui disent si un équipement est en marche. Une bascule ne
+     * change pas seulement une valeur, elle change la composition de la liste
+     * « en ce moment » de l'accueil : il faut savoir la reconnaître dans le
+     * flot des mises à jour sans parcourir tout le modèle à chaque fois. */
+    JG.STATES = {}
+    ;(MODEL.rooms || []).forEach(function (room) {
+      JG.ROOMS[room.id] = room
+    })
     Object.keys(MODEL.devices || {}).forEach(function (key) {
       MODEL.devices[key].cmds.forEach(function (cmd) {
+        JG.OWNER[cmd.id] = MODEL.devices[key].id
         /* La commande garde le domaine de son équipement : c'est ce qui permet
          * de préférer le thermomètre du salon à la sonde interne d'une prise
          * quand on cherche « la » température de la maison. */
@@ -64,6 +97,10 @@
           JG.VALUES[cmd.id] = cmd.value
         }
       })
+      var stateId = MODEL.devices[key].roles ? MODEL.devices[key].roles.state : undefined
+      if (stateId !== undefined) {
+        JG.STATES[stateId] = true
+      }
     })
   }
 
@@ -78,6 +115,22 @@
       node.textContent = text
     }
     return node
+  }
+
+  /* Le nom de la pièce d'un équipement, vide s'il n'est rangé nulle part. */
+  function roomName(device) {
+    var room = JG.ROOMS[device.roomId]
+    return (room && room.id !== 0) ? room.name : ''
+  }
+
+  /* Relancer une animation demande de la retirer, de forcer un recalcul, puis
+   * de la reposer : sans la lecture de offsetWidth, deux changements coup sur
+   * coup ne produisent qu'un seul clignotement. */
+  function flash(node, className) {
+    var name = className || 'jg-flash'
+    node.classList.remove(name)
+    void node.offsetWidth
+    node.classList.add(name)
   }
 
   function urlVar(name) {
@@ -116,6 +169,11 @@
     LIGHT_STATE_BOOL: ['{{Allumée}}', '{{Éteinte}}'],
     ENERGY_STATE: ['{{Allumée}}', '{{Éteinte}}']
   }
+
+  /* Les états qui ne sont pas « allumé » mais « au secours ». Ils gardent le
+   * remplissage plein, que tout le reste abandonne : une couleur saturée ne
+   * garde son pouvoir d'alerte que si elle est rare. */
+  var ALARMS = ['SMOKE', 'FLOOD', 'WATER_LEAK', 'SABOTAGE', 'ALARM_STATE', 'GAS', 'CO']
 
   /* ------------------------------------------------------------------- JSON
    *
@@ -453,6 +511,30 @@
     return 0
   }
 
+  /* Le niveau de pile, de deux sources qui ne se valent pas.
+   *
+   * eqLogic::getStatus('battery') est la source officielle, mais elle n'est
+   * alimentée que par les plugins qui appellent eqLogic::batteryStatus() — et
+   * beaucoup ne le font pas : sur une installation où aucun ne l'appelle, la
+   * pastille de pile n'apparaîtrait jamais alors que des équipements
+   * remontent bel et bien leur niveau par une commande de type BATTERY. On
+   * retombe donc sur cette commande, qui, elle, existe toujours. */
+  function batteryLevel(device) {
+    if (device.battery !== null && device.battery !== undefined && device.battery !== '') {
+      return parseInt(device.battery, 10)
+    }
+    for (var i = 0; i < device.cmds.length; i++) {
+      if (device.cmds[i].generic !== 'BATTERY') {
+        continue
+      }
+      var value = parseFloat(JG.VALUES[device.cmds[i].id])
+      if (!isNaN(value)) {
+        return Math.round(value)
+      }
+    }
+    return null
+  }
+
   var CARD_ICONS = { light: 'fas fa-lightbulb', switch: 'fas fa-plug', cover: 'fas fa-bars', sensor: 'fas fa-microchip', generic: 'fas fa-cube' }
   var GENERIC_ICONS = {
     TEMPERATURE: 'fas fa-thermometer-half', WEATHER_TEMPERATURE: 'fas fa-thermometer-half',
@@ -526,9 +608,31 @@
     if (cmdId === undefined || cmdId === null) {
       return
     }
+    /* « Ça part » et « c'est désactivé » ne doivent pas se ressembler, et
+     * l'attente doit durer ce que dure l'aller-retour, pas 900 millisecondes
+     * décidées d'avance : une commande Zigbee qui met trois secondes affichait
+     * un dashboard immobile, et une commande instantanée gardait une carte
+     * grisée bien après coup. Le délai ne sert plus que de garde-fou si le
+     * coeur ne rappelle jamais. */
+    var done = function (failed) {
+      if (!source) {
+        return
+      }
+      clearTimeout(source._jgBusy)
+      source._jgBusy = null
+      source.classList.remove('jg-busy')
+      if (!failed) {
+        return
+      }
+      /* L'échec se voit sur la carte fautive. Le bandeau du coeur est en haut
+       * de la page : sur un mur, il est à un mètre de ce qui a raté. */
+      source.classList.add('jg-failed')
+      setTimeout(function () { source.classList.remove('jg-failed') }, 2500)
+    }
     if (source) {
       source.classList.add('jg-busy')
-      setTimeout(function () { source.classList.remove('jg-busy') }, 900)
+      clearTimeout(source._jgBusy)
+      source._jgBusy = setTimeout(function () { done(false) }, 8000)
     }
     var params = { id: cmdId, notify: false }
     if (value !== undefined && value !== null) {
@@ -543,7 +647,9 @@
         params.value[key] = value
       }
     }
+    params.success = function () { done(false) }
     params.error = function (error) {
+      done(true)
       if (typeof jeedomUtils !== 'undefined' && jeedomUtils.showAlert) {
         jeedomUtils.showAlert({ message: (error && error.message) ? error.message : String(error), level: 'danger' })
       }
@@ -552,6 +658,30 @@
   }
 
   /* --------------------------------------------------------------- les cartes */
+
+  /* Trois familles que le modèle ne sait pas classer, parce qu'il classe par
+   * rôles pilotables et qu'elles n'en ont aucun au sens des cartes existantes.
+   * Elles retombaient donc toutes sur la carte générique — dix-huit caméras
+   * réduites à « Perte vidéo — » suivi de trois lignes binaires.
+   *
+   * Ces trois déclarations vivent hors du bloc d'enregistrement ci-dessous, et
+   * ce n'est pas un détail de rangement : ce bloc ne s'exécute qu'au tout
+   * premier chargement, et le fichier est en mode strict, où une fonction
+   * déclarée dans un bloc ne sort pas de ce bloc. Placées dedans, elles
+   * seraient introuvables dès le second passage — c'est-à-dire à chaque retour
+   * sur le dashboard par le menu de Jeedom. */
+  var CLIMATE_MARKS = ['THERMOSTAT_STATE', 'THERMOSTAT_TEMPERATURE', 'THERMOSTAT_SETPOINT',
+    'THERMOSTAT_SET_SETPOINT', 'THERMOSTAT_MODE', 'THERMOSTAT_SET_MODE']
+  var MEDIA_MARKS = ['MEDIA_STATE', 'MEDIA_STATUS', 'MEDIA_TITLE', 'MEDIA_PAUSE', 'MEDIA_RESUME']
+
+  function firstGeneric(device, names) {
+    for (var i = 0; i < device.cmds.length; i++) {
+      if (names.indexOf(device.cmds[i].generic) !== -1) {
+        return device.cmds[i]
+      }
+    }
+    return null
+  }
 
   /* Un seul enregistrement pour toute la session : voir la note sur JG plus
    * haut. Le registre des éléments personnalisés refuse un second define, et
@@ -565,12 +695,77 @@
       }
       this._ready = true
       this.classList.add('jg-card')
-      this.dataset.cardType = this.device.card
+      /* La carte réellement construite, et non celle que le modèle a proposée :
+       * une caméra ou un thermostat sont reconnus côté page, et une règle de
+       * style qui les viserait par device.card ne les trouverait jamais. */
+      this.dataset.cardType = this.tagName.replace('JG-CARD-', '').toLowerCase()
       if (this.device.category) {
         this.dataset.category = this.device.category
       }
+      /* Le domaine en plus de la catégorie. La catégorie est le meilleur
+       * renseignement quand elle existe — mais sur l'installation d'essai,
+       * quarante-trois équipements sur soixante-quatre n'en ont aucune, et
+       * leur pastille restait grise. Le domaine, lui, est toujours déduit. */
+      if (this.device.domain) {
+        this.dataset.domain = this.device.domain
+      }
+      /* Décidé avant build() : l'en-tête a besoin de savoir s'il doit garder
+       * l'ouverture du détail ou la céder à la pastille. */
+      this._actionable = this.actionable()
+      this.dataset.actionable = this._actionable ? '1' : '0'
+      /* Les commandes d'alarme sont repérées ici, et non dans chaque carte :
+       * un détecteur de fumée est une carte capteur, un sabotage arrive sur
+       * une carte générique, et une alarme sur une bascule. Chercher le rôle
+       * « état » ne les aurait trouvés que sur la dernière. */
+      this._alarms = this.device.cmds.filter(function (cmd) {
+        return cmd.type === 'info' && ALARMS.indexOf(cmd.generic) !== -1
+      })
+      this._alarms.forEach(function (cmd) { watch(cmd.id, this) }, this)
       this.build()
       this.sync()
+    }
+
+    /* Une carte est « actionnable » quand un appui dessus fait quelque chose.
+     * La distinction n'est pas décorative : elle décide de la forme de la
+     * pastille, du rôle ARIA et de qui ouvre le détail. Un variateur qui
+     * n'expose qu'un curseur, une prise qui ne rapporte que sa consommation,
+     * répondent non. */
+    actionable() {
+      return false
+    }
+
+    /* La bascule d'état est le seul changement qui mérite que la carte entière
+     * se signale : c'est celui qu'on cherche des yeux depuis l'autre bout de la
+     * pièce. Les mesures, elles, se contentent du clignotement de leur valeur. */
+    markState(on) {
+      var next = on ? '1' : '0'
+      if (this.dataset.on === next) {
+        return
+      }
+      var known = this.dataset.on !== undefined
+      this.dataset.on = next
+      if (known) {
+        flash(this, 'jg-card-ping')
+      }
+    }
+
+    /* Une fuite d'eau et une lampe allumée ne peuvent pas produire le même
+     * événement visuel. La couleur pleine, devenue rare, leur est réservée. */
+    syncAlert() {
+      /* Le panneau n'est pas une tuile : il est déjà ouvert devant les yeux de
+       * quelqu'un, et le repeindre en rouge plein ne lui apprendrait rien
+       * qu'il ne soit en train de lire. */
+      if (this.tagName === 'JG-CARD-DETAIL') {
+        return
+      }
+      var alarming = (this._alarms || []).some(function (cmd) {
+        return isTrue(cmd, JG.VALUES[cmd.id])
+      })
+      if (alarming) {
+        this.dataset.alert = '1'
+      } else {
+        this.removeAttribute('data-alert')
+      }
     }
 
     /* Identifiant de la commande tenant ce rôle, ou undefined. */
@@ -595,12 +790,54 @@
       return isTrue(cmd, JG.VALUES[id])
     }
 
+    /* Où se trouve l'équipement, quand la vue courante ne le dit pas déjà. En
+     * vue Fonctions — celle où l'on arrive — « Plafonnier » et « Plafonnier »
+     * sont deux cartes identiques, et rien n'indique laquelle est la cuisine.
+     * En vue Pièces, la section porte déjà le nom : le répéter serait du
+     * bruit. */
+    place() {
+      return (state().view === 'rooms') ? '' : roomName(this.device)
+    }
+
+    showSubtitle(text) {
+      var place = this.place()
+      var parts = [place, text].filter(function (part) { return part })
+      this._subtitle.textContent = parts.join(' · ')
+    }
+
     header(subtitle) {
       var head = el('div', 'jg-card-head')
-      /* L'en-tête ouvre le détail, le corps agit. Deux gestes distincts sur une
-       * même carte, sans appui long : sur une tablette murale, un appui long
-       * est une loterie. */
-      if (this.tagName !== 'JG-CARD-DETAIL') {
+      var opens = this.tagName !== 'JG-CARD-DETAIL'
+
+      /* Qui ouvre le détail, et qui agit ?
+       *
+       * Tant que l'en-tête entier ouvrait le détail, la bascule ne disposait
+       * que du bas de la carte : sur une tuile courte, la moitié de la cible
+       * était perdue. C'est exactement le reproche adressé aux dashboards qui
+       * ont logé leur action rapide dans un coin — on gagne un bouton, on perd
+       * la surface qui comptait.
+       *
+       * La règle s'inverse donc dès qu'il y a quelque chose à basculer : toute
+       * la carte agit, et seule la pastille d'icône ouvre le détail. Sur une
+       * carte qui ne pilote rien, il n'y a pas de conflit et l'en-tête entier
+       * reprend son rôle d'ouverture, qui est alors le seul geste possible. */
+      var icon
+      if (opens && this._actionable) {
+        icon = el('button', 'jg-card-icon jg-card-open')
+        icon.type = 'button'
+        icon.title = '{{Voir le détail}}'
+        icon.setAttribute('aria-label', '{{Voir le détail}}')
+        icon.addEventListener('click', function (event) {
+          event.stopPropagation()
+          event.preventDefault()
+          JG.openPanel(this.device.id)
+        }.bind(this))
+      } else {
+        icon = el('span', 'jg-card-icon')
+      }
+      icon.appendChild(el('i', deviceIcon(this.device)))
+
+      if (opens && !this._actionable) {
         head.classList.add('jg-head-open')
         head.setAttribute('role', 'button')
         head.setAttribute('tabindex', '0')
@@ -608,7 +845,7 @@
         var open = function (event) {
           event.stopPropagation()
           event.preventDefault()
-          openPanel(this.device.id)
+          JG.openPanel(this.device.id)
         }.bind(this)
         head.addEventListener('click', open)
         head.addEventListener('keydown', function (event) {
@@ -617,21 +854,51 @@
           }
         })
       }
-      var icon = el('i', deviceIcon(this.device) + ' jg-card-icon')
+
       head.appendChild(icon)
       var titles = el('div', 'jg-card-titles')
       titles.appendChild(el('span', 'jg-card-name', this.device.name))
-      this._subtitle = el('span', 'jg-card-sub', subtitle || '')
+      this._subtitle = el('span', 'jg-card-sub', '')
       titles.appendChild(this._subtitle)
       head.appendChild(titles)
-      if (this.device.battery !== null && this.device.battery !== undefined && this.device.battery <= 25) {
-        var battery = el('span', 'jg-battery')
-        battery.appendChild(el('i', 'fas fa-battery-quarter'))
-        battery.appendChild(el('span', null, this.device.battery + ' %'))
-        head.appendChild(battery)
+      this.showSubtitle(subtitle)
+
+      var flags = this.flags()
+      if (flags !== null) {
+        head.appendChild(flags)
       }
       this.appendChild(head)
       return head
+    }
+
+    /* Ce qui réclame une intervention, dit sur la carte elle-même : sans cela
+     * il faut parcourir quatre cents tuiles à l'oeil pour découvrir qu'une pile
+     * est morte ou qu'un équipement ne répond plus. La vue Santé les rassemble,
+     * mais l'information doit aussi être là où l'on regarde. */
+    flags() {
+      var status = this.device.status || {}
+      var box = null
+      function add(node) {
+        if (box === null) {
+          box = el('div', 'jg-flags')
+        }
+        box.appendChild(node)
+      }
+      if (status.timeout) {
+        var mute = el('span', 'jg-flag jg-flag-mute')
+        mute.title = '{{Cet équipement ne répond plus}}'
+        mute.appendChild(el('i', 'fas fa-unlink'))
+        add(mute)
+      }
+      var level = batteryLevel(this.device)
+      if (level !== null && level <= BATTERY_LOW) {
+        var battery = el('span', 'jg-battery')
+        battery.title = '{{Pile faible}}'
+        battery.appendChild(el('i', 'fas fa-battery-quarter'))
+        battery.appendChild(el('span', null, level + ' %'))
+        add(battery)
+      }
+      return box
     }
 
     /* Les mesures secondaires d'une carte pilotable : la puissance d'une prise,
@@ -653,7 +920,15 @@
         return value !== null && value !== undefined && value !== ''
       }).sort(function (a, b) {
         return metricRank(b) - metricRank(a)
-      }).slice(0, limit || 3)
+      })
+
+      /* Sur une carte qui pilote, une mesure est un nombre. « Événement entrée
+       * 1 : Salon » occupait la ligne d'une prise devant sa puissance : c'est
+       * le nom d'une borne physique et la valeur d'un état interne, cela ne
+       * dit rien à qui regarde le mur. On garde donc ce qui se mesure — et à
+       * défaut, ce qu'il y a, plutôt que de laisser la carte muette. */
+      var measured = extras.filter(function (cmd) { return metricRank(cmd) >= 2 })
+      extras = (measured.length > 0 ? measured : extras).slice(0, limit || 3)
       if (extras.length === 0) {
         return
       }
@@ -732,7 +1007,7 @@
       button.addEventListener('click', function (event) {
         event.stopPropagation()
         event.preventDefault()
-        openPanel(this.device.id)
+        JG.openPanel(this.device.id)
       }.bind(this))
       return button
     }
@@ -819,6 +1094,26 @@
       })
     }
 
+    /* Écrire une valeur, et la faire voir changer.
+     *
+     * Un dashboard temps réel qui remplace un texte sans un pixel de signal
+     * oblige à relire l'écran entier pour savoir ce qui vient de bouger. Le
+     * clignotement ne part donc que sur un changement réel, et jamais sur la
+     * première écriture : au chargement, comme à chaque relecture du modèle,
+     * tout serait sinon marqué neuf en même temps. */
+    write(node, text) {
+      if (!node || node.textContent === text) {
+        return false
+      }
+      var seen = node.dataset.jgSeen === '1'
+      node.textContent = text
+      node.dataset.jgSeen = '1'
+      if (seen) {
+        flash(node)
+      }
+      return seen
+    }
+
     syncRows() {
       ;(this._rows || []).forEach(function (entry) {
         /* Le widget d'un plugin se tient à jour tout seul : il s'est inscrit
@@ -838,7 +1133,7 @@
         if (!entry.node) {
           return
         }
-        entry.node.textContent = format(entry.id)
+        this.write(entry.node, format(entry.id))
         if (entry.node.parentNode && entry.node.parentNode.classList.contains('jg-row')) {
           entry.node.parentNode.classList.toggle('jg-row-stacked', entry.node.textContent.length > 30)
         }
@@ -853,13 +1148,13 @@
             entry.details = fresh
           }
         }
-      })
+      }, this)
     }
 
     syncMetrics() {
       (this._metrics || []).forEach(function (metric) {
-        metric.node.textContent = format(metric.id)
-      })
+        this.write(metric.node, format(metric.id))
+      }, this)
     }
 
     slider(roleName, onChange) {
@@ -907,6 +1202,17 @@
   /* Lumière et prise : même geste, un appui sur la carte. La différence
    * d'icône et de vocabulaire suffit à les distinguer, pas deux implémentations. */
   class JgToggle extends JgCard {
+    /* Rien à basculer : un variateur qui n'expose qu'un curseur, une prise qui
+     * ne rapporte que sa consommation. Et sans commande d'état, on ne sait pas
+     * sur quel pied danser : la carte donne alors deux boutons explicites
+     * plutôt qu'une bascule qui se trompe une fois sur deux. Ni l'un ni l'autre
+     * ne répond à un appui sur la carte — la déclarer bouton la ferait répondre
+     * au clavier et se soulever au survol pour ne rien faire. */
+    actionable() {
+      var canToggle = (this.role('toggle') !== undefined || this.role('on') !== undefined || this.role('off') !== undefined)
+      return canToggle && this.role('state') !== undefined
+    }
+
     build() {
       this.header()
       var body = el('div', 'jg-card-body')
@@ -914,27 +1220,29 @@
       body.appendChild(this._state)
       this.appendChild(body)
 
+      /* Les réglages occupent chacun leur rangée pleine largeur, dans un bloc
+       * à part. Un curseur qui partage sa ligne avec deux boutons devient
+       * intouchable au doigt, et un petit bouton logé dans un coin de tuile
+       * mange la cible principale sans rien apporter. */
+      var features = el('div', 'jg-features')
       var slider = this.slider('slider', function (value, input) {
         exec(this.role('slider'), value, input)
       }.bind(this))
       if (slider) {
-        this.appendChild(slider)
+        features.appendChild(slider)
       }
 
-      /* Rien à basculer : un variateur qui n'expose qu'un curseur, une prise
-       * qui ne rapporte que sa consommation. La carte reste informative — la
-       * déclarer bouton la ferait répondre au clavier et se soulever au
-       * survol pour ne rien faire. */
       var canToggle = (this.role('toggle') !== undefined || this.role('on') !== undefined || this.role('off') !== undefined)
 
-      /* Sans commande d'état, on ne peut pas savoir sur quel pied danser : deux
-       * boutons explicites valent mieux qu'une bascule qui se trompe. */
       if (!canToggle) {
+        if (features.children.length > 0) {
+          this.appendChild(features)
+        }
         this.metrics(2)
         this.watchState()
         return
       }
-      if (this.role('state') === undefined) {
+      if (!this._actionable) {
         var pair = el('div', 'jg-actions')
         if (this.role('on') !== undefined) {
           var onBtn = el('button', 'jg-btn', '{{Allumer}}')
@@ -946,7 +1254,7 @@
           offBtn.addEventListener('click', function () { exec(this.role('off'), null, offBtn) }.bind(this))
           pair.appendChild(offBtn)
         }
-        this.appendChild(pair)
+        features.appendChild(pair)
       } else {
         /* Une carte qui se comporte en bouton doit en être un pour le clavier
          * et pour les lecteurs d'écran : un div cliquable n'est atteignable ni
@@ -974,6 +1282,9 @@
         }.bind(this))
       }
 
+      if (features.children.length > 0) {
+        this.appendChild(features)
+      }
       this.metrics(2)
       this.watchState()
     }
@@ -996,14 +1307,15 @@
 
     sync() {
       var on = this.on()
-      this.dataset.on = on ? '1' : '0'
+      this.markState(on)
+      this.syncAlert()
       var stateId = this.role('state')
       var text = (stateId === undefined) ? '' : format(stateId)
       var brightnessId = this.role('brightness')
       if (brightnessId !== undefined && on) {
         text = format(brightnessId)
       }
-      this._state.textContent = text
+      this.write(this._state, text)
       if (this.role('slider') !== undefined) {
         this.syncSlider(JG.VALUES[this.role('slider')])
       } else if (stateId !== undefined && JG.CMDS[stateId] && JG.CMDS[stateId].subType === 'numeric') {
@@ -1014,6 +1326,13 @@
   }
 
   class JgCover extends JgCard {
+    /* Un volet ne se bascule pas d'un appui — monter et descendre sont deux
+     * gestes — mais il se pilote : sa pastille ouvre donc le détail, comme sur
+     * une lampe, et ses trois flèches gardent toute la largeur. */
+    actionable() {
+      return this.role('up') !== undefined || this.role('down') !== undefined || this.role('slider') !== undefined
+    }
+
     build() {
       this.header()
       var body = el('div', 'jg-card-body')
@@ -1021,11 +1340,12 @@
       body.appendChild(this._state)
       this.appendChild(body)
 
+      var features = el('div', 'jg-features')
       var slider = this.slider('slider', function (value, input) {
         exec(this.role('slider'), value, input)
       }.bind(this))
       if (slider) {
-        this.appendChild(slider)
+        features.appendChild(slider)
       }
 
       var bar = el('div', 'jg-actions')
@@ -1044,7 +1364,12 @@
         node.addEventListener('click', function () { exec(this.role(button.role), null, node) }.bind(this))
         bar.appendChild(node)
       }, this)
-      this.appendChild(bar)
+      if (bar.children.length > 0) {
+        features.appendChild(bar)
+      }
+      if (features.children.length > 0) {
+        this.appendChild(features)
+      }
 
       this.metrics(2)
       ;['state', 'slider'].forEach(function (role) {
@@ -1060,14 +1385,15 @@
         var cmd = JG.CMDS[stateId]
         if (cmd && cmd.subType === 'numeric') {
           var percent = parseFloat(JG.VALUES[stateId])
-          this._state.textContent = isNaN(percent) ? '—' : Math.round(percent) + ' %'
-          this.dataset.on = (percent > 0) ? '1' : '0'
+          this.write(this._state, isNaN(percent) ? '—' : Math.round(percent) + ' %')
+          this.markState(percent > 0)
           this.syncSlider(percent)
         } else {
-          this._state.textContent = format(stateId)
-          this.dataset.on = isTrue(cmd, JG.VALUES[stateId]) ? '1' : '0'
+          this.write(this._state, format(stateId))
+          this.markState(isTrue(cmd, JG.VALUES[stateId]))
         }
       }
+      this.syncAlert()
       this.syncMetrics()
     }
   }
@@ -1100,7 +1426,7 @@
 
       this._rows = []
       if (this._primary) {
-        this._subtitle.textContent = this._primary.name
+        this.showSubtitle(this._primary.name)
         watch(this._primary.id, this)
         /* La valeur principale est une ligne comme une autre pour la mise à
          * jour : l'oublier ici la figerait à sa valeur de chargement. */
@@ -1124,9 +1450,10 @@
       if (this._primary) {
         var cmd = JG.CMDS[this._primary.id]
         if (cmd && cmd.subType === 'binary') {
-          this.dataset.on = isTrue(cmd, JG.VALUES[this._primary.id]) ? '1' : '0'
+          this.markState(isTrue(cmd, JG.VALUES[this._primary.id]))
         }
       }
+      this.syncAlert()
       this.syncRows()
     }
   }
@@ -1211,6 +1538,7 @@
     }
 
     sync() {
+      this.syncAlert()
       this.syncRows()
     }
   }
@@ -1246,7 +1574,7 @@
      * ouvrir la page d'un plugin pour corriger ça : la seule occasion de ranger
      * est celle où l'on a l'équipement sous les yeux. */
     roomPicker() {
-      if (!MODEL.admin || !Array.isArray(MODEL.objects) || MODEL.objects.length === 0) {
+      if (!JG.MODEL.admin || !Array.isArray(JG.MODEL.objects) || JG.MODEL.objects.length === 0) {
         return
       }
       var row = el('div', 'jg-row jg-room-row')
@@ -1256,14 +1584,14 @@
       var none = el('option', null, '{{Non classé}}')
       none.value = '0'
       select.appendChild(none)
-      MODEL.objects.forEach(function (object) {
+      JG.MODEL.objects.forEach(function (object) {
         var option = el('option', null, object.name)
         option.value = String(object.id)
         select.appendChild(option)
       })
       select.value = String(this.device.roomId || 0)
       select.addEventListener('change', function () {
-        setRoom(this.device, select.value, select)
+        JG.setRoom(this.device, select.value, select)
       }.bind(this))
       row.appendChild(select)
       this.appendChild(row)
@@ -1306,6 +1634,7 @@
     }
 
     sync() {
+      this.syncAlert()
       this.syncRows()
     }
   }
@@ -1313,11 +1642,315 @@
   /* actionNode vit sur la carte générique : le panneau en a besoin aussi. */
   JgDetail.prototype.actionNode = JgGeneric.prototype.actionNode
 
+  /* Une caméra dit deux choses, et deux seulement : est-ce que quelque chose
+   * bouge, et que s'est-il passé en dernier. Tout le reste — perte vidéo,
+   * véhicule détecté, dix lignes binaires — appartient au panneau. */
+  class JgCamera extends JgCard {
+    build() {
+      this._rows = []
+      this.header()
+
+      var infos = this.device.cmds.filter(function (cmd) { return cmd.type === 'info' })
+
+      /* Un instantané ou le rendu du plugin valent mieux que n'importe quelle
+       * phrase : quand il y en a un, il passe avant tout. */
+      var rich = infos.filter(function (cmd) { return cmd.widget || imageUrl(cmd.id) !== null })
+      if (rich.length > 0) {
+        this.appendChild(this.infoRows(rich.slice(0, 1)))
+      }
+
+      var body = el('div', 'jg-card-body jg-cam-body')
+      this._motion = el('span', 'jg-live')
+      this._motion.appendChild(el('i', 'fas fa-running'))
+      this._motion.appendChild(el('span', null, '{{Mouvement}}'))
+      this._motion.hidden = true
+      body.appendChild(this._motion)
+
+      /* Ni un widget, ni une structure : le widget est déjà montré au-dessus, et
+       * le répéter en texte donnait deux fois la même phrase sur la même carte. */
+      this._event = infos.filter(function (cmd) {
+        return cmd.subType === 'string' && cmd.visible && !cmd.widget &&
+          jsonOf(cmd.id) === null && imageUrl(cmd.id) === null
+      })[0] || null
+      this._line = el('span', 'jg-cam-event', '')
+      body.appendChild(this._line)
+      this.appendChild(body)
+      if (this._event !== null) {
+        watch(this._event.id, this)
+      }
+
+      this._eyes = infos.filter(function (cmd) { return cmd.generic === 'PRESENCE' })
+      this._eyes.forEach(function (cmd) { watch(cmd.id, this) }, this)
+
+      var take = this.device.cmds.filter(function (cmd) {
+        return cmd.type === 'action' && cmd.generic === 'CAMERA_TAKE'
+      })[0]
+      if (take !== undefined) {
+        var features = el('div', 'jg-features')
+        var bar = el('div', 'jg-actions')
+        var button = el('button', 'jg-btn')
+        button.appendChild(el('i', 'fas fa-camera'))
+        button.appendChild(el('span', null, ' ' + '{{Capturer}}'))
+        button.addEventListener('click', function (event) {
+          event.stopPropagation()
+          exec(take.id, null, button)
+        })
+        bar.appendChild(button)
+        features.appendChild(bar)
+        this.appendChild(features)
+      }
+    }
+
+    sync() {
+      var moving = this._eyes.some(function (cmd) {
+        return isTrue(cmd, JG.VALUES[cmd.id])
+      })
+      this._motion.hidden = !moving
+      this.markState(moving)
+      this.write(this._line, (this._event === null) ? '' : format(this._event.id))
+      this.syncAlert()
+      this.syncRows()
+    }
+  }
+
+  /* Le chauffage se règle là où on le lit : mesure et consigne sur la même
+   * carte, deux boutons assez gros pour le pouce. Ouvrir un panneau pour
+   * gagner un demi-degré est le geste qu'on ne fait jamais. */
+  class JgClimate extends JgCard {
+    actionable() {
+      return firstGeneric(this.device, ['THERMOSTAT_SET_SETPOINT']) !== null
+    }
+
+    build() {
+      this._rows = []
+      this._temp = firstGeneric(this.device, ['THERMOSTAT_TEMPERATURE'])
+      this._setpoint = firstGeneric(this.device, ['THERMOSTAT_SETPOINT'])
+      this._setter = firstGeneric(this.device, ['THERMOSTAT_SET_SETPOINT'])
+      this._mode = firstGeneric(this.device, ['THERMOSTAT_MODE', 'THERMOSTAT_STATE_NAME', 'THERMOSTAT_STATE'])
+
+      this.header(this._mode === null ? '' : format(this._mode.id))
+
+      var body = el('div', 'jg-card-body')
+      this._value = el('span', 'jg-value', (this._temp === null) ? '—' : format(this._temp.id))
+      body.appendChild(this._value)
+      this._target = el('span', 'jg-target', '')
+      body.appendChild(this._target)
+      this.appendChild(body)
+
+      if (this._setter !== null) {
+        var features = el('div', 'jg-features')
+        var bar = el('div', 'jg-actions jg-thermo')
+        bar.appendChild(this.step('-', '{{Baisser}}', -0.5))
+        bar.appendChild(this.step('+', '{{Monter}}', 0.5))
+        features.appendChild(bar)
+        this.appendChild(features)
+      }
+
+      ;[this._temp, this._setpoint, this._mode].forEach(function (cmd) {
+        if (cmd !== null) {
+          watch(cmd.id, this)
+        }
+      }, this)
+      this.metrics(2)
+    }
+
+    /* Un pas de consigne, pas une valeur absolue : la commande du coeur attend
+     * une température, et la seule que nous connaissons est celle que
+     * l'équipement rapporte. Sans consigne connue, les boutons n'auraient rien
+     * à quoi ajouter un demi-degré — ils ne sont donc pas dessinés. */
+    step(sign, label, delta) {
+      var button = el('button', 'jg-btn jg-btn-step', sign)
+      button.title = label
+      button.setAttribute('aria-label', label)
+      button.addEventListener('click', function (event) {
+        event.stopPropagation()
+        var current = (this._setpoint === null) ? NaN : parseFloat(JG.VALUES[this._setpoint.id])
+        if (isNaN(current)) {
+          return
+        }
+        exec(this._setter.id, Math.round((current + delta) * 10) / 10, button)
+      }.bind(this))
+      return button
+    }
+
+    sync() {
+      this.write(this._value, (this._temp === null) ? '—' : format(this._temp.id))
+      this.write(this._target, (this._setpoint === null) ? '' : '{{consigne}} ' + format(this._setpoint.id))
+      if (this._mode !== null) {
+        this.showSubtitle(format(this._mode.id))
+      }
+      var state = firstGeneric(this.device, ['THERMOSTAT_STATE'])
+      if (state !== null) {
+        this.markState(isTrue(state, JG.VALUES[state.id]))
+      }
+      this.syncAlert()
+      this.syncMetrics()
+    }
+  }
+
+  /* Ce qui joue, et de quoi l'arrêter. Les génériques MEDIA_* existent dans le
+   * coeur depuis toujours et aucune carte ne les lisait. */
+  class JgMedia extends JgCard {
+    build() {
+      this._rows = []
+      this._title = firstGeneric(this.device, ['MEDIA_TITLE'])
+      this._artist = firstGeneric(this.device, ['MEDIA_ARTIST', 'MEDIA_ALBUM'])
+      this._status = firstGeneric(this.device, ['MEDIA_STATE', 'MEDIA_STATUS'])
+
+      this.header(this._status === null ? '' : format(this._status.id))
+
+      var body = el('div', 'jg-card-body')
+      this._line = el('span', 'jg-value jg-value-text', '')
+      body.appendChild(this._line)
+      this.appendChild(body)
+
+      var buttons = [
+        { generic: 'MEDIA_PREVIOUS', icon: 'fas fa-step-backward', label: '{{Précédent}}' },
+        { generic: 'MEDIA_PAUSE', icon: 'fas fa-pause', label: '{{Pause}}' },
+        { generic: 'MEDIA_RESUME', icon: 'fas fa-play', label: '{{Lecture}}' },
+        { generic: 'MEDIA_NEXT', icon: 'fas fa-step-forward', label: '{{Suivant}}' }
+      ]
+      var bar = el('div', 'jg-actions')
+      buttons.forEach(function (entry) {
+        var cmd = firstGeneric(this.device, [entry.generic])
+        if (cmd === null) {
+          return
+        }
+        var node = el('button', 'jg-btn jg-btn-icon')
+        node.title = entry.label
+        node.setAttribute('aria-label', entry.label)
+        node.appendChild(el('i', entry.icon))
+        node.addEventListener('click', function (event) {
+          event.stopPropagation()
+          exec(cmd.id, null, node)
+        })
+        bar.appendChild(node)
+      }, this)
+      if (bar.children.length > 0) {
+        var features = el('div', 'jg-features')
+        features.appendChild(bar)
+        this.appendChild(features)
+      }
+
+      ;[this._title, this._artist, this._status].forEach(function (cmd) {
+        if (cmd !== null) {
+          watch(cmd.id, this)
+        }
+      }, this)
+    }
+
+    sync() {
+      var parts = [this._title, this._artist].filter(function (cmd) { return cmd !== null })
+        .map(function (cmd) { return format(cmd.id) })
+        .filter(function (text) { return text && text !== '—' })
+      this.write(this._line, parts.join(' · '))
+      if (this._status !== null) {
+        this.showSubtitle(format(this._status.id))
+        this.markState(!/stop|pause|off|arr/i.test(String(JG.VALUES[this._status.id])))
+      }
+    }
+  }
+
+  /* La bande compacte de l'accueil.
+   *
+   * Une carte complète y disait « Allumée », deux mesures et un curseur : sur
+   * huit équipements côte à côte cela fait un mur de texte, là où l'on ne pose
+   * qu'une question — qu'est-ce qui tourne, et comment l'arrêter. La bande ne
+   * garde que le nom, une ligne de résumé, et la bascule sur toute sa surface.
+   * Le réglage fin reste à un appui, dans le panneau. */
+  class JgQuick extends JgCard {
+    actionable() {
+      return this.role('state') !== undefined &&
+        (this.role('toggle') !== undefined || this.role('on') !== undefined || this.role('off') !== undefined)
+    }
+
+    build() {
+      this.classList.add('jg-quick')
+      var head = el('div', 'jg-card-head')
+      var icon = el('span', 'jg-card-icon')
+      icon.appendChild(el('i', deviceIcon(this.device)))
+      head.appendChild(icon)
+      var titles = el('div', 'jg-card-titles')
+      titles.appendChild(el('span', 'jg-card-name', this.device.name))
+      this._subtitle = el('span', 'jg-card-sub', '')
+      titles.appendChild(this._subtitle)
+      head.appendChild(titles)
+      this.appendChild(head)
+
+      /* La mesure qui accompagne l'état : la puissance d'une prise, la position
+       * d'un volet. Une seule — la bande n'est pas une fiche. */
+      this._extra = this.device.cmds.filter(function (cmd) {
+        return cmd.type === 'info' && cmd.visible && metricRank(cmd) >= 3 &&
+          NOISY.indexOf(cmd.generic) === -1
+      })[0] || null
+
+      if (this._actionable) {
+        this.classList.add('jg-tappable')
+        this.setAttribute('role', 'button')
+        this.setAttribute('tabindex', '0')
+        this.addEventListener('click', function () { this.toggle() }.bind(this))
+        this.addEventListener('keydown', function (event) {
+          if (event.key !== 'Enter' && event.key !== ' ') {
+            return
+          }
+          event.preventDefault()
+          this.toggle()
+        }.bind(this))
+      } else {
+        this.classList.add('jg-head-open')
+        this.setAttribute('role', 'button')
+        this.setAttribute('tabindex', '0')
+        this.addEventListener('click', function () { JG.openPanel(this.device.id) }.bind(this))
+      }
+
+      ;['state', 'brightness', 'slider'].forEach(function (role) {
+        if (this.role(role) !== undefined) {
+          watch(this.role(role), this)
+        }
+      }, this)
+      if (this._extra !== null) {
+        watch(this._extra.id, this)
+      }
+    }
+
+    toggle() {
+      if (this.role('toggle') !== undefined) {
+        exec(this.role('toggle'), null, this)
+        return
+      }
+      exec(this.on() ? this.role('off') : this.role('on'), null, this)
+    }
+
+    /* Pièce · état · mesure, sur une ligne. C'est la phrase qu'on lit, et non
+     * trois étiquettes empilées. */
+    sync() {
+      var on = this.on()
+      this.markState(on)
+      this.syncAlert()
+      var parts = []
+      var brightness = this.role('brightness')
+      var stateId = this.role('state')
+      if (brightness !== undefined && on) {
+        parts.push(format(brightness))
+      } else if (stateId !== undefined) {
+        parts.push(format(stateId))
+      }
+      if (this._extra !== null) {
+        parts.push(format(this._extra.id))
+      }
+      this.showSubtitle(parts.join(' · '))
+    }
+  }
+
+  customElements.define('jg-card-quick', JgQuick)
   customElements.define('jg-card-detail', JgDetail)
   customElements.define('jg-card-light', class extends JgToggle {})
   customElements.define('jg-card-switch', class extends JgToggle {})
   customElements.define('jg-card-cover', JgCover)
   customElements.define('jg-card-sensor', JgSensor)
+  customElements.define('jg-card-camera', JgCamera)
+  customElements.define('jg-card-climate', JgClimate)
+  customElements.define('jg-card-media', JgMedia)
   customElements.define('jg-card-generic', JgGeneric)
 
   }
@@ -1328,11 +1961,47 @@
     }
     if (JG.WATCH[cmdId].indexOf(card) === -1) {
       JG.WATCH[cmdId].push(card)
+      /* La carte retient ce qu'elle suit. Sans cette liste, la désinscription
+       * doit balayer les quatre cents entrées de JG.WATCH pour retrouver une
+       * carte, et le ménage d'une vue entière devient quadratique — ce qui se
+       * sent précisément là où ça fait mal, sur la tablette murale. */
+      ;(card._watched = card._watched || []).push(cmdId)
     }
   }
 
+  /* Le modèle classe un équipement par les rôles qu'il sait piloter. Une
+   * caméra, un thermostat, un lecteur n'en ont aucun à ce compte-là et
+   * repartaient tous en carte générique. On affine ici, sur les types
+   * génériques du coeur, et seulement quand le modèle n'a rien trouvé : une
+   * lampe sur prise commandée reste d'abord une lampe. */
+  function cardType(device) {
+    if (device.card !== 'generic' && device.card !== 'sensor') {
+      return device.card
+    }
+    if (device.domain === 'camera' || firstGeneric(device, ['CAMERA_TAKE', 'CAMERA_URL']) !== null) {
+      return 'camera'
+    }
+    if (firstGeneric(device, CLIMATE_MARKS) !== null) {
+      return 'climate'
+    }
+    if (firstGeneric(device, MEDIA_MARKS) !== null) {
+      return 'media'
+    }
+    return device.card
+  }
+
+  /* La bande compacte, pour l'accueil. Même machinerie que les cartes — index,
+   * abonnement, désabonnement — mais un rendu qui tient en deux lignes. */
+  function makeQuick(device) {
+    var card = document.createElement('jg-card-quick')
+    card.device = device
+    card.dataset.deviceId = device.id
+    card.dataset.search = (device.name + ' ' + device.eqType + ' ' + roomName(device)).toLowerCase()
+    return card
+  }
+
   function makeCard(device) {
-    var tag = 'jg-card-' + device.card
+    var tag = 'jg-card-' + cardType(device)
     if (customElements.get(tag) === undefined) {
       tag = 'jg-card-generic'
     }
@@ -1344,7 +2013,7 @@
     if (device.cmds.some(function (cmd) { return cmd.widget })) {
       card.dataset.span = '2'
     }
-    card.dataset.search = (device.name + ' ' + device.eqType).toLowerCase()
+    card.dataset.search = (device.name + ' ' + device.eqType + ' ' + roomName(device)).toLowerCase()
     return card
   }
 
@@ -1380,24 +2049,30 @@
     { key: 'home', name: '{{Accueil}}', icon: 'fas fa-home' },
     { key: 'functions', name: '{{Fonctions}}', icon: 'fas fa-th-large' },
     { key: 'rooms', name: '{{Pièces}}', icon: 'fas fa-door-open' },
+    { key: 'health', name: '{{Santé}}', icon: 'fas fa-heartbeat' },
     { key: 'system', name: '{{Système}}', icon: 'fas fa-cogs' }
   ]
 
   /* L'ordre compte : c'est celui des sous-onglets et des sections. On commence
    * par ce qu'on pilote, on finit par ce qu'on consulte. */
+  /* « one » est le nom au singulier, en minuscule, tel qu'il se dit au milieu
+   * d'une phrase : « 1 lumière en marche ». Il est écrit et non déduit, parce
+   * qu'aucune règle mécanique ne marche — retirer un « s » donnerait « 1
+   * chauffage » correct mais « 1 sécurité » absurde, et la règle change de
+   * langue en langue, ce que la traduction doit pouvoir reprendre. */
   var DOMAINS = [
-    { key: 'light', name: '{{Lumières}}', icon: 'fas fa-lightbulb' },
-    { key: 'socket', name: '{{Prises}}', icon: 'fas fa-plug' },
-    { key: 'cover', name: '{{Volets}}', icon: 'fas fa-bars' },
-    { key: 'climate', name: '{{Chauffage}}', icon: 'fas fa-fire' },
-    { key: 'security', name: '{{Sécurité}}', icon: 'fas fa-shield-alt' },
-    { key: 'camera', name: '{{Caméras}}', icon: 'fas fa-video' },
-    { key: 'media', name: '{{Multimédia}}', icon: 'fas fa-music' },
-    { key: 'appliance', name: '{{Appareils}}', icon: 'fas fa-robot' },
-    { key: 'weather', name: '{{Météo}}', icon: 'fas fa-cloud-sun' },
-    { key: 'energy', name: '{{Énergie}}', icon: 'fas fa-bolt' },
-    { key: 'sensor', name: '{{Capteurs}}', icon: 'fas fa-microchip' },
-    { key: 'info', name: '{{Information}}', icon: 'fas fa-info-circle' }
+    { key: 'light', name: '{{Lumières}}', one: '{{lumière}}', icon: 'fas fa-lightbulb' },
+    { key: 'socket', name: '{{Prises}}', one: '{{prise}}', icon: 'fas fa-plug' },
+    { key: 'cover', name: '{{Volets}}', one: '{{volet}}', icon: 'fas fa-bars' },
+    { key: 'climate', name: '{{Chauffage}}', one: '{{radiateur}}', icon: 'fas fa-fire' },
+    { key: 'security', name: '{{Sécurité}}', one: '{{alarme}}', icon: 'fas fa-shield-alt' },
+    { key: 'camera', name: '{{Caméras}}', one: '{{caméra}}', icon: 'fas fa-video' },
+    { key: 'media', name: '{{Multimédia}}', one: '{{lecteur}}', icon: 'fas fa-music' },
+    { key: 'appliance', name: '{{Appareils}}', one: '{{appareil}}', icon: 'fas fa-robot' },
+    { key: 'weather', name: '{{Météo}}', one: '{{station}}', icon: 'fas fa-cloud-sun' },
+    { key: 'energy', name: '{{Énergie}}', one: '{{compteur}}', icon: 'fas fa-bolt' },
+    { key: 'sensor', name: '{{Capteurs}}', one: '{{capteur}}', icon: 'fas fa-microchip' },
+    { key: 'info', name: '{{Information}}', one: '{{information}}', icon: 'fas fa-info-circle' }
   ]
 
   function domainOf(key) {
@@ -1434,7 +2109,7 @@
         return device.domain === domain.key
       })
       if (devices.length > 0) {
-        groups.push({ key: domain.key, name: domain.name, icon: domain.icon, devices: devices })
+        groups.push({ key: domain.key, name: domain.name, one: domain.one, icon: domain.icon, devices: devices })
       }
     })
     return groups
@@ -1458,12 +2133,115 @@
     })
   }
 
+  /* ------------------------------------------------------------- la santé
+   *
+   * Ce que le dashboard d'origine ne dit nulle part, et que le nôtre taisait
+   * aussi : une pile morte, un équipement qui ne répond plus, un seuil
+   * franchi. Il fallait jusqu'ici parcourir quatre cents tuiles à l'oeil pour
+   * l'apprendre. Le modèle porte désormais le statut que le coeur tient déjà —
+   * il le payait sans le lire.
+   *
+   * Aucun seuil n'est inventé : le coeur pose lui-même timeout, warning et
+   * danger. Seule la limite de pile est à nous, faute de la recevoir. */
+  var BATTERY_LOW = 25
+
+  /* La dernière fois qu'un équipement a dit quelque chose. Sans elle, une
+   * mesure figée depuis trois jours s'affiche comme si elle venait d'arriver,
+   * et un démon tombé passe inaperçu. */
+  /* Jeedom écrit « 2026-09-21 13:08:03 » : Safari refuse ce format tel quel,
+   * d'où le T. */
+  function stamp(text) {
+    if (!text) {
+      return 0
+    }
+    var time = Date.parse(String(text).replace(' ', 'T'))
+    return isNaN(time) ? 0 : time
+  }
+
+  function lastSeen(device) {
+    /* Le coeur tient déjà cette date pour nous : lastCommunication, écrite à
+     * chaque remontée d'un équipement, que le modèle transporte sous
+     * status.comm. La balayage des dates de commandes ne sert plus qu'à
+     * défaut — et ce n'était pas gratuit : deux cents Date.parse par appel, et
+     * troubles() est appelé deux fois par rendu de l'accueil, trois sur la vue
+     * Santé, à chaque frappe dans la recherche et à chaque bascule. */
+    var comm = stamp(device.status ? device.status.comm : null)
+    if (comm > 0) {
+      return comm
+    }
+    var latest = 0
+    device.cmds.forEach(function (cmd) {
+      var time = stamp(cmd.date)
+      if (time > latest) {
+        latest = time
+      }
+    })
+    return latest
+  }
+
+  /* Trois jours, et jamais dans le compte des alertes.
+   *
+   * Le silence n'est pas une panne : une caméra dont la dernière commande est
+   * « dernier événement » se tait tant que rien ne bouge, et sur l'installation
+   * d'essai un seuil de deux jours signalait huit équipements dont six allaient
+   * parfaitement bien. Un bandeau qui crie au loup pour rien n'est plus lu du
+   * tout — c'est le seul défaut qui coûte plus cher que l'absence d'alerte.
+   *
+   * L'information reste donc offerte, dans la vue Santé où on la cherche, mais
+   * elle ne gonfle ni la pastille du rail ni le bandeau de l'accueil, qui ne
+   * comptent que ce que le coeur affirme : injoignable, hors plage, pile
+   * faible. */
+  var STALE_AFTER = 72 * 3600000
+
+  function troubles() {
+    var found = { mute: [], weak: [], alert: [], stale: [] }
+    var now = Date.now()
+    allDevices().forEach(function (device) {
+      var status = device.status || {}
+      if (status.timeout) {
+        found.mute.push(device)
+        return
+      }
+      if (status.danger || status.warning) {
+        found.alert.push(device)
+      }
+      var level = batteryLevel(device)
+      if (level !== null && level <= BATTERY_LOW) {
+        found.weak.push(device)
+      }
+      var seen = lastSeen(device)
+      if (seen > 0 && now - seen > STALE_AFTER) {
+        found.stale.push(device)
+      }
+    })
+    return found
+  }
+
+  function troubleCount(found) {
+    return found.mute.length + found.weak.length + found.alert.length
+  }
+
+  function healthGroups() {
+    var found = troubles()
+    return [
+      { key: 'mute', name: '{{Ne répondent plus}}', icon: 'fas fa-unlink', devices: found.mute },
+      { key: 'alert', name: '{{Hors plage}}', icon: 'fas fa-exclamation-triangle', devices: found.alert },
+      { key: 'weak', name: '{{Piles faibles}}', icon: 'fas fa-battery-quarter', devices: found.weak },
+      { key: 'stale', name: '{{Sans nouvelles depuis trois jours}}', icon: 'far fa-clock', devices: found.stale }
+    ].filter(function (group) {
+      return group.devices.length > 0
+    })
+  }
+
   function groupsFor(view) {
     if (view === 'rooms') {
       return roomGroups()
     }
     if (view === 'system') {
       return systemGroups()
+    }
+    if (view === 'health') {
+      return healthGroups()
     }
     return domainGroups()
   }
@@ -1475,7 +2253,10 @@
     var view = /view=([a-z]+)/.exec(hash)
     var tab = /tab=([^&]+)/.exec(hash)
     return {
-      view: (view === null) ? 'functions' : view[1],
+      /* L'Accueil, et non l'inventaire. La vue conçue pour le coup d'oeil
+       * était la seule qu'on ne voyait jamais sans un clic — et c'est
+       * pourtant celle vers laquelle la veille kiosque ramène d'elle-même. */
+      view: (view === null) ? 'home' : view[1],
       tab: (tab === null) ? 'all' : decodeURIComponent(tab[1])
     }
   }
@@ -1511,6 +2292,14 @@
       button.appendChild(el('i', view.icon))
       button.appendChild(el('span', 'jg-rail-label', view.name))
       button.classList.toggle('jg-rail-on', view.key === current)
+      /* Le compte des ennuis se porte sur le rail : une alerte qu'il faut
+       * aller chercher dans une vue n'alerte personne. */
+      if (view.key === 'health') {
+        var count = troubleCount(troubles())
+        if (count > 0) {
+          button.appendChild(el('span', 'jg-rail-count', String(count)))
+        }
+      }
       button.addEventListener('click', function () { goTo(view.key, 'all') })
       railNode.appendChild(button)
     })
@@ -1547,7 +2336,11 @@
       return
     }
     tabsNode.hidden = false
-    var entries = [{ key: 'all', name: '{{Tout}}' }].concat(groups)
+    /* « Aperçu » et non « Tout » : cet onglet montre les sections en colonnes,
+     * écrêtées, avec un renvoi vers la page de chaque domaine. L'appeler
+     * « Tout » quand il n'affiche que six équipements sur vingt-huit serait
+     * une promesse non tenue. */
+    var entries = [{ key: 'all', name: '{{Aperçu}}' }].concat(groups)
     entries.forEach(function (entry) {
       var tab = el('button', 'jg-tab', entry.name)
       tab.dataset.tab = entry.key
@@ -1559,7 +2352,13 @@
 
   /* ------------------------------------------------------------- les sections */
 
-  function section(group) {
+  /* Ce qu'une section montre quand elle en partage l'écran avec onze autres.
+   * Au-delà, une seule section de vingt-huit prises ferait une colonne haute de
+   * deux mille pixels et les autres flotteraient à côté. L'aperçu renvoie vers
+   * la page du domaine, qui montre tout. */
+  var PREVIEW_LIMIT = 6
+
+  function section(group, view, limit) {
     var node = el('section', 'jg-section')
     node.dataset.groupKey = group.key
     var title = el('h2', 'jg-section-title')
@@ -1570,9 +2369,17 @@
     title.appendChild(el('span', 'jg-section-count', String(group.devices.length)))
     node.appendChild(title)
     var grid = el('div', 'jg-grid')
-    group.devices.forEach(function (device) {
+    var shown = (limit && group.devices.length > limit) ? group.devices.slice(0, limit) : group.devices
+    shown.forEach(function (device) {
       grid.appendChild(makeCard(device))
     })
+    if (shown.length < group.devices.length) {
+      var more = el('button', 'jg-domain jg-more-tile')
+      more.appendChild(el('span', 'jg-domain-name', '+ ' + (group.devices.length - shown.length)))
+      more.appendChild(el('span', 'jg-domain-count', '{{Tout voir}}'))
+      more.addEventListener('click', function () { goTo(view || 'functions', group.key) })
+      grid.appendChild(more)
+    }
     node.appendChild(grid)
     return node
   }
@@ -1584,48 +2391,465 @@
   function buildHome() {
     var groups = domainGroups()
 
-    /* L'heure et la date. Aucune donnée à calculer, mais c'est ce qui distingue
-     * un écran mural d'une page web laissée ouverte. */
-    var clock = el('div', 'jg-clock')
-    clock.appendChild(el('div', 'jg-clock-time', ''))
-    clock.appendChild(el('div', 'jg-clock-date', ''))
-    sectionsNode.appendChild(clock)
-    syncClock()
-
-    var badges = el('div', 'jg-badges')
-    badgeValues().forEach(function (badge) {
-      var node = el('div', 'jg-badge')
-      node.appendChild(el('i', badge.icon))
-      var text = el('div', 'jg-badge-text')
-      text.appendChild(el('span', 'jg-badge-value', badge.value))
-      text.appendChild(el('span', 'jg-badge-name', badge.name))
-      node.appendChild(text)
-      badges.appendChild(node)
+    buildHero()
+    buildAlertBar()
+    /* Les domaines en tuiles pleines et non en pilules grises : c'est le
+     * lanceur de la maison, l'endroit d'où l'on part. Une pilule de treize
+     * pixels ne se vise pas au doigt et ne se distingue pas de loin. */
+    var shortcuts = el('div', 'jg-grid jg-grid-launch')
+    groups.forEach(function (group) {
+      var lit = group.devices.filter(isLit).length
+      /* Le nom en haut, l'état en bas, et l'icône en filigrane derrière,
+       * débordant du coin : elle donne à la tuile sa silhouette sans disputer
+       * la place au texte. C'est ce qui permet de reconnaître une tuile du
+       * coin de l'oeil, avant même de la lire. */
+      var tile = el('button', 'jg-launch')
+      tile.dataset.domain = group.key
+      tile.appendChild(el('span', 'jg-launch-name', group.name))
+      tile.appendChild(el('i', group.icon + ' jg-launch-mark'))
+      tile.appendChild(el('span', 'jg-launch-count', launchState(group, lit)))
+      tile.classList.toggle('jg-launch-on', lit > 0)
+      tile.addEventListener('click', function () { goTo('functions', group.key) })
+      shortcuts.appendChild(tile)
     })
-    if (badges.children.length > 0) {
-      sectionsNode.appendChild(badges)
+    if (shortcuts.children.length > 0) {
+      sectionsNode.appendChild(shortcuts)
     }
+    buildRunning()
+    buildScenes()
 
     var node = el('section', 'jg-section')
     var title = el('h2', 'jg-section-title')
-    title.appendChild(el('span', 'jg-section-name', '{{La maison}}'))
+    title.appendChild(el('span', 'jg-section-name', '{{Les pièces}}'))
     node.appendChild(title)
-    var grid = el('div', 'jg-grid jg-grid-domains')
-    groups.forEach(function (group) {
-      var lit = group.devices.filter(isLit).length
-      var tile = el('button', 'jg-domain')
-      tile.dataset.domain = group.key
-      tile.appendChild(el('i', group.icon + ' jg-domain-icon'))
-      tile.appendChild(el('span', 'jg-domain-name', group.name))
-      tile.appendChild(el('span', 'jg-domain-count',
-        group.devices.length + ' ' + (group.devices.length > 1 ? '{{équipements}}' : '{{équipement}}') +
-        (lit > 0 ? ' · ' + lit + ' {{en marche}}' : '')))
-      tile.classList.toggle('jg-domain-on', lit > 0)
-      tile.addEventListener('click', function () { goTo('functions', group.key) })
-      grid.appendChild(tile)
+    /* Les pièces où il se passe quelque chose d'abord, et la première plus
+     * large que les autres. Huit rectangles identiques alignés ne se lisent
+     * pas : l'oeil n'a aucune raison de commencer quelque part. Une tuile
+     * double en tête donne ce point de départ, et l'ordre donne le sens. */
+    var rooms = el('div', 'jg-grid jg-grid-rooms')
+    var peopled = (MODEL.rooms || []).map(function (room) {
+      var devices = devicesOf(room.devices)
+      return { room: room, devices: devices, lit: devices.filter(isLit).length }
+    }).filter(function (entry) {
+      return entry.devices.length > 0
+    }).sort(function (a, b) {
+      return b.lit - a.lit
     })
+
+    peopled.forEach(function (entry, rank) {
+      var room = entry.room
+      var devices = entry.devices
+      var lit = entry.lit
+      var tile = el('button', 'jg-domain jg-room-tile')
+      if (rank === 0 && peopled.length > 2) {
+        tile.dataset.wide = '1'
+      }
+      tile.dataset.room = String(room.id)
+      /* L'icône et la couleur que l'utilisateur a déjà choisies dans Jeedom.
+       * Les ignorer pour coller la même porte ouverte sur le garage, le jardin
+       * et la cuisine, c'était jeter un travail déjà fait. */
+      if (room.color) {
+        tile.style.setProperty('--jg-tint', room.color)
+      }
+      /* L'icône d'abord, et en grand. Une tuile se reconnaît à sa forme et à sa
+       * couleur avant de se lire : c'est ce qui permet de viser la bonne pièce
+       * d'un geste sur une tablette, sans parcourir huit libellés. */
+      var art = el('div', 'jg-tile-art')
+      art.appendChild(el('i', room.icon || 'fas fa-door-open'))
+      tile.appendChild(art)
+      tile.appendChild(el('span', 'jg-domain-name', room.name))
+      tile.appendChild(el('span', 'jg-domain-count',
+        summaryOf(devices) || (devices.length + ' ' + ((devices.length > 1) ? '{{équipements}}' : '{{équipement}}'))))
+      tile.classList.toggle('jg-domain-on', lit > 0)
+      tile.addEventListener('click', function () { goTo('rooms', String(room.id)) })
+      rooms.appendChild(tile)
+    })
+    node.appendChild(rooms)
+    if (rooms.children.length > 0) {
+      sectionsNode.appendChild(node)
+    }
+
+  }
+
+  /* ------------------------------------------------------------- l'en-tête
+   *
+   * Une horloge seule posée en haut à gauche laissait les deux tiers d'un écran
+   * large vides, et il fallait descendre pour apprendre quoi que ce soit. La
+   * rangée dit maintenant l'essentiel d'un regard : l'heure, ce qui tourne en
+   * ce moment, et ce qu'il fait dehors. C'est la seule partie du dashboard
+   * qu'on lit à trois mètres sans s'approcher. */
+
+  function buildHero() {
+    /* Une grille de douze colonnes, et des tuiles qui n'occupent pas toutes la
+     * même largeur. C'est la seule façon d'obtenir un écran qui se regarde
+     * plutôt qu'une pile de rangées identiques : l'oeil a besoin d'un point
+     * d'entrée — l'heure — puis de blocs de tailles décroissantes. */
+    var hero = el('div', 'jg-bento')
+
+    var left = el('div', 'jg-hero-now jg-bento-clock')
+    var clock = el('div', 'jg-clock')
+    clock.appendChild(el('div', 'jg-clock-time', ''))
+    clock.appendChild(el('div', 'jg-clock-date', ''))
+    left.appendChild(clock)
+    var chips = activityChips()
+    if (chips !== null) {
+      left.appendChild(chips)
+    }
+    hero.appendChild(left)
+
+    /* Les synthèses vivent dans une colonne à elles, et non côte à côte dans la
+     * grille : c'est ce qui permet d'en avoir une ou deux sans que la rangée
+     * déborde ni qu'une carte seule s'étire à vide sur deux hauteurs. */
+    var cards = summaryCards()
+    if (cards.length > 0) {
+      var side = el('div', 'jg-bento-side')
+      cards.forEach(function (card) {
+        card.classList.add('jg-bento-card')
+        side.appendChild(card)
+      })
+      hero.appendChild(side)
+    }
+
+    /* La vignette caméra. Elle occupe la hauteur des deux rangées de synthèse
+     * et comble le vide de droite, mais surtout : dix-huit caméras sur cette
+     * installation et aucune n'apparaissait sur l'accueil. C'est la carte
+     * caméra ordinaire, à qui l'on donne simplement plus de place. */
+    var cam = firstCamera()
+    if (cam !== null) {
+      var tile = makeCard(cam)
+      tile.classList.add('jg-bento-cam')
+      hero.appendChild(tile)
+    }
+
+    /* Sans caméra, les deux cartes de synthèse se partagent la place qu'elle
+     * aurait prise plutôt que de laisser un trou. */
+    hero.dataset.cam = (cam !== null) ? '1' : '0'
+    hero.dataset.cards = String(cards.length)
+
+    sectionsNode.appendChild(hero)
+    syncClock()
+  }
+
+  /* La caméra la plus parlante : celle qui a détecté quelque chose, à défaut la
+   * première. Une vignette qui montre un jardin au repos vaut mieux que rien,
+   * mais une qui montre ce qui bouge vaut mieux que tout. */
+  function firstCamera() {
+    var cams = allDevices().filter(function (device) {
+      return cardType(device) === 'camera'
+    })
+    if (cams.length === 0) {
+      return null
+    }
+    var moving = cams.filter(function (device) {
+      return device.cmds.some(function (cmd) {
+        return cmd.generic === 'PRESENCE' && isTrue(cmd, JG.VALUES[cmd.id])
+      })
+    })
+    return moving[0] || cams[0]
+  }
+
+  /* Ce qui tourne, en toutes lettres et par domaine. « 9 prises en marche » se
+   * lit de loin ; une pastille de couleur sur une tuile, non. */
+  var CHIP_LIMIT = 3
+
+  function activityChips() {
+    var found = domainGroups().map(function (group) {
+      return { group: group, lit: group.devices.filter(isLit).length }
+    }).filter(function (entry) {
+      return entry.lit > 0
+    }).sort(function (a, b) {
+      return b.lit - a.lit
+    }).slice(0, CHIP_LIMIT)
+    if (found.length === 0) {
+      return null
+    }
+    var row = el('div', 'jg-hero-chips')
+    found.forEach(function (entry) {
+      var chip = el('button', 'jg-hero-chip')
+      chip.type = 'button'
+      chip.appendChild(el('i', entry.group.icon))
+      var noun = (entry.lit === 1 && entry.group.one) ? entry.group.one : entry.group.name.toLowerCase()
+      chip.appendChild(el('span', null, entry.lit + ' ' + noun + ' {{en marche}}'))
+      chip.addEventListener('click', function () { goTo('functions', entry.group.key) })
+      row.appendChild(chip)
+    })
+    return row
+  }
+
+  /* Deux cartes de synthèse, dehors et dedans, construites à partir des mêmes
+   * mesures que les anciennes pastilles — mais groupées, attribuées, et assez
+   * grandes pour être lues du canapé. Aucune n'apparaît si l'installation ne
+   * mesure rien : on n'invente pas un bulletin météo. */
+  var OUTSIDE = [
+    { generic: 'WEATHER_TEMPERATURE', name: '{{Dehors}}', icon: 'fas fa-cloud-sun' },
+    { generic: 'WEATHER_HUMIDITY', name: '{{Humidité}}', icon: 'fas fa-tint' },
+    { generic: 'WEATHER_CONDITION', name: '{{Ciel}}', icon: 'fas fa-cloud' }
+  ]
+
+  var INSIDE = [
+    { generic: 'TEMPERATURE', name: '{{Intérieur}}', icon: 'fas fa-thermometer-half' },
+    { generic: 'HUMIDITY', name: '{{Humidité}}', icon: 'fas fa-tint' },
+    { generic: 'POWER', name: '{{Consommation}}', icon: 'fas fa-bolt' }
+  ]
+
+  function summaryCards() {
+    return [OUTSIDE, INSIDE].map(function (set) {
+      var values = set.map(pickMeasure).filter(function (found) { return found !== null })
+      if (values.length === 0) {
+        return null
+      }
+      var card = el('button', 'jg-hero-card')
+      card.type = 'button'
+      var head = el('div', 'jg-hero-head')
+      head.appendChild(el('span', 'jg-hero-label', values[0].name))
+      head.appendChild(el('i', values[0].icon + ' jg-hero-mark'))
+      card.appendChild(head)
+      card.appendChild(el('div', 'jg-hero-value', format(values[0].id)))
+      if (values.length > 1) {
+        var rest = el('div', 'jg-hero-rest')
+        values.slice(1).forEach(function (found) {
+          rest.appendChild(el('span', null, found.name + ' ' + format(found.id)))
+        })
+        card.appendChild(rest)
+      }
+      card.title = values[0].source
+      card.addEventListener('click', function () { openPanel(values[0].deviceId) })
+      return card
+    }).filter(function (card) { return card !== null })
+  }
+
+  /* La meilleure source pour un type générique donné. Un capteur dédié passe
+   * avant la sonde interne d'une prise : « 33 °C » lu dans un boîtier n'est la
+   * température de personne. */
+  function pickMeasure(entry) {
+    var ids = Object.keys(JG.CMDS).filter(function (id) {
+      return JG.CMDS[id].generic === entry.generic && JG.VALUES[id] !== null &&
+        JG.VALUES[id] !== undefined && JG.VALUES[id] !== ''
+    })
+    if (ids.length === 0) {
+      return null
+    }
+    var preferred = ids.filter(function (id) {
+      return JG.CMDS[id].domain === 'sensor' || JG.CMDS[id].domain === 'weather'
+    })
+    var chosen = (preferred[0] !== undefined) ? preferred[0] : ids[0]
+    var owner = MODEL.devices[JG.OWNER[chosen]]
+    return {
+      id: chosen,
+      name: entry.name,
+      icon: entry.icon,
+      deviceId: JG.OWNER[chosen],
+      source: owner ? owner.name : ''
+    }
+  }
+
+  /* L'état d'un domaine, en trois caractères quand c'est possible.
+   *
+   * « 1 en marche » à côté de « 18 équipements » : deux libellés de longueurs
+   * si différentes que les tuiles cessent de se ressembler, et une rangée qui
+   * ne se lit plus comme une rangée. Les tableaux de bord qui tiennent au mur
+   * écrivent « 5/10 », « 23.3°C », « OK » — jamais une phrase.
+   *
+   * Un rapport allumés/total quand le domaine se pilote, une mesure quand il
+   * se mesure, un compte sinon. Toujours court, toujours de la même famille. */
+  function launchState(group, lit) {
+    var pilotable = group.devices.filter(function (device) {
+      return device.roles && device.roles.state !== undefined
+    }).length
+    if (pilotable > 0) {
+      return lit + '/' + pilotable
+    }
+    /* Pas d'état à montrer : une mesure, mais seulement si elle caractérise le
+     * domaine. La première température venue donnait « Sécurité 22,1 °C » et
+     * « Énergie 58,3 °C » — la sonde interne d'un boîtier, qui n'est la
+     * température de personne et ne dit rien de l'alarme. Hors des domaines
+     * qui se mesurent, un compte est plus honnête qu'un chiffre décoratif. */
+    var wanted = LAUNCH_MEASURES[group.key]
+    if (wanted !== undefined) {
+      for (var i = 0; i < group.devices.length; i++) {
+        var cmd = firstGeneric(group.devices[i], wanted)
+        if (cmd !== null) {
+          var text = format(cmd.id)
+          if (text && text !== '—' && text.length <= 10) {
+            return text
+          }
+        }
+      }
+    }
+    return String(group.devices.length)
+  }
+
+  var LAUNCH_MEASURES = {
+    weather: ['WEATHER_TEMPERATURE'],
+    energy: ['POWER', 'CONSUMPTION', 'PRODUCTION'],
+    sensor: ['TEMPERATURE', 'HUMIDITY'],
+    climate: ['THERMOSTAT_TEMPERATURE']
+  }
+
+  /* Le résumé d'une pièce : ce qu'on lit d'un coup d'oeil sur sa tuile. Une
+   * température vaut mieux qu'un compte d'équipements, et « 2 en marche »
+   * mieux que les deux. */
+  function summaryOf(devices) {
+    var parts = []
+    var lit = devices.filter(isLit).length
+    if (lit > 0) {
+      parts.push(lit + ' {{en marche}}')
+    }
+    for (var i = 0; i < devices.length; i++) {
+      var cmd = firstGeneric(devices[i], ['TEMPERATURE', 'THERMOSTAT_TEMPERATURE'])
+      if (cmd !== null && JG.VALUES[cmd.id] !== null && JG.VALUES[cmd.id] !== undefined && JG.VALUES[cmd.id] !== '') {
+        parts.push(format(cmd.id))
+        break
+      }
+    }
+    return parts.join(' · ')
+  }
+
+  /* Ce qui ne va pas, en tête, et une seule fois — plutôt que dispersé sur
+   * quatre cents cartes qu'il faudrait parcourir des yeux. */
+  function buildAlertBar() {
+    var found = troubles()
+    var total = troubleCount(found)
+    if (total === 0) {
+      return
+    }
+    var parts = []
+    if (found.mute.length > 0) { parts.push(found.mute.length + ' {{ne répondent plus}}') }
+    if (found.alert.length > 0) { parts.push(found.alert.length + ' {{hors plage}}') }
+    if (found.weak.length > 0) { parts.push(found.weak.length + ' {{en pile faible}}') }
+
+    var bar = el('button', 'jg-alertbar')
+    bar.type = 'button'
+    var mark = el('span', 'jg-alertbar-mark')
+    mark.appendChild(el('i', 'fas fa-exclamation-triangle'))
+    bar.appendChild(mark)
+    var text = el('div', 'jg-alertbar-text')
+    text.appendChild(el('span', 'jg-alertbar-title',
+      total + ' ' + ((total > 1) ? '{{points à surveiller}}' : '{{point à surveiller}}')))
+    text.appendChild(el('span', 'jg-alertbar-detail', parts.join(' · ')))
+    bar.appendChild(text)
+    bar.appendChild(el('span', 'jg-alertbar-go', '{{Voir}}'))
+    bar.addEventListener('click', function () { goTo('health', 'all') })
+    sectionsNode.appendChild(bar)
+  }
+
+  /* La question numéro un d'un écran mural, et sa réponse actionnable. Les
+   * tuiles de domaines répondaient par un nombre qu'il fallait aller vérifier
+   * ailleurs ; ce sont ici les vraies cartes, qu'on peut éteindre sur place. */
+  var RUNNING_LIMIT = 8
+
+  function buildRunning() {
+    var lit = allDevices().filter(isLit)
+    if (lit.length === 0) {
+      return
+    }
+    var node = el('section', 'jg-section')
+    var title = el('h2', 'jg-section-title')
+    title.appendChild(el('span', 'jg-section-name', '{{En ce moment}}'))
+    title.appendChild(el('span', 'jg-section-count', String(lit.length)))
+
+    var offable = lit.filter(function (device) {
+      return device.roles && (device.roles.off !== undefined || device.roles.toggle !== undefined)
+    })
+    if (offable.length > 1) {
+      var all = el('button', 'jg-section-action', '{{Tout éteindre}}')
+      all.type = 'button'
+      all.addEventListener('click', function () { turnAllOff(offable, all) })
+      title.appendChild(all)
+    }
+    node.appendChild(title)
+
+    /* Des bandes, et non les cartes complètes : voir makeQuick. */
+    var grid = el('div', 'jg-grid jg-grid-quick')
+    lit.slice(0, RUNNING_LIMIT).forEach(function (device) {
+      grid.appendChild(makeQuick(device))
+    })
+    if (lit.length > RUNNING_LIMIT) {
+      var more = el('button', 'jg-domain jg-more-tile')
+      more.appendChild(el('span', 'jg-domain-name', '+ ' + (lit.length - RUNNING_LIMIT)))
+      more.appendChild(el('span', 'jg-domain-count', '{{Tout voir}}'))
+      more.addEventListener('click', function () { goTo('functions', 'all') })
+      grid.appendChild(more)
+    }
     node.appendChild(grid)
     sectionsNode.appendChild(node)
+  }
+
+  /* Éteindre une maison entière, c'est une rafale de commandes. On ne la lance
+   * pas sur un appui distrait, et on ne la lance pas d'un bloc : quinze
+   * exécutions simultanées font tomber certains démons de plugin. */
+  function turnAllOff(devices, source) {
+    if (!window.confirm('{{Éteindre }}' + devices.length + '{{ équipements ?}}')) {
+      return
+    }
+    source.disabled = true
+    devices.forEach(function (device, index) {
+      setTimeout(function () {
+        exec((device.roles.off !== undefined) ? device.roles.off : device.roles.toggle, null, null)
+      }, index * 120)
+    })
+    setTimeout(function () { source.disabled = false }, devices.length * 120 + 400)
+  }
+
+  /* Les scénarios que l'utilisateur a déjà écrits. Sans eux, un dashboard
+   * impose de refaire à la main, équipement par équipement, ce que Jeedom sait
+   * faire d'un geste. */
+  function buildScenes() {
+    var scenes = MODEL.scenarios || []
+    if (scenes.length === 0) {
+      return
+    }
+    var node = el('section', 'jg-section')
+    var title = el('h2', 'jg-section-title')
+    title.appendChild(el('span', 'jg-section-name', '{{Scènes}}'))
+    node.appendChild(title)
+    var bar = el('div', 'jg-scenes')
+    scenes.forEach(function (scene) {
+      var button = el('button', 'jg-scene')
+      button.type = 'button'
+      button.dataset.state = scene.state || 'stop'
+      var mark = el('span', 'jg-scene-mark')
+      mark.appendChild(el('i', scene.icon || 'fas fa-play'))
+      button.appendChild(mark)
+      var text = el('span', 'jg-scene-text')
+      text.appendChild(el('span', 'jg-scene-name', scene.name))
+      if (scene.group) {
+        text.appendChild(el('span', 'jg-scene-group', scene.group))
+      }
+      button.appendChild(text)
+      button.addEventListener('click', function () { launchScene(scene, button) })
+      bar.appendChild(button)
+    })
+    node.appendChild(bar)
+    sectionsNode.appendChild(node)
+  }
+
+  function launchScene(scene, source) {
+    source.classList.add('jg-busy')
+    var form = new FormData()
+    form.append('action', 'scenario')
+    form.append('id', scene.id)
+    form.append('state', 'start')
+    fetch('plugins/jeeglowbe/core/ajax/jeeglowbe.ajax.php', {
+      method: 'POST', body: form, credentials: 'same-origin'
+    }).then(function (response) {
+      return response.json()
+    }).then(function (data) {
+      source.classList.remove('jg-busy')
+      if (!data || data.state !== 'ok') {
+        throw new Error('')
+      }
+      if (data.result && data.result.state) {
+        source.dataset.state = data.result.state
+      }
+    }).catch(function () {
+      source.classList.remove('jg-busy')
+      source.classList.add('jg-failed')
+      setTimeout(function () { source.classList.remove('jg-failed') }, 2500)
+      if (typeof jeedomUtils !== 'undefined' && jeedomUtils.showAlert) {
+        jeedomUtils.showAlert({ message: '{{Le scénario n\'a pas pu être lancé.}}', level: 'danger' })
+      }
+    })
   }
 
   /* Un équipement « en marche » : celui dont la commande d'état dit oui. Sans
@@ -1642,38 +2866,11 @@
     return isTrue(cmd, JG.VALUES[id])
   }
 
-  /* Les pastilles de l'accueil : la première valeur trouvée pour quelques types
-   * génériques qui intéressent tout le monde. Rien d'inventé — si l'installation
-   * ne mesure pas la consommation, la pastille n'apparaît pas. */
-  var BADGES = [
-    { generic: 'POWER', name: '{{Consommation}}', icon: 'fas fa-bolt' },
-    { generic: 'TEMPERATURE', name: '{{Température}}', icon: 'fas fa-thermometer-half' },
-    { generic: 'WEATHER_TEMPERATURE', name: '{{Dehors}}', icon: 'fas fa-cloud-sun' },
-    { generic: 'HUMIDITY', name: '{{Humidité}}', icon: 'fas fa-tint' }
-  ]
-
-  function badgeValues() {
-    var found = []
-    BADGES.forEach(function (badge) {
-      var ids = Object.keys(JG.CMDS).filter(function (id) {
-        return JG.CMDS[id].generic === badge.generic && JG.VALUES[id] !== null &&
-          JG.VALUES[id] !== undefined && JG.VALUES[id] !== ''
-      })
-      if (ids.length > 0) {
-        /* Un capteur dédié passe avant la sonde interne d'un autre appareil :
-         * « 33 °C » lu dans le boîtier d'une prise n'est la température de
-         * personne. */
-        var preferred = ids.filter(function (id) { return JG.CMDS[id].domain === 'sensor' })
-        found.push({ name: badge.name, icon: badge.icon, value: format((preferred[0] !== undefined) ? preferred[0] : ids[0]) })
-      }
-    })
-    return found
-  }
-
   function renderView() {
     drawn = signature()
     var here = state()
     var needle = searchNode.value.trim().toLowerCase()
+    forgetAll(sectionsNode)
     sectionsNode.textContent = ''
     ROOT.dataset.view = here.view
 
@@ -1686,9 +2883,14 @@
     if (needle !== '') {
       tabsNode.hidden = true
       var found = allDevices().filter(function (device) {
-        return (device.name + ' ' + device.eqType).toLowerCase().indexOf(needle) !== -1
+        /* La pièce fait partie de ce qu'on tape : chercher « cuisine » et ne
+         * rien trouver parce qu'aucun équipement ne porte le mot dans son nom
+         * serait une fausse réponse. */
+        return (device.name + ' ' + device.eqType + ' ' + roomName(device))
+          .toLowerCase().indexOf(needle) !== -1
       })
       emptyNode.hidden = (found.length > 0)
+      sectionsNode.dataset.layout = 'grid'
       if (found.length > 0) {
         sectionsNode.appendChild(section({ key: 'search', name: '{{Résultats}}', icon: 'fas fa-search', devices: found }))
       }
@@ -1699,6 +2901,7 @@
     if (here.view === 'home') {
       tabsNode.hidden = true
       emptyNode.hidden = true
+      sectionsNode.dataset.layout = 'grid'
       buildHome()
       return
     }
@@ -1711,8 +2914,15 @@
     if (shown.length === 0) {
       shown = groups
     }
+    /* Plusieurs sections à l'écran : elles se rangent en colonnes, chacune
+     * avec son en-tête et sa pile de cartes, comme les pages d'un tableau de
+     * bord composé à la main. Une seule section — la page d'un domaine — garde
+     * la grille large, parce qu'une colonne unique y laisserait l'écran vide
+     * aux trois quarts. */
+    var columns = shown.length > 1
+    sectionsNode.dataset.layout = columns ? 'columns' : 'grid'
     shown.forEach(function (group) {
-      sectionsNode.appendChild(section(group))
+      sectionsNode.appendChild(section(group, here.view, columns ? PREVIEW_LIMIT : 0))
     })
     emptyNode.hidden = (shown.length > 0)
     loadWidgets()
@@ -1841,23 +3051,50 @@
   }
 
   /* Une carte retirée du document doit cesser d'être rafraîchie : sans cela,
-   * chaque ouverture du panneau laisse derrière elle une carte fantôme que le
-   * temps réel continue de mettre à jour. */
+   * chaque ouverture du panneau — et, depuis que l'accueil se redessine quand
+   * un équipement bascule, chaque appui sur une lampe — laisse derrière elle
+   * une carte fantôme que le temps réel continue de mettre à jour. Sur une
+   * tablette qu'on ne recharge jamais, ces fantômes s'accumulent jusqu'à ce
+   * que la moindre mise à jour coûte un rendu complet. */
   function forget(card) {
-    Object.keys(JG.WATCH).forEach(function (cmdId) {
-      var index = JG.WATCH[cmdId].indexOf(card)
+    ;(card._watched || []).forEach(function (cmdId) {
+      var list = JG.WATCH[cmdId]
+      if (list === undefined) {
+        return
+      }
+      var index = list.indexOf(card)
       if (index !== -1) {
-        JG.WATCH[cmdId].splice(index, 1)
+        list.splice(index, 1)
       }
     })
+    card._watched = []
+  }
+
+  /* Le ménage d'une vue entière, juste avant qu'elle ne soit remplacée. */
+  function forgetAll(node) {
+    node.querySelectorAll('.jg-card').forEach(forget)
   }
 
   /* ---------------------------------------------------------------- ambiance */
 
+  /* L'ambiance imposée par la configuration, ou null quand jeeGlow doit
+   * s'accorder à Jeedom. Le modèle peut arriver sans la clé — installation
+   * jamais reconfigurée, page servie par une version antérieure du plugin —
+   * et ce cas doit se comporter exactement comme avant que le réglage
+   * existe. */
+  function forcedTone() {
+    return (MODEL.tone === 'light' || MODEL.tone === 'dark') ? MODEL.tone : null
+  }
+
   /* Le thème de Jeedom n'annonce pas s'il est clair ou sombre : il pose des
    * couleurs. On lit donc la luminosité du fond et on s'y accorde, ce qui
-   * marche aussi avec un thème que nous ne connaissons pas. */
+   * marche aussi avec un thème que nous ne connaissons pas. Sauf si l'ambiance
+   * est imposée : la mesure n'a alors plus rien à décider. */
   function readTone() {
+    var forced = forcedTone()
+    if (forced !== null) {
+      return forced
+    }
     var raw = getComputedStyle(document.documentElement).getPropertyValue('--bg-color').trim()
     var parts = raw.split(',').map(function (part) { return parseInt(part, 10) })
     if (parts.length < 3 || parts.some(isNaN)) {
@@ -2069,12 +3306,16 @@
           return
         }
         Object.keys(data.result).forEach(function (id) {
-          var holder = ROOT.querySelector('.jg-widget[data-cmd-id="' + id + '"]')
-          if (holder === null || !data.result[id] || !data.result[id].html) {
+          if (!data.result[id] || !data.result[id].html) {
             return
           }
           JG.WIDGETS[id] = data.result[id].html
-          insertWidget(holder, data.result[id].html)
+          /* Tous les porteurs, et non le premier : une commande peut être à la
+           * fois sur une carte et dans le panneau ouvert par-dessus, et le
+           * second gardait sa ligne de repli pour toujours. */
+          ROOT.querySelectorAll('.jg-widget[data-cmd-id="' + id + '"]').forEach(function (holder) {
+            insertWidget(holder, data.result[id].html)
+          })
         })
       }).catch(function () {
         /* Pas de widget : les lignes de repli sont déjà à l'écran. */
@@ -2110,6 +3351,7 @@
 
   function render(model) {
     MODEL = model
+    JG.MODEL = model
     indexModel()
     /* Les widgets insérés au tour précédent se sont inscrits auprès de
      * jeedom.cmd ; leurs fonctions survivraient à la reconstruction et
@@ -2118,6 +3360,11 @@
       jeedom.cmd.resetUpdateFunction()
     }
     closePanel()
+    /* L'ambiance fait partie du modèle depuis qu'elle est réglable : une
+     * tablette laissée ouverte qui relit son modèle après un changement de
+     * réglage garderait sinon l'ancienne jusqu'au prochain passage par le menu
+     * de Jeedom — c'est-à-dire indéfiniment, puisqu'on n'y touche jamais. */
+    syncTone()
     buildRail()
     renderView()
   }
@@ -2173,12 +3420,9 @@
   window.addEventListener('hashchange', onHashChange)
   backdropNode.addEventListener('click', closePanel)
   document.getElementById('jg-panel-close').addEventListener('click', closePanel)
-  document.addEventListener('keydown', function (event) {
-    if (event.key === 'Escape' && ROOT.dataset.panel === '1') {
-      closePanel()
-    }
-  })
+  document.addEventListener('keydown', onEscape)
   document.addEventListener('visibilitychange', refreshModel)
+  document.addEventListener('visibilitychange', onVisible)
   /* Toute marque d'attention repousse le retour à l'accueil. */
   ;['pointerdown', 'keydown', 'wheel'].forEach(function (name) {
     ROOT.addEventListener(name, watchIdle, { passive: true })
@@ -2188,6 +3432,23 @@
   var dimTimer = setInterval(function () {
     syncDim()
     syncClock()
+    /* Et l'ambiance, relue plutôt qu'attendue.
+     *
+     * Le basculement jour/nuit de Jeedom est purement côté navigateur :
+     * jeedomUtils.changeJeedomThemeAuto() échange la feuille de style toutes
+     * les minutes, puis appelle triggerThemechange(), qui n'émet son événement
+     * que si document.body porte un data-page figurant dans une liste blanche
+     * où nous ne sommes pas (desktop/common/js/utils.js:516). Les deux
+     * événements que nous écoutons, eux, ne viennent que du bus serveur : un
+     * administrateur qui change les heures, ou une action de scénario.
+     *
+     * Conséquence, sans cette ligne : à 20 h, Jeedom passe en sombre tout
+     * autour du dashboard et jeeGlow reste blanc, indéfiniment. Un
+     * rechargement corrigeait — mais une tablette murale n'est jamais
+     * rechargée, et c'est précisément elle que ce plugin vise. Un
+     * getComputedStyle par minute règle la question sans rien attendre de
+     * personne. */
+    syncTone()
   }, 60000)
   /* Revenir sur l'onglet redemande le verrou : le navigateur l'a rendu en
    * partant. */
@@ -2218,7 +3479,10 @@
     document.body.removeEventListener('cmd::update', onCmdUpdate)
     document.body.removeEventListener('changeTheme', onThemeChange)
     document.body.removeEventListener('checkThemechange', onThemeChange)
+    document.body.removeEventListener('changeThemeEvent', onThemeChange)
+    document.removeEventListener('keydown', onEscape)
     document.removeEventListener('visibilitychange', refreshModel)
+    document.removeEventListener('visibilitychange', onVisible)
     document.removeEventListener('visibilitychange', syncWakeLock)
     if (wakeLock !== null) {
       var held = wakeLock
@@ -2236,6 +3500,11 @@
       clearTimeout(idleTimer)
       idleTimer = null
     }
+    if (homeTimer !== null) {
+      clearTimeout(homeTimer)
+      homeTimer = null
+    }
+    pending = []
     clearInterval(dimTimer)
     if (observer !== null) {
       observer.disconnect()
@@ -2256,6 +3525,54 @@
     observer.observe(document.body, { childList: true, subtree: true })
   }
 
+  /* Ce qui a bougé pendant que l'écran dormait.
+   *
+   * jeedom.changes() diffuse à tous les clients, quelle que soit la vue
+   * affichée : une tablette murale reçoit les cent mises à jour par seconde
+   * d'une installation active, même écran éteint, même onglet en arrière-plan.
+   * Repeindre alors est du travail pur perdu, et c'est précisément ce qui fait
+   * ramer les dalles bon marché. Les valeurs, elles, continuent d'être tenues
+   * à jour : seul le dessin attend le réveil. */
+  var pending = []
+
+  function flushPending() {
+    var waiting = pending
+    pending = []
+    waiting.forEach(function (card) {
+      if (document.body.contains(card)) {
+        card.sync()
+      }
+    })
+  }
+
+  function onVisible() {
+    if (document.hidden) {
+      return
+    }
+    flushPending()
+    if (state().view === 'home') {
+      refreshHome()
+    }
+  }
+
+  /* L'accueil montre la liste de ce qui est allumé : elle change de contenu, et
+   * pas seulement de valeur, quand un équipement bascule. Le redessin est
+   * différé d'un souffle pour qu'une rafale — un « tout éteindre » — ne le
+   * relance pas quinze fois. */
+  var homeTimer = null
+
+  function refreshHome() {
+    if (homeTimer !== null) {
+      return
+    }
+    homeTimer = setTimeout(function () {
+      homeTimer = null
+      if (state().view === 'home' && searchNode.value.trim() === '') {
+        renderView()
+      }
+    }, 400)
+  }
+
   function onCmdUpdate(event) {
     /* Filet de sécurité si l'observateur n'a pas vu le remplacement. */
     if (!document.body.contains(ROOT)) {
@@ -2264,22 +3581,53 @@
     }
     var updates = Array.isArray(event.detail) ? event.detail : [event.detail]
     var touched = []
+    var states = false
     updates.forEach(function (update) {
       var id = parseInt(update.cmd_id, 10)
       if (JG.CMDS[id] === undefined) {
         return
       }
       JG.VALUES[id] = update.value
+      if (JG.STATES[id]) {
+        states = true
+      }
       ;(JG.WATCH[id] || []).forEach(function (card) {
         if (touched.indexOf(card) === -1) {
           touched.push(card)
         }
       })
     })
+    if (document.hidden) {
+      touched.forEach(function (card) {
+        if (pending.indexOf(card) === -1) {
+          pending.push(card)
+        }
+      })
+      return
+    }
     touched.forEach(function (card) { card.sync() })
+    if (states && state().view === 'home') {
+      refreshHome()
+    }
+  }
+
+  /* Nommé, et non anonyme : posé sur document, un écouteur anonyme ne peut plus
+   * être retiré, et il retient en vie toute la fermeture de son chargement —
+   * ROOT détaché, le modèle, les index. Sur une tablette qui n'est jamais
+   * rechargée, il s'en accumulait un par aller-retour dans le menu. */
+  function onEscape(event) {
+    if (event.key === 'Escape' && ROOT.dataset.panel === '1') {
+      closePanel()
+    }
   }
 
   function onThemeChange() {
+    /* Une ambiance imposée ne se renégocie pas : le passage automatique de
+     * Jeedom au thème de jour ramenait sinon au clair, vingt minutes après,
+     * la tablette à qui l'on avait demandé le sombre. */
+    if (forcedTone() !== null) {
+      return
+    }
     /* Le coeur bascule la feuille de style de façon asynchrone : relire les
      * variables tout de suite renverrait encore l'ancien thème. */
     setTimeout(syncTone, 300)
@@ -2288,4 +3636,8 @@
   document.body.addEventListener('cmd::update', onCmdUpdate)
   document.body.addEventListener('changeTheme', onThemeChange)
   document.body.addEventListener('checkThemechange', onThemeChange)
+  /* Le nom réellement émis par triggerThemechange() quand la page est dans sa
+   * liste blanche. Nous n'y sommes pas aujourd'hui, mais l'écouter coûte une
+   * ligne et rend la réaction immédiate le jour où le coeur nous y ajoute. */
+  document.body.addEventListener('changeThemeEvent', onThemeChange)
 })()

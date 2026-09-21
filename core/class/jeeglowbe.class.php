@@ -125,6 +125,12 @@ class jeeglowbe extends eqLogic {
      * on tronque, et la page le dit. */
     const MAX_DEVICES = 400;
 
+    /* Les scénarios coûtent trois lectures de cache chacun — l'état, le dernier
+     * lancement, et l'icône qui relit l'état pour savoir s'il tourne. Quarante
+     * est déjà plus que ce qu'on peut présenter sans menu ; au delà, la liste
+     * n'aide plus personne et se paie quand même. */
+    const MAX_SCENARIOS = 40;
+
     /*
      * Le modèle envoyé à la page : des pièces, des équipements, et pour chacun
      * la carte à dessiner. Tout le filtrage de droits a lieu ici, une fois, côté
@@ -169,12 +175,27 @@ class jeeglowbe extends eqLogic {
                 $devices[$device['id']] = $device;
                 $ids[] = $device['id'];
             }
-            /* Seulement ce que la page dessine. La hiérarchie des objets et leur
-             * image ont l'air utiles, mais personne ne les lit : les calculer
-             * coûte une lecture de fichier par pièce et grossit le modèle. */
+            /* L'identité de la pièce, telle que l'utilisateur l'a déjà donnée
+             * au dashboard d'origine. Les quatre champs sortent de colonnes
+             * que buildTree() a chargées avec l'objet : getDisplay() et
+             * getConfiguration() ne font que décoder le JSON déjà en mémoire
+             * (core/class/jeeObject.class.php, lignes 1326 et 1337). La
+             * lecture de fichier qu'on redoutait ici est celle de
+             * findCodeIcon() (core/php/utils.inc.php, ligne 1479), qui relit
+             * font-awesome pour retrouver un point de code — on ne l'appelle
+             * pas, la page n'a besoin que de la classe.
+             *
+             * 'depth' vient de la configuration et non de parentNumber() : le
+             * coeur y inscrit la profondeur à chaque enregistrement
+             * (jeeObject::preSave, ligne 803), là où la méthode remonte la
+             * chaîne des pères par autant de byId(). */
             $rooms[] = array(
                 'id'      => intval($object->getId()),
                 'name'    => $object->getName(),
+                'icon'    => self::iconClass($object->getDisplay('icon', '')),
+                'color'   => $object->getDisplay('tagColor', ''),
+                'father'  => intval($object->getFather_id(0)),
+                'depth'   => intval($object->getConfiguration('parentNumber', 0)),
                 'devices' => $ids,
             );
         }
@@ -213,9 +234,16 @@ class jeeglowbe extends eqLogic {
                 $orphans[] = $device['id'];
             }
             if (count($orphans) > 0) {
+                /* Les mêmes clés que les vraies pièces, vides : « Non classé »
+                 * n'existe dans aucune table, mais la page ne doit pas avoir à
+                 * distinguer deux formes de pièce pour dessiner un titre. */
                 $rooms[] = array(
                     'id'      => 0,
                     'name'    => __('Non classé', __FILE__),
+                    'icon'    => '',
+                    'color'   => '',
+                    'father'  => 0,
+                    'depth'   => 0,
                     'devices' => $orphans,
                 );
             }
@@ -228,10 +256,23 @@ class jeeglowbe extends eqLogic {
             return count($_room['devices']) > 0;
         }));
 
-        log::add('jeeglowbe', 'debug', 'modèle construit en ' . round((microtime(true) - $started) * 1000) . ' ms : '
-            . count($rooms) . ' pièce(s), ' . count($devices) . ' équipement(s)');
+        $scenarios = self::scenarioList($_user);
 
-        return array(
+        /* L'ambiance du dashboard. « auto » laisse la page mesurer le fond de
+         * Jeedom et s'y accorder, ce qui reste le comportement par défaut ;
+         * « light » et « dark » l'imposent. Le besoin est celui d'une tablette
+         * murale : un Jeedom en thème clair interdisait jusqu'ici tout rendu
+         * sombre, alors que c'est justement là qu'on le veut. Toute autre
+         * valeur — réglage jamais ouvert, clé vide, configuration héritée —
+         * retombe sur la mesure : le réglage absent doit se comporter comme
+         * avant qu'il existe. */
+        $tone = (string) config::byKey('tone', 'jeeglowbe', 'auto');
+
+        log::add('jeeglowbe', 'debug', 'modèle construit en ' . round((microtime(true) - $started) * 1000) . ' ms : '
+            . count($rooms) . ' pièce(s), ' . count($devices) . ' équipement(s), '
+            . count($scenarios) . ' scénario(s)');
+
+        $return = array(
             'rooms'     => $rooms,
             'devices'   => $devices,
             'truncated' => (count($devices) >= self::MAX_DEVICES),
@@ -240,6 +281,7 @@ class jeeglowbe extends eqLogic {
              * administrateurs, comme toute écriture. */
             'admin'     => (is_object($_user) && $_user->getProfils() == 'admin'),
             'kiosk'     => self::kioskSettings(),
+            'tone'      => in_array($tone, array('light', 'dark'), true) ? $tone : 'auto',
             /* Toutes les pièces, y compris celles qui n'ont encore aucun
              * équipement : c'est justement là qu'on veut pouvoir ranger. */
             'objects'   => self::objectList($_user),
@@ -249,6 +291,82 @@ class jeeglowbe extends eqLogic {
              * par Intl s'obtient en remplaçant le souligné. */
             'lang'      => str_replace('_', '-', config::byKey('language', 'core', 'fr_FR')),
         );
+
+        /* Une installation sans scénario visible — ou un utilisateur qui n'a le
+         * droit d'en lancer aucun — ne reçoit pas une liste vide à tester : la
+         * clé est absente, et la page n'a rien à dessiner. */
+        if (count($scenarios) > 0) {
+            $return['scenarios'] = $scenarios;
+        }
+
+        return $return;
+    }
+
+    /*
+     * Les scénarios que l'utilisateur peut lancer. Le filtrage de droits a lieu
+     * ici, comme pour les équipements : scenario::hasRight()
+     * (core/class/scenario.class.php, ligne 1506) est le même contrôle que
+     * core/ajax/scenario.ajax.php oppose à « changeState », et envoyer un
+     * scénario que le serveur refusera ensuite ne ferait qu'un bouton qui
+     * répond par une erreur.
+     *
+     * Trois lectures de cache par scénario : getState(), getLastLaunch(), et
+     * getIcon(true) qui relit l'état pour rendre le sablier d'un scénario en
+     * cours. Le reste — nom, groupe, objet, activité, visibilité — sort des
+     * colonnes que scenario::all() a déjà chargées.
+     */
+    private static function scenarioList($_user) {
+        $return = array();
+        foreach (scenario::all() as $scenario) {
+            if ($scenario->getIsActive() != 1 || $scenario->getIsVisible() != 1) {
+                continue;
+            }
+            /* Le droit « x » et non « r » : un scénario qu'on ne peut que voir
+             * n'a pas de carte, puisque la carte ne sait qu'une chose, le
+             * lancer. */
+            if (is_object($_user) && !$scenario->hasRight('x', $_user)) {
+                continue;
+            }
+            $return[] = array(
+                'id'     => intval($scenario->getId()),
+                'name'   => $scenario->getName(),
+                /* getIcon(true) rend la classe FontAwesome nue, sans la balise
+                 * — c'est ce que la page recolle elle-même. Le trim n'est pas
+                 * superflu : le découpage du coeur laisse l'espace qui
+                 * précédait « class= », et « <i class=" fas fa-flask"> » n'est
+                 * pas une classe qu'on veut écrire dans la page. */
+                'icon'   => trim($scenario->getIcon(true)),
+                'group'  => $scenario->getGroup(),
+                'roomId' => intval($scenario->getObject_id(0)),
+                'state'  => $scenario->getState(),
+                'last'   => $scenario->getLastLaunch(),
+            );
+            if (count($return) >= self::MAX_SCENARIOS) {
+                break;
+            }
+        }
+        return $return;
+    }
+
+    /*
+     * La classe FontAwesome d'une icône, que Jeedom stocke sous forme de
+     * balise complète (« <i class="fas fa-home"></i> » dans object.display).
+     * Le découpage est celui du coeur, scenario::getIcon(true)
+     * (core/class/scenario.class.php, ligne 1050) : c'est la seule écriture
+     * dont on soit sûr qu'elle accepte tout ce que les pages de configuration
+     * ont pu enregistrer au fil des versions.
+     */
+    private static function iconClass($_icon) {
+        if ($_icon === '' || !is_string($_icon)) {
+            return '';
+        }
+        if (strpos($_icon, '<') === false) {
+            return trim($_icon);
+        }
+        if (strpos($_icon, '<i') !== 0) {
+            return '';
+        }
+        return trim(str_replace(array('<i', 'class=', '"', "'", '/>', '></i>'), '', $_icon));
     }
 
     /*
@@ -425,6 +543,17 @@ class jeeglowbe extends eqLogic {
             if ($entry['type'] == 'info') {
                 try {
                     $entry['value'] = $objects[$id]->execCmd();
+                    /* La date sort de la lecture qu'on vient de faire :
+                     * execCmd() range collectDate et valueDate dans l'objet en
+                     * même temps que la valeur (core/class/cmd.class.php,
+                     * lignes 1624-1634), et getValueDate() ne relit le cache
+                     * que si la propriété est restée vide (ligne 3920). La lire
+                     * ici, et seulement après un execCmd() réussi, ne coûte
+                     * donc rien ; la lire ailleurs relancerait l'exécution. */
+                    $date = $objects[$id]->getValueDate();
+                    if ($date !== '' && $date !== null) {
+                        $entry['date'] = $date;
+                    }
                 } catch (Throwable $e) {
                     $entry['value'] = null;
                 }
@@ -439,12 +568,21 @@ class jeeglowbe extends eqLogic {
             return null;
         }
 
-        $battery = '';
+        /* getStatus() sans clé rend le tableau entier
+         * (core/class/eqLogic.class.php, ligne 2041 : utils::getJsonAttr()
+         * renvoie tout le JSON quand la clé est vide). La batterie coûtait
+         * déjà cette lecture de cache ; le timeout, les alertes et la dernière
+         * communication viennent donc par-dessus le marché. */
+        $status = array();
         try {
-            $battery = $_eqLogic->getStatus('battery', '');
+            $status = $_eqLogic->getStatus();
         } catch (Throwable $e) {
-            $battery = '';
+            $status = array();
         }
+        if (!is_array($status)) {
+            $status = array();
+        }
+        $battery = isset($status['battery']) ? $status['battery'] : '';
 
         $id = intval($_eqLogic->getId());
         $alias = isset(self::$_aliases[$id]) ? self::$_aliases[$id] : '';
@@ -459,7 +597,7 @@ class jeeglowbe extends eqLogic {
             $shown = $real;
         }
 
-        return array(
+        $device = array(
             'id'       => $id,
             'name'     => $shown,
             'realName' => ($shown !== $real) ? $real : '',
@@ -467,12 +605,54 @@ class jeeglowbe extends eqLogic {
             'roomId'   => $_roomId,
             'eqType'   => $_eqLogic->getEqType_name(),
             'category' => self::categoryOf($_eqLogic),
+            /* Le rang que l'utilisateur a donné à l'équipement DANS SA PIÈCE :
+             * il repart de 1 dans chaque objet, et vaut 9999 pour tout ce qui
+             * n'a jamais été rangé à la main. Trier par pièce a donc un sens,
+             * trier un domaine ou une recherche n'en a aucun — deux « 1 » n'y
+             * viennent pas de la même liste. */
             'order'    => intval($_eqLogic->getOrder()),
             'battery'  => ($battery === '' || $battery === null) ? null : intval($battery),
             'card'     => $classification['card'],
             'roles'    => $classification['named'],
             'cmds'     => $cmds,
         );
+
+        $health = self::healthOf($status);
+        if ($health !== null) {
+            $device['status'] = $health;
+        }
+
+        return $device;
+    }
+
+    /*
+     * La santé d'un équipement, réduite à ce qui se dessine. Les cinq champs
+     * sont ceux que le coeur écrit dans le même cache : « timeout » et
+     * « lastCommunication » par eqLogic::checkAndUpdateCmd() (ligne 705) et le
+     * veilleur eqLogic::checkAlive() (lignes 390-417), « warning » et
+     * « danger » par cmd::actionAlertLevel() (core/class/cmd.class.php, ligne
+     * 2651) qui n'y met que 0 ou 1, « battery » par eqLogic::batteryStatus()
+     * (ligne 1228).
+     *
+     * Rien à émettre quand rien n'est renseigné : un équipement dont le plugin
+     * ne tient aucun de ces compteurs — et il y en a — n'a pas à porter un
+     * tableau de zéros dans la page.
+     */
+    private static function healthOf($_status) {
+        $battery = isset($_status['battery']) ? $_status['battery'] : '';
+        $comm = isset($_status['lastCommunication']) ? $_status['lastCommunication'] : '';
+        $health = array(
+            'timeout' => (isset($_status['timeout']) && $_status['timeout'] == 1) ? 1 : 0,
+            'warning' => isset($_status['warning']) ? intval($_status['warning']) : 0,
+            'danger'  => isset($_status['danger']) ? intval($_status['danger']) : 0,
+            'battery' => ($battery === '' || $battery === null) ? null : intval($battery),
+            'comm'    => ($comm === '' || $comm === null) ? null : $comm,
+        );
+        if ($health['timeout'] == 0 && $health['warning'] == 0 && $health['danger'] == 0
+            && $health['battery'] === null && $health['comm'] === null) {
+            return null;
+        }
+        return $health;
     }
 
     /*

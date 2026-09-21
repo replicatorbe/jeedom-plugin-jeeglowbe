@@ -113,6 +113,12 @@ DEMOS = [
      'cmds': [dict(cmd(90201, 'Images de alerte', 'info', 'string', '', '{"a":"x","d":"quelque chose"}'),
                    widget=True),
               cmd(90202, 'Déclenchée', 'info', 'binary', 'GENERIC_INFO', 1)]},
+    # Une alarme, la seule carte du dashboard qui se remplisse encore de
+    # couleur pleine. Elle n'avait aucun essai, et le chemin est neuf.
+    {'id': 90014, 'name': 'Détecteur cuisine', 'roomId': 9001, 'eqType': 'demo', 'category': 'security',
+     'order': 13, 'battery': 55, 'card': 'sensor', 'domain': 'security', 'roles': {},
+     'cmds': [cmd(90231, 'Fumée', 'info', 'binary', 'SMOKE', 0),
+              cmd(90232, 'Température', 'info', 'numeric', 'TEMPERATURE', 22.1, '°C')]},
     {'id': 90013, 'name': 'Prise bavarde', 'roomId': 9001, 'eqType': 'demo', 'category': 'energy',
      'order': 12, 'battery': None, 'card': 'switch', 'domain': 'socket',
      'roles': {'state': 90211, 'on': 90212, 'off': 90213},
@@ -254,6 +260,16 @@ def main():
     var results = []
     function check(name, condition, detail) {
       results.push((condition ? 'OK   ' : 'ECHEC') + ' | ' + name + (detail ? ' | ' + detail : ''))
+      // Écrit au fur et à mesure : une exception en cours de route emportait
+      // sinon tout le compte rendu, et l'on ne savait même plus où l'on en
+      // était quand le dashboard cassait au milieu du parcours.
+      document.getElementById('results').textContent = results.join(String.fromCharCode(10))
+    }
+    // Ouvrir le détail d'une carte. Sur une carte qui pilote quelque chose,
+    // c'est la pastille d'icône qui ouvre : l'en-tête entier, lui, agit.
+    function openDetail(node) {
+      var opener = node.querySelector('.jg-card-open') || node.querySelector('.jg-card-head')
+      opener.click()
     }
     function run() { try { (0, eval)(SRC) } catch (e) { ERRORS.push('eval: ' + e.message) } }
     function reload() { document.getElementById('host').innerHTML = MARKUP; run() }
@@ -262,31 +278,112 @@ def main():
       document.body.dispatchEvent(new CustomEvent('cmd::update', { detail: [{ cmd_id: cmdId, value: value }] }))
     }
 
+    // Les transitions ne sont pas jouées sous --virtual-time-budget : le temps
+    // virtuel saute, l'interpolation reste en cours, et getComputedStyle rend
+    // une couleur oklab() à mi-chemin. On croit alors à une erreur de cascade
+    // là où il n'y a qu'une animation figée. Le banc mesure le DOM, pas le
+    // mouvement : on coupe.
+    var frozen = document.createElement('style')
+    frozen.textContent = '*{transition:none !important;animation:none !important}'
+    document.head.appendChild(frozen)
+
     run()
 
-    // --- construction -------------------------------------------------------
-    var cards = document.querySelectorAll('.jg-card')
-    check('cartes construites', cards.length === Object.keys(jeeglowbeModel.devices).length,
-          cards.length + ' cartes pour ' + Object.keys(jeeglowbeModel.devices).length + ' équipements')
+    // --- l'accueil, qui est maintenant la vue d'arrivée ----------------------
     check('aucune erreur au chargement', ERRORS.length === 0, ERRORS.join(' / '))
-    var domains = {}
-    Object.keys(jeeglowbeModel.devices).forEach(function (k) { domains[jeeglowbeModel.devices[k].domain] = 1 })
-    check('vue par défaut : les fonctions', document.getElementById('jg-root').dataset.view === 'functions',
+    check('vue par défaut : l accueil', document.getElementById('jg-root').dataset.view === 'home',
           document.getElementById('jg-root').dataset.view)
-    check('une section par domaine présent',
-          document.querySelectorAll('.jg-section').length === Object.keys(domains).length,
-          document.querySelectorAll('.jg-section').length + ' sections pour ' + Object.keys(domains).length + ' domaines')
-    check('rail : quatre vues plus le kiosque',
-          document.querySelectorAll('.jg-rail-item').length === 5,
+    check('accueil : ce qui est en marche, en vraies cartes',
+          document.querySelectorAll('.jg-section .jg-card').length > 0,
+          document.querySelectorAll('.jg-section .jg-card').length + ' cartes')
+    check('accueil : une tuile par pièce peuplée',
+          document.querySelectorAll('.jg-room-tile').length > 0,
+          document.querySelectorAll('.jg-room-tile').length + ' pièces')
+    check('accueil : la tuile de pièce porte sa grande icône',
+          document.querySelector('.jg-room-tile .jg-tile-art i') !== null)
+    check('accueil : un lanceur de domaines en tuiles',
+          document.querySelectorAll('.jg-launch').length > 0,
+          document.querySelectorAll('.jg-launch').length + ' tuiles')
+    check('accueil : chaque tuile du lanceur a sa couleur',
+          getComputedStyle(document.querySelector('.jg-launch[data-domain="light"]')).backgroundColor !==
+          getComputedStyle(document.querySelector('.jg-launch[data-domain="cover"]')).backgroundColor)
+    check('accueil : une rangée d en-tête composée',
+          document.querySelector('.jg-bento') !== null &&
+          document.querySelector('.jg-bento .jg-clock-time') !== null)
+    check('accueil : les tuiles de l en-tête n ont pas toutes la même largeur',
+          document.querySelector('.jg-bento-clock') !== null &&
+          document.querySelectorAll('.jg-bento-card, .jg-bento-cam').length > 0,
+          document.querySelectorAll('.jg-bento-card, .jg-bento-cam').length + ' tuiles')
+    check('accueil : une vignette caméra quand il y en a une',
+          document.querySelector('.jg-bento-cam') !== null ||
+          jeeglowbeModel.devices === undefined)
+    check('accueil : des pastilles disant ce qui tourne',
+          document.querySelectorAll('.jg-hero-chip').length > 0,
+          document.querySelectorAll('.jg-hero-chip').length + ' pastilles')
+    check('accueil : au moins une carte de synthèse',
+          document.querySelectorAll('.jg-hero-card').length > 0,
+          document.querySelectorAll('.jg-hero-card').length + ' cartes')
+    check('accueil : ce qui tourne est en bandes compactes',
+          document.querySelectorAll('.jg-quick').length > 0 &&
+          document.querySelector('.jg-quick .jg-state') === null,
+          document.querySelectorAll('.jg-quick').length + ' bandes')
+    check('accueil : la bande dit pièce, état et mesure',
+          document.querySelector('.jg-quick .jg-card-sub').textContent.split(' · ').length >= 2,
+          document.querySelector('.jg-quick .jg-card-sub').textContent)
+    check('rail : cinq vues plus le kiosque',
+          document.querySelectorAll('.jg-rail-item').length === 6,
           document.querySelectorAll('.jg-rail-item').length + ' entrées')
     check('rail : le kiosque est nommé',
           document.querySelector('.jg-rail-kiosk .jg-rail-label').textContent === 'Kiosque',
           document.querySelector('.jg-rail-kiosk .jg-rail-label').textContent)
-    check('rail : la vue courante est marquée',
-          document.querySelector('.jg-rail-item.jg-rail-on').dataset.view === 'functions')
-    check('sous-onglets : Tout plus les domaines',
+
+    // --- l'aperçu : des colonnes, et des sections écrêtées ------------------
+    document.querySelector('.jg-rail-item[data-view="functions"]').click()
+    check('aperçu : les sections se rangent en colonnes',
+          document.getElementById('jg-sections').dataset.layout === 'columns',
+          document.getElementById('jg-sections').dataset.layout)
+    check('aperçu : une section trop longue est écrêtée et renvoie à sa page',
+          document.querySelector('.jg-section .jg-more-tile') !== null)
+    var domains = {}
+    Object.keys(jeeglowbeModel.devices).forEach(function (k) { domains[jeeglowbeModel.devices[k].domain] = 1 })
+    check('une section par domaine présent',
+          document.querySelectorAll('.jg-section').length === Object.keys(domains).length,
+          document.querySelectorAll('.jg-section').length + ' sections pour ' + Object.keys(domains).length + ' domaines')
+    check('sous-onglets : Aperçu plus les domaines',
           document.querySelectorAll('.jg-tab').length === Object.keys(domains).length + 1,
           document.querySelectorAll('.jg-tab').length + ' onglets')
+    document.querySelector('.jg-section .jg-more-tile').click()
+    check('aperçu : le renvoi mène à la page du domaine',
+          window.location.hash.indexOf('tab=') !== -1 &&
+          window.location.hash.indexOf('tab=all') === -1, window.location.hash)
+    check('page d un domaine : une seule section, en grille large',
+          document.getElementById('jg-sections').dataset.layout === 'grid' &&
+          document.querySelectorAll('.jg-section').length === 1,
+          document.getElementById('jg-sections').dataset.layout)
+
+    // --- la pièce de démonstration, où vivent les essais de cartes ----------
+    // Une seule section, donc rien d'écrêté : tous les équipements de
+    // démonstration sont à l'écran en même temps.
+    function showAll() {
+      window.location.hash = 'view=rooms&tab=9001'
+      window.dispatchEvent(new HashChangeEvent('hashchange'))
+    }
+    showAll()
+    var demoCount = jeeglowbeModel.rooms[0].devices.length
+    var cards = document.querySelectorAll('.jg-card')
+    check('cartes construites', cards.length === demoCount,
+          cards.length + ' cartes pour ' + demoCount + ' équipements de démonstration')
+    check('rail : la vue courante est marquée',
+          document.querySelector('.jg-rail-item.jg-rail-on').dataset.view === 'rooms')
+    // La couleur est portée par la carte entière, plus seulement par une
+    // pastille : une lampe éteinte et un volet éteint n'ont pas le même fond.
+    check('couleur : une carte éteinte porte la teinte de son domaine',
+          getComputedStyle(card(90002)).backgroundColor !== getComputedStyle(card(90003)).backgroundColor,
+          getComputedStyle(card(90002)).backgroundColor + ' / ' + getComputedStyle(card(90003)).backgroundColor)
+    // Et une énumération reste neutre : sans cela la couleur ne signale plus rien.
+    check('couleur : un capteur reste neutre',
+          getComputedStyle(card(90004)).backgroundColor === getComputedStyle(card(90009)).backgroundColor,
+          getComputedStyle(card(90004)).backgroundColor)
 
     // --- carte lumière allumée (90001 : state 90011 = 1, on 90012, off 90013) --
     var light = card(90001)
@@ -362,7 +459,12 @@ def main():
     var sensor = card(90004)
     check('capteur : valeur principale', sensor.querySelector('.jg-value').textContent === '21.4 °C',
           sensor.querySelector('.jg-value').textContent)
-    check('capteur : sous-titre = nom de la mesure', sensor.querySelector('.jg-card-sub').textContent === 'Température')
+    // En vue Pièces, la section porte déjà le nom du lieu : le répéter sur
+    // chaque carte serait du bruit. Ailleurs, il s'ajoute — c'est vérifié plus
+    // bas, sur l'accueil.
+    check('capteur : en vue Pièces, le sous-titre ne répète pas le lieu',
+          sensor.querySelector('.jg-card-sub').textContent === 'Température',
+          sensor.querySelector('.jg-card-sub').textContent)
     update(90041, 19.25)
     check('capteur : valeur suit cmd::update', sensor.querySelector('.jg-value').textContent === '19.3 °C',
           sensor.querySelector('.jg-value').textContent)
@@ -477,7 +579,7 @@ def main():
 
     // L'en-tête d'une carte ouvre le détail sans déclencher la bascule.
     CALLS = []
-    card(90001).querySelector('.jg-card-head').click()
+    openDetail(card(90001))
     check('en-tête : ouvre le détail', document.getElementById('jg-panel').hidden === false)
     check('en-tête : ne bascule pas la lumière', CALLS.length === 0, JSON.stringify(CALLS))
     document.getElementById('jg-panel-close').click()
@@ -496,7 +598,9 @@ def main():
     check('widget : place réservée', holder !== null)
     check('widget : repli affiché en attendant', holder !== null && holder.querySelector('.jg-row') !== null)
     check('widget : pas encore chargé', holder !== null && !holder.classList.contains('jg-widget-ready'))
-    check('widget : un seul appel groupé', FETCHES.length === 1, FETCHES.length + ' appel(s) : ' + FETCHES.join(', '))
+    check('widget : un seul appel groupé par vue', FETCHES.length >= 1 &&
+          FETCHES.every(function (url) { return url === 'core/ajax/cmd.ajax.php' }),
+          FETCHES.length + ' appel(s) : ' + FETCHES.join(', '))
     check('widget : la commande ordinaire reste une ligne',
           card(90012).querySelectorAll('.jg-row').length >= 1)
 
@@ -507,7 +611,7 @@ def main():
           clock ? clock.textContent : 'absente')
     check('accueil : date affichée', document.querySelector('.jg-clock-date').textContent.length > 5,
           document.querySelector('.jg-clock-date').textContent)
-    document.querySelector('.jg-rail-item[data-view="functions"]').click()
+    showAll()
 
     // --- mesures secondaires : le bruit d'entrée écarté ---------------------
     var chatty = card(90013)
@@ -519,7 +623,7 @@ def main():
 
     // --- courbes dans le panneau -------------------------------------------
     CHARTS = []
-    chatty.querySelector('.jg-card-head').click()
+    openDetail(chatty)
     check('panneau : une courbe par commande historisée', document.querySelectorAll('.jg-chart').length === 1,
           document.querySelectorAll('.jg-chart').length + ' conteneurs')
     check('panneau : la courbe a un identifiant unique',
@@ -551,10 +655,7 @@ def main():
 
     // --- recherche ----------------------------------------------------------
     var search = document.getElementById('jg-search')
-    function goToAll() {
-      window.location.hash = 'view=functions&tab=all'
-      window.dispatchEvent(new HashChangeEvent('hashchange'))
-    }
+    function goToAll() { showAll() }
     search.value = 'plafonnier'
     search.dispatchEvent(new Event('input'))
     var shown = document.querySelectorAll('.jg-card')
@@ -586,17 +687,68 @@ def main():
 
     document.querySelector('.jg-rail-item[data-view="home"]').click()
     check('accueil : pas de sous-onglets', document.getElementById('jg-subtabs').hidden === true)
-    check('accueil : une tuile par domaine',
-          document.querySelectorAll('.jg-domain').length === Object.keys(domains).length,
-          document.querySelectorAll('.jg-domain').length + ' tuiles')
-    check('accueil : des pastilles de mesure', document.querySelectorAll('.jg-badge').length > 0,
-          document.querySelectorAll('.jg-badge').length + ' pastilles')
-    document.querySelector('.jg-domain[data-domain="light"]').click()
-    check('accueil : une tuile mène à son domaine',
+    check('accueil : la synthèse est revenue après changement de vue',
+          document.querySelectorAll('.jg-hero-card').length > 0,
+          document.querySelectorAll('.jg-hero-card').length + ' cartes')
+    var lightTile = document.querySelector('.jg-launch[data-domain="light"]')
+    check('accueil : une tuile de lanceur existe', lightTile !== null)
+    lightTile.click()
+    check('accueil : une tuile du lanceur mène à son domaine',
           window.location.hash.indexOf('tab=light') !== -1, window.location.hash)
+
+    // --- la santé -------------------------------------------------------------
+    document.querySelector('.jg-rail-item[data-view="health"]').click()
+    check('santé : la vue existe', document.getElementById('jg-root').dataset.view === 'health',
+          document.getElementById('jg-root').dataset.view)
+    check('santé : les piles faibles sont relevées',
+          document.querySelector('.jg-card[data-device-id="90003"]') !== null &&
+          document.querySelector('.jg-card[data-device-id="90004"]') !== null,
+          document.querySelectorAll('.jg-section').length + ' sections')
+    document.querySelector('.jg-rail-item[data-view="home"]').click()
+    check('accueil : le bandeau d alerte annonce les ennuis',
+          document.querySelector('.jg-alertbar') !== null)
+    document.querySelector('.jg-alertbar').click()
+    check('accueil : le bandeau mène à la santé',
+          window.location.hash.indexOf('view=health') !== -1, window.location.hash)
 
     document.querySelector('.jg-rail-item[data-view="functions"]').click()
     goToAll()
+
+    // --- l'alarme, seule couleur pleine qui reste ---------------------------
+    var smoke = card(90014)
+    check('alarme : au repos, pas de remplissage', smoke.dataset.alert === undefined,
+          String(smoke.dataset.alert))
+    check('alarme : au repos, le libellé est parlant',
+          smoke.textContent.indexOf('Rien à signaler') !== -1, smoke.textContent.slice(0, 60))
+    update(90231, 1)
+    check('alarme : la fumée remplit la carte', smoke.dataset.alert === '1', String(smoke.dataset.alert))
+    check('alarme : le fond est celui du danger, pas une teinte',
+          getComputedStyle(smoke).backgroundColor === 'rgb(179, 38, 30)',
+          getComputedStyle(smoke).backgroundColor)
+    update(90231, 0)
+    check('alarme : elle repart quand la fumée cesse', smoke.dataset.alert === undefined,
+          String(smoke.dataset.alert))
+
+    // --- pas de cartes fantômes ---------------------------------------------
+    // Une carte retirée de l'écran doit se désabonner du temps réel. L'accueil
+    // se redessinant à chaque bascule d'équipement, une fuite ici finirait par
+    // faire coûter un rendu complet à la moindre mise à jour, sur une tablette
+    // qu'on ne recharge jamais.
+    function watchers() {
+      var total = 0
+      Object.keys(window.jeeglowbeRuntime.WATCH).forEach(function (id) {
+        total += window.jeeglowbeRuntime.WATCH[id].length
+      })
+      return total
+    }
+    var before = watchers()
+    for (var pass = 0; pass < 3; pass++) {
+      document.querySelector('.jg-rail-item[data-view="home"]').click()
+      document.querySelector('.jg-rail-item[data-view="functions"]').click()
+      goToAll()
+    }
+    check('temps réel : aucune carte fantôme après six changements de vue',
+          watchers() === before, before + ' abonnements avant, ' + watchers() + ' après')
 
     // --- plein écran --------------------------------------------------------
     document.getElementById('jg-fullscreen').click()
@@ -657,8 +809,7 @@ def main():
             'dim=' + document.getElementById('jg-root').dataset.dim +
             ' kiosk=' + document.getElementById('jg-root').dataset.kiosk +
             ' body=' + document.body.classList.contains('fullscreen'))
-      window.location.hash = 'view=functions&tab=all'
-      window.dispatchEvent(new HashChangeEvent('hashchange'))
+      showAll()
 
       // --- le widget est arrivé --------------------------------------------
       var ready = document.querySelector('.jg-widget[data-cmd-id="90201"]')
