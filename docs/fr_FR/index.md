@@ -189,6 +189,15 @@ Le bouton en haut à droite passe en plein écran : **le menu et la barre du hau
 de Jeedom disparaissent**, ainsi que le pied de page. Il ne reste que le
 dashboard.
 
+Trois façons de l'obtenir, de la plus directe à la plus durable :
+
+1. **Le bouton « Kiosque »**, en bas du rail de gauche, qui dit ce qu'il fait et
+   comment en sortir.
+2. **L'adresse**, pour un favori ou une page de démarrage (voir plus bas).
+3. **Le réglage « Démarrer en kiosque »**, dans la configuration du plugin :
+   jeeGlow s'ouvre alors sans le menu, sur tous les appareils, sans rien avoir à
+   cliquer. C'est ce qu'il faut pour une tablette murale.
+
 Le mode est **retenu par l'appareil** : une tablette qui rouvre la page la
 retrouve en kiosque, sans paramètre dans l'adresse et sans intervention. Un
 ordinateur qui ouvre la même adresse, lui, garde son menu — le réglage est

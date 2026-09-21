@@ -16,6 +16,8 @@ First release.
 - Names automatically shortened for display, "Short names" setting.
 - Assigning a device to a room from the detail panel.
 - Clock on the home view and screen kept awake in kiosk mode.
+- A named "Kiosk" button in the rail, and a "Start in kiosk mode" setting to
+  open jeeGlow without the Jeedom menu with nothing to click.
 - Kiosk mode remembered by the device, return home after inactivity and night
   dimming.
 - Light or dark theme, matched automatically to the Jeedom theme.

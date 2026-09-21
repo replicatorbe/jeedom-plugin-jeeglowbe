@@ -172,10 +172,19 @@ colours as everywhere else.
 The button in the top right corner switches to full screen: **the Jeedom menu
 and top bar disappear**, along with the footer. Only the dashboard remains.
 
+Three ways to get there, from the most direct to the most lasting:
+
+1. **The "Kiosk" button** at the bottom of the left rail, which says what it
+   does and how to leave.
+2. **The address**, for a bookmark or a start page (see below).
+3. **The "Start in kiosk mode" setting** in the plugin configuration: jeeGlow
+   then opens without the menu, on every device, with nothing to click. That is
+   what a wall tablet needs.
+
 The mode is **remembered by the device**: a tablet reopening the page finds it
-in kiosk mode, with no URL parameter and no action. A computer opening the same
-address keeps its menu — the setting belongs to the browser. The same button
-leaves, and Jeedom gets its menu back.
+in kiosk mode, with no URL parameter and no action. That choice wins over the
+installation setting: if "Start in kiosk mode" is ticked but you leave kiosk
+mode on your computer, that computer keeps its menu.
 
 The address works too, for a bookmark or a start page:
 

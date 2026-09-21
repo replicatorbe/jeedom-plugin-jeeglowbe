@@ -273,6 +273,12 @@ class jeeglowbe extends eqLogic {
     private static function kioskSettings() {
         $theme = jeedom::getThemeConfig();
         return array(
+            /* Le kiosque au démarrage : un réglage de l'installation, et non
+             * une préférence d'appareil. Il sert le cas le plus fréquent — on
+             * veut jeeGlow en plein écran, point — sans obliger à trouver un
+             * bouton. Le bouton, lui, garde le dernier mot sur l'appareil où on
+             * s'en sert. */
+            'start' => (config::byKey('kioskStart', 'jeeglowbe', 0) == 1),
             'idle'  => intval(config::byKey('kioskIdle', 'jeeglowbe', 0)),
             'dim'   => intval(config::byKey('kioskDim', 'jeeglowbe', 0)),
             'night' => isset($theme['theme_end_day_hour']) ? $theme['theme_end_day_hour'] : '20:00',

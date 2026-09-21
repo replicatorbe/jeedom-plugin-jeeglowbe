@@ -37,6 +37,15 @@ if (!isConnect('admin')) {
 	<fieldset>
 		<legend><i class="fas fa-tablet-alt"></i> {{Mode kiosque}}</legend>
 		<div class="form-group">
+			<label class="col-md-4 control-label">{{Démarrer en kiosque}}</label>
+			<div class="col-md-1">
+				<input type="checkbox" class="configKey" data-l1key="kioskStart">
+			</div>
+			<div class="col-md-7">
+				<span class="help-block" style="margin:0;">{{jeeGlow s'ouvre directement sans le menu ni la barre du haut de Jeedom, sur tous les appareils. Le bouton en haut à droite du dashboard reste maître sur l'appareil où on s'en sert : ce qu'on y choisit est retenu et l'emporte sur ce réglage.}}</span>
+			</div>
+		</div>
+		<div class="form-group">
 			<label class="col-md-4 control-label">{{Retour à l'accueil après}}</label>
 			<div class="col-md-2">
 				<input type="number" min="0" max="240" class="configKey form-control" data-l1key="kioskIdle" placeholder="0">

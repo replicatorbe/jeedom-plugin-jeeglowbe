@@ -913,3 +913,16 @@
 
 .jg-room-row { align-items: center; gap: 12px; }
 .jg-room-row .jg-select { max-width: 60%; }
+
+/* Le kiosque au bas du rail, séparé des vues : ce n'est pas un endroit où
+ * aller, c'est une manière de regarder. */
+.jg-rail-kiosk {
+    margin-top: 10px;
+    border-top: 1px solid var(--jg-border);
+    padding-top: 14px;
+    border-radius: 16px;
+}
+
+@media (max-width: 767px) {
+    .jg-rail-kiosk { margin-top: 0; border-top: 0; padding-top: 8px; }
+}
