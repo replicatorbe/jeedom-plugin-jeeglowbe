@@ -13,6 +13,9 @@ Première version.
 - Rangement par domaine plutôt que par pièce, et panneau de détail par équipement.
 - Noms personnalisés par équipement, sans toucher à Jeedom.
 - Courbes d'historique dans le panneau de détail.
+- Noms raccourcis automatiquement à l'affichage, réglage « Noms courts ».
+- Rangement d'un équipement dans une pièce depuis le panneau de détail.
+- Horloge sur l'accueil et écran maintenu allumé en kiosque.
 - Mode kiosque retenu par l'appareil, retour à l'accueil après inactivité et
   atténuation de nuit.
 - Thème clair ou sombre accordé automatiquement à celui de Jeedom.

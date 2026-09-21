@@ -13,6 +13,9 @@ First release.
 - Arrangement by domain rather than by room, and a per-device detail panel.
 - Custom device names, without touching Jeedom.
 - History charts in the detail panel.
+- Names automatically shortened for display, "Short names" setting.
+- Assigning a device to a room from the detail panel.
+- Clock on the home view and screen kept awake in kiosk mode.
 - Kiosk mode remembered by the device, return home after inactivity and night
   dimming.
 - Light or dark theme, matched automatically to the Jeedom theme.

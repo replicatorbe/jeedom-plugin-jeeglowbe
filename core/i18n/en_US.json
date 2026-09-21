@@ -5,7 +5,8 @@
     "plugins/jeeglowbe/core/ajax/jeeglowbe.ajax.php": {
         "401 - Accès non autorisé": "401 - Unauthorized access",
         "Aucune méthode correspondante à :": "No matching method for:",
-        "Équipement introuvable": "Device not found"
+        "Équipement introuvable": "Device not found",
+        "Pièce introuvable": "Room not found"
     },
     "plugins/jeeglowbe/desktop/php/jeeglowbe.php": {
         "401 - Accès non autorisé": "401 - Unauthorized access",
@@ -82,7 +83,9 @@
         "Température": "Temperature",
         "Dehors": "Outside",
         "Humidité": "Humidity",
-        "Le nom n'a pas pu être enregistré.": "The name could not be saved."
+        "Le nom n'a pas pu être enregistré.": "The name could not be saved.",
+        "Pièce": "Room",
+        "La pièce n'a pas pu être changée.": "The room could not be changed."
     },
     "plugins/jeeglowbe/plugin_info/configuration.php": {
         "401 - Accès non autorisé": "401 - Unauthorized access",
@@ -96,6 +99,8 @@
         "Retour à l'accueil après": "Return home after",
         "Minutes d'inactivité au bout desquelles une tablette revient à l'accueil. 0 pour ne jamais revenir. Ne s'applique qu'en mode kiosque.": "Minutes of inactivity after which a tablet returns to the home view. 0 never returns. Only applies in kiosk mode.",
         "Atténuation de nuit": "Night dimming",
-        "Pourcentage d'assombrissement de l'écran la nuit, de 0 à 70. Les heures de nuit sont celles que vous avez données à Jeedom pour changer de thème.": "How much the screen is darkened at night, from 0 to 70 per cent. Night hours are the ones you gave Jeedom to switch themes."
+        "Pourcentage d'assombrissement de l'écran la nuit, de 0 à 70. Les heures de nuit sont celles que vous avez données à Jeedom pour changer de thème.": "How much the screen is darkened at night, from 0 to 70 per cent. Night hours are the ones you gave Jeedom to switch themes.",
+        "Noms courts": "Short names",
+        "Retire des noms affichés les identifiants matériels et ce qui précède un tiret : « OpenMQTTGateway 1629AC — OMG_ESP32_BLE_SALON » devient « OMG_ESP32_BLE_SALON ». N'affecte que l'affichage dans jeeGlow, jamais le nom dans Jeedom, et un nom donné à la main l'emporte toujours.": "Removes hardware identifiers and whatever precedes a dash from displayed names: \"OpenMQTTGateway 1629AC — OMG_ESP32_BLE_SALON\" becomes \"OMG_ESP32_BLE_SALON\". Affects the display in jeeGlow only, never the name in Jeedom, and a hand-given name always wins."
     }
 }

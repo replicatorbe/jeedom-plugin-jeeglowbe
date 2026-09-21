@@ -138,6 +138,21 @@ Une carte affiche au plus six informations et huit commandes. Au-delà, elle
 l'annonce : **« + 4 autres »**, d'un appui, dépliez le reste. Rien ne disparaît
 en silence.
 
+## Des noms lisibles
+
+Les plugins nomment pour eux-mêmes : `OpenMQTTGateway 1629AC — OMG_ESP32_BLE_SALON`
+dit le modèle, le numéro de série, et enfin ce qui vous intéresse. jeeGlow
+raccourcit ces noms à l'affichage — le réglage **Noms courts**, actif par
+défaut — en retirant les identifiants matériels et ce qui précède un tiret
+entouré d'espaces.
+
+Deux garde-fous : « Detection OUEST-NORD » n'est pas touché, parce que son tiret
+n'est pas un séparateur ; et si le raccourcissement donne un résultat vide ou
+d'une lettre, le nom d'origine est gardé. Mieux vaut un nom long qu'un nom faux.
+
+Le nom dans Jeedom n'est jamais modifié, et le nom que vous donnez à la main
+l'emporte toujours sur le raccourcissement.
+
 ## Donner vos propres noms
 
 `Shelly 1 91E2EE — spotcuisinep` ne sera jamais beau sur un mur. Ouvrez le
@@ -150,6 +165,17 @@ sur un dashboard casserait ce qui en dépend. Le nom choisi vit dans la
 configuration de jeeGlow. Effacez-le pour revenir au nom d'origine.
 
 Renommer écrit dans la configuration du plugin : réservé aux administrateurs.
+
+## Ranger une pièce sans quitter le dashboard
+
+Le panneau de détail propose un sélecteur de **pièce** aux administrateurs. La
+moitié d'une installation ordinaire n'appartient à aucun objet, et personne ne
+va ouvrir la page d'un plugin pour corriger ça : la seule occasion de ranger est
+celle où l'on a l'équipement sous les yeux.
+
+L'écriture est directe, sans déclencher les traitements du plugin propriétaire :
+changer de pièce est un attribut Jeedom, il n'y a aucune raison de faire tourner
+le code d'un plugin de caméra pour ça.
 
 ## Courbes
 
@@ -173,6 +199,14 @@ L'adresse fonctionne aussi, pour un favori ou une page de démarrage :
 ```
 index.php?v=d&m=jeeglowbe&p=jeeglowbe&fullscreen=1
 ```
+
+L'heure et la date s'affichent en haut de l'accueil, dans la langue de Jeedom —
+pas celle du navigateur, qui n'est pas forcément la vôtre sur une tablette.
+
+En kiosque, jeeGlow demande aussi au navigateur de **garder l'écran allumé**.
+Cette demande n'est possible qu'en contexte sécurisé : si vous ouvrez Jeedom en
+HTTP par son adresse IP, elle n'existe pas et la tablette s'éteindra comme
+avant. C'est une limite du navigateur, pas un réglage manquant.
 
 Deux réglages accompagnent ce mode, dans la configuration du plugin, et ne
 s'appliquent qu'à lui :

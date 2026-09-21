@@ -57,6 +57,42 @@ try {
         ));
     }
 
+    /*
+     * Ranger un équipement dans une pièce. Réservé aux administrateurs, comme
+     * toute écriture.
+     *
+     * save(true) : l'écriture est directe, sans déclencher les preSave et
+     * postSave du plugin propriétaire. Changer d'objet est un attribut Jeedom,
+     * pas une affaire de plugin ; faire tourner les hooks d'un plugin de caméra
+     * ou d'aspirateur — qui peuvent parler au matériel ou reconstruire des
+     * commandes — pour déplacer un équipement d'une pièce à l'autre serait un
+     * risque pris pour rien.
+     */
+    if (init('action') == 'setRoom') {
+        if (!isConnect('admin')) {
+            throw new Exception(__('401 - Accès non autorisé', __FILE__));
+        }
+        $eqLogic = eqLogic::byId(init('id'));
+        if (!is_object($eqLogic)) {
+            throw new Exception(__('Équipement introuvable', __FILE__));
+        }
+        $roomId = init('room');
+        if ($roomId === '' || intval($roomId) <= 0) {
+            $eqLogic->setObject_id(null);
+        } else {
+            $object = jeeObject::byId($roomId);
+            if (!is_object($object)) {
+                throw new Exception(__('Pièce introuvable', __FILE__));
+            }
+            $eqLogic->setObject_id($object->getId());
+        }
+        $eqLogic->save(true);
+        ajax::success(array(
+            'id' => intval($eqLogic->getId()),
+            'room' => ($eqLogic->getObject_id() == '') ? 0 : intval($eqLogic->getObject_id()),
+        ));
+    }
+
     throw new Exception(__('Aucune méthode correspondante à :', __FILE__) . ' ' . init('action'));
 } catch (Throwable $e) {
     /* Throwable et non Exception : en PHP 8 une erreur de type n'est pas une

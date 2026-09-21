@@ -117,6 +117,9 @@ class jeeglowbe extends eqLogic {
      * renommage n'apparaissait pas dans le modèle relu juste après. */
     private static $_aliases = array();
 
+    /* Le raccourcissement des noms est un réglage, relu à chaque modèle. */
+    private static $_shortNames = false;
+
     /* Un modèle complet coûte une lecture de cache par commande renvoyée. Au
      * delà de ce seuil on n'a plus affaire à un dashboard mais à un inventaire :
      * on tronque, et la page le dit. */
@@ -134,6 +137,7 @@ class jeeglowbe extends eqLogic {
     public static function model($_user = null) {
         $started = microtime(true);
         self::$_aliases = self::aliases();
+        self::$_shortNames = (config::byKey('shortNames', 'jeeglowbe', 1) == 1);
         $rooms = array();
         $devices = array();
 
@@ -236,6 +240,14 @@ class jeeglowbe extends eqLogic {
              * administrateurs, comme toute écriture. */
             'admin'     => (is_object($_user) && $_user->getProfils() == 'admin'),
             'kiosk'     => self::kioskSettings(),
+            /* Toutes les pièces, y compris celles qui n'ont encore aucun
+             * équipement : c'est justement là qu'on veut pouvoir ranger. */
+            'objects'   => self::objectList($_user),
+            /* La langue de Jeedom, et non celle du navigateur : une tablette
+             * murale livrée en anglais afficherait « Monday, September 21 » sur
+             * une installation entièrement française. Le format BCP 47 attendu
+             * par Intl s'obtient en remplaçant le souligné. */
+            'lang'      => str_replace('_', '-', config::byKey('language', 'core', 'fr_FR')),
         );
     }
 
@@ -244,6 +256,20 @@ class jeeglowbe extends eqLogic {
      * ce sont celles que l'utilisateur a déjà données à Jeedom pour basculer son
      * thème. Un réglage de moins à tenir, et deux interfaces qui s'accordent.
      */
+    private static function objectList($_user) {
+        if (!is_object($_user) || $_user->getProfils() != 'admin') {
+            return array();
+        }
+        $return = array();
+        foreach (jeeObject::buildTree(null, false) as $object) {
+            $return[] = array(
+                'id'   => intval($object->getId()),
+                'name' => str_repeat('· ', intval($object->getConfiguration('parentNumber', 0))) . $object->getName(),
+            );
+        }
+        return $return;
+    }
+
     private static function kioskSettings() {
         $theme = jeedom::getThemeConfig();
         return array(
@@ -252,6 +278,34 @@ class jeeglowbe extends eqLogic {
             'night' => isset($theme['theme_end_day_hour']) ? $theme['theme_end_day_hour'] : '20:00',
             'day'   => isset($theme['theme_start_day_hour']) ? $theme['theme_start_day_hour'] : '08:00',
         );
+    }
+
+    /*
+     * Le nom raccourci d'un équipement, pour l'affichage seulement.
+     *
+     * Les plugins nomment pour eux-mêmes : « OpenMQTTGateway 1629AC —
+     * OMG_ESP32_BLE_SALON » dit le modèle, le numéro de série et enfin ce qui
+     * intéresse l'habitant. Sur cette installation, trente-neuf noms sur
+     * soixante-quatre dépassent vingt-quatre caractères et ne tiennent pas sur
+     * une carte.
+     *
+     * Deux règles seulement, et prudentes : ce qui suit un tiret ENTOURÉ
+     * D'ESPACES — « Detection OUEST-NORD » n'est donc pas touché — et les jetons
+     * qui ne sont qu'un identifiant matériel, hexadécimaux d'au moins six
+     * caractères et portant un chiffre, ce qui épargne « EDPNET ». Si le
+     * résultat est vide ou trop court, on garde le nom d'origine : mieux vaut un
+     * nom long qu'un nom faux.
+     */
+    public static function shorten($_name) {
+        $name = $_name;
+        if (preg_match('/^.+?\s[—–-]\s(.+)$/u', $name, $found)) {
+            $name = $found[1];
+        }
+        $name = preg_replace_callback('/\b[0-9A-Fa-f]{6,}\b/', function ($_match) {
+            return preg_match('/[0-9]/', $_match[0]) ? '' : $_match[0];
+        }, $name);
+        $name = trim(preg_replace('/\s{2,}/', ' ', $name), " \t-—–_");
+        return ($name === '' || mb_strlen($name) < 2) ? $_name : $name;
     }
 
     public static function aliases() {
@@ -388,11 +442,21 @@ class jeeglowbe extends eqLogic {
 
         $id = intval($_eqLogic->getId());
         $alias = isset(self::$_aliases[$id]) ? self::$_aliases[$id] : '';
+        $real = $_eqLogic->getName();
+        /* L'alias posé à la main l'emporte toujours sur le raccourcissement
+         * automatique : c'est une décision, pas une heuristique. */
+        if ($alias !== '') {
+            $shown = $alias;
+        } elseif (self::$_shortNames) {
+            $shown = self::shorten($real);
+        } else {
+            $shown = $real;
+        }
 
         return array(
             'id'       => $id,
-            'name'     => ($alias !== '') ? $alias : $_eqLogic->getName(),
-            'realName' => ($alias !== '') ? $_eqLogic->getName() : '',
+            'name'     => $shown,
+            'realName' => ($shown !== $real) ? $real : '',
             'domain'   => self::domainOf($meta),
             'roomId'   => $_roomId,
             'eqType'   => $_eqLogic->getEqType_name(),
