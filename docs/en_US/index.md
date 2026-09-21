@@ -48,6 +48,10 @@ application and the voice assistants.
 Values refresh **in real time**, with no reload: jeeGlow listens to the same
 event stream as the original dashboard.
 
+The device list itself is read again whenever the page becomes visible after
+more than five minutes. A device added, renamed or moved to another room shows
+up on a wall tablet on its own, without touching it.
+
 Only **visible** commands are shown, plus the ones a card needs. To remove a
 value from the dashboard, untick *Display* on the command.
 
@@ -82,8 +86,13 @@ hand, looks through every room.
 
 - **Displayed title**: the name at the top of the dashboard.
 - **Show devices without an object**: groups them in an "Unassigned" room.
-- **Hide empty rooms**: hides objects that only structure the tree, such as a
-  floor.
+
+## Read-only users
+
+A user allowed to **see** a device but not to **act** on it gets no button, no
+slider and no list: the card shows the state and stops there. The core would
+refuse the execution anyway, but a dashboard covered in commands answering with
+a red alert would make no sense.
 
 ## What jeeGlow does not do
 

@@ -23,10 +23,12 @@ require_once __DIR__ . '/../../../core/php/core.inc.php';
  * ne s'ouvre pas sur des champs vides dont personne ne sait ce qu'ils valent.
  */
 function jeeglowbe_install() {
-    foreach (array('showUnassigned' => 1, 'hideEmptyRooms' => 1) as $key => $value) {
-        if (config::byKey($key, 'jeeglowbe', null) === null) {
-            config::save($key, $value, 'jeeglowbe');
-        }
+    /* config::byKey() ne renvoie jamais null sur une clé absente : elle place le
+     * défaut en cache puis retourne '' parce que isset() est faux sur null. Le
+     * test doit donc porter sur la chaîne vide, sans quoi la valeur par défaut
+     * n'est jamais écrite et la fonction ne sert à rien. */
+    if (config::byKey('showUnassigned', 'jeeglowbe', '') === '') {
+        config::save('showUnassigned', 1, 'jeeglowbe');
     }
 }
 

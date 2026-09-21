@@ -40,7 +40,12 @@ sendVarToJS('jeeglowbeModel', jeeglowbe::model($jeeglowbeUser));
 		})()
 	</script>
 
-	<header class="jg-topbar">
+	<!-- Un div, et surtout pas un header : la règle du coeur en mode plein
+	     écran est « body.fullscreen header { display: none } », un sélecteur de
+	     type qui frappe n'importe quel header descendant. Notre barre
+	     disparaîtrait donc en kiosque, emportant avec elle le seul bouton
+	     permettant d'en sortir. -->
+	<div class="jg-topbar">
 		<div class="jg-brand">
 			<i class="fas fa-circle-notch jg-brand-mark"></i>
 			<span class="jg-brand-name"></span>
@@ -50,11 +55,11 @@ sendVarToJS('jeeglowbeModel', jeeglowbe::model($jeeglowbeUser));
 				<i class="fas fa-search"></i>
 				<input type="search" id="jg-search" placeholder="{{Rechercher}}" autocomplete="off">
 			</label>
-			<button type="button" class="jg-icon-btn bt_hideFullScreen" id="jg-fullscreen" title="{{Plein écran}}">
+			<button type="button" class="jg-icon-btn" id="jg-fullscreen" title="{{Plein écran}}">
 				<i class="fas fa-expand"></i>
 			</button>
 		</div>
-	</header>
+	</div>
 
 	<nav class="jg-rooms" id="jg-rooms"></nav>
 

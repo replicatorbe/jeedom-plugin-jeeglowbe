@@ -96,7 +96,6 @@ class jeeglowbe extends eqLogic {
         $started = microtime(true);
         $rooms = array();
         $devices = array();
-        $seen = array();
 
         foreach (jeeObject::buildTree(null, true) as $object) {
             /* Une pièce masquée du dashboard d'origine le reste ici : jeeGlow
@@ -119,21 +118,20 @@ class jeeglowbe extends eqLogic {
                 if (count($devices) >= self::MAX_DEVICES) {
                     break;
                 }
-                $device = self::deviceModel($eqLogic, intval($object->getId()));
+                $device = self::deviceModel($eqLogic, intval($object->getId()), $_user);
                 if ($device === null) {
                     continue;
                 }
                 $devices[$device['id']] = $device;
-                $seen[$device['id']] = true;
                 $ids[] = $device['id'];
             }
+            /* Seulement ce que la page dessine. La hiérarchie des objets et leur
+             * image ont l'air utiles, mais personne ne les lit : les calculer
+             * coûte une lecture de fichier par pièce et grossit le modèle. */
             $rooms[] = array(
-                'id'       => intval($object->getId()),
-                'name'     => $object->getName(),
-                'fatherId' => ($object->getFather_id() == '') ? 0 : intval($object->getFather_id()),
-                'depth'    => intval($object->getConfiguration('parentNumber', 0)),
-                'img'      => $object->getImgLink(),
-                'devices'  => $ids,
+                'id'      => intval($object->getId()),
+                'name'    => $object->getName(),
+                'devices' => $ids,
             );
         }
 
@@ -146,7 +144,12 @@ class jeeglowbe extends eqLogic {
         if (config::byKey('showUnassigned', 'jeeglowbe', 1) == 1) {
             $orphans = array();
             foreach (eqLogic::all() as $eqLogic) {
-                if ($eqLogic->getObject_id() != '' && $eqLogic->getObject_id() !== null) {
+                /* Le coeur reconnaît deux façons de n'avoir aucun objet :
+                 * eqLogic::byObjectId() interroge « object_id IS NULL OR
+                 * object_id = -1 ». Ne tester que la chaîne vide laissait les
+                 * seconds nulle part — ni dans une pièce, ni dans « Non classé ». */
+                $objectId = $eqLogic->getObject_id();
+                if ($objectId !== null && $objectId !== '' && intval($objectId) > 0) {
                     continue;
                 }
                 if ($eqLogic->getIsEnable() != 1 || $eqLogic->getIsVisible() != 1) {
@@ -158,7 +161,7 @@ class jeeglowbe extends eqLogic {
                 if (count($devices) >= self::MAX_DEVICES) {
                     break;
                 }
-                $device = self::deviceModel($eqLogic, 0);
+                $device = self::deviceModel($eqLogic, 0, $_user);
                 if ($device === null) {
                     continue;
                 }
@@ -167,21 +170,19 @@ class jeeglowbe extends eqLogic {
             }
             if (count($orphans) > 0) {
                 $rooms[] = array(
-                    'id'       => 0,
-                    'name'     => __('Non classé', __FILE__),
-                    'fatherId' => 0,
-                    'depth'    => 0,
-                    'img'      => '',
-                    'devices'  => $orphans,
+                    'id'      => 0,
+                    'name'    => __('Non classé', __FILE__),
+                    'devices' => $orphans,
                 );
             }
         }
 
-        if (config::byKey('hideEmptyRooms', 'jeeglowbe', 1) == 1) {
-            $rooms = array_values(array_filter($rooms, function ($_room) {
-                return count($_room['devices']) > 0;
-            }));
-        }
+        /* Une pièce sans rien à montrer n'est pas une information : les étages
+         * et les objets de rangement n'ont pas à occuper une ligne de titre et
+         * une pastille de filtre. */
+        $rooms = array_values(array_filter($rooms, function ($_room) {
+            return count($_room['devices']) > 0;
+        }));
 
         log::add('jeeglowbe', 'debug', 'modèle construit en ' . round((microtime(true) - $started) * 1000) . ' ms : '
             . count($rooms) . ' pièce(s), ' . count($devices) . ' équipement(s)');
@@ -201,7 +202,13 @@ class jeeglowbe extends eqLogic {
      * envoyées. Sur une installation d'un millier de commandes, la différence
      * est celle entre un dashboard qui s'ouvre et un dashboard qui rame.
      */
-    private static function deviceModel($_eqLogic, $_roomId) {
+    private static function deviceModel($_eqLogic, $_roomId, $_user = null) {
+        /* Voir sans pouvoir agir est un droit à part entière dans Jeedom, et
+         * core/ajax/cmd.ajax.php refuse l'exécution sans le droit « x ». Envoyer
+         * quand même les boutons donnerait un dashboard qui répond par une
+         * alerte rouge à chaque appui : on les retire à la source. */
+        $canExecute = (!is_object($_user) || $_eqLogic->hasRight('x', $_user));
+
         $meta = array();
         $byGeneric = array();
         /* Les objets commande sont conservés : les relire par cmd::byId() à la
@@ -225,6 +232,9 @@ class jeeglowbe extends eqLogic {
             }
             if ($cmd->getConfiguration('listValue', '') != '') {
                 $entry['list'] = self::parseListValue($cmd->getConfiguration('listValue'));
+            }
+            if ($entry['type'] == 'action' && !$canExecute) {
+                continue;
             }
             $meta[$entry['id']] = $entry;
             $objects[$entry['id']] = $cmd;
@@ -251,10 +261,8 @@ class jeeglowbe extends eqLogic {
             if ($entry['type'] == 'info') {
                 try {
                     $entry['value'] = $objects[$id]->execCmd();
-                    $entry['date'] = $objects[$id]->getValueDate();
                 } catch (Throwable $e) {
                     $entry['value'] = null;
-                    $entry['date'] = '';
                 }
             }
             $cmds[] = $entry;
