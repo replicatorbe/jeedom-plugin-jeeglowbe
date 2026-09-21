@@ -51,7 +51,7 @@ def cmd(cid, name, ctype, sub, generic, value=None, unit='', extra=None):
 
 DEMOS = [
     {'id': 90001, 'name': 'Plafonnier salon', 'roomId': 9001, 'eqType': 'demo', 'category': 'light',
-     'order': 0, 'battery': None, 'card': 'light',
+     'order': 0, 'battery': None, 'card': 'light', 'domain': 'light',
      'roles': {'state': 90011, 'on': 90012, 'off': 90013, 'slider': 90014},
      'cmds': [cmd(90011, 'État', 'info', 'binary', 'LIGHT_STATE', 1),
               cmd(90012, 'On', 'action', 'other', 'LIGHT_ON'),
@@ -59,12 +59,12 @@ DEMOS = [
               cmd(90014, 'Luminosité', 'action', 'slider', 'LIGHT_SLIDER', extra={'min': 0, 'max': 100}),
               cmd(90015, 'Puissance', 'info', 'numeric', 'POWER', 42.5, 'W')]},
     {'id': 90002, 'name': 'Lampe bureau', 'roomId': 9001, 'eqType': 'demo', 'category': 'light',
-     'order': 1, 'battery': None, 'card': 'light',
+     'order': 1, 'battery': None, 'card': 'light', 'domain': 'light',
      'roles': {'state': 90021, 'toggle': 90022},
      'cmds': [cmd(90021, 'État', 'info', 'binary', 'LIGHT_STATE', 0),
               cmd(90022, 'Basculer', 'action', 'other', 'LIGHT_TOGGLE')]},
     {'id': 90003, 'name': 'Volet salon', 'roomId': 9001, 'eqType': 'demo', 'category': 'opening',
-     'order': 2, 'battery': 18, 'card': 'cover',
+     'order': 2, 'battery': 18, 'card': 'cover', 'domain': 'cover',
      'roles': {'state': 90031, 'up': 90032, 'down': 90033, 'stop': 90034, 'slider': 90035},
      'cmds': [cmd(90031, 'Position', 'info', 'numeric', 'FLAP_STATE', 65, '%', {'min': 0, 'max': 100}),
               cmd(90032, 'Monter', 'action', 'other', 'FLAP_UP'),
@@ -72,25 +72,25 @@ DEMOS = [
               cmd(90034, 'Stop', 'action', 'other', 'FLAP_STOP'),
               cmd(90035, 'Position', 'action', 'slider', 'FLAP_SLIDER', extra={'min': 0, 'max': 100})]},
     {'id': 90004, 'name': 'Salon', 'roomId': 9001, 'eqType': 'demo', 'category': '',
-     'order': 3, 'battery': 12, 'card': 'sensor', 'roles': {},
+     'order': 3, 'battery': 12, 'card': 'sensor', 'domain': 'sensor', 'roles': {},
      'cmds': [cmd(90041, 'Température', 'info', 'numeric', 'TEMPERATURE', 21.4, '°C'),
               cmd(90042, 'Humidité', 'info', 'numeric', 'HUMIDITY', 48, '%'),
               cmd(90043, 'CO2', 'info', 'numeric', 'CO2', 612, 'ppm'),
               cmd(90044, 'Présence', 'info', 'binary', 'PRESENCE', 1)]},
     {'id': 90006, 'name': 'Applique sans retour', 'roomId': 9001, 'eqType': 'demo', 'category': 'light',
-     'order': 5, 'battery': None, 'card': 'light',
+     'order': 5, 'battery': None, 'card': 'light', 'domain': 'light',
      'roles': {'on': 90061, 'off': 90062},
      'cmds': [cmd(90061, 'On', 'action', 'other', 'LIGHT_ON'),
               cmd(90062, 'Off', 'action', 'other', 'LIGHT_OFF')]},
     {'id': 90007, 'name': 'Porte garage', 'roomId': 9001, 'eqType': 'demo', 'category': 'opening',
-     'order': 6, 'battery': None, 'card': 'sensor', 'roles': {},
+     'order': 6, 'battery': None, 'card': 'sensor', 'domain': 'sensor', 'roles': {},
      'cmds': [dict(cmd(90071, 'Ouverture', 'info', 'binary', 'OPENING', 1), invert=True)]},
     {'id': 90008, 'name': 'Variateur seul', 'roomId': 9001, 'eqType': 'demo', 'category': 'light',
-     'order': 7, 'battery': None, 'card': 'light',
+     'order': 7, 'battery': None, 'card': 'light', 'domain': 'light',
      'roles': {'slider': 90081},
      'cmds': [cmd(90081, 'Intensite', 'action', 'slider', 'LIGHT_SLIDER', extra={'min': 0, 'max': 255})]},
     {'id': 90009, 'name': 'Veille Jobpol', 'roomId': 9001, 'eqType': 'demo', 'category': '',
-     'order': 8, 'battery': None, 'card': 'sensor', 'roles': {},
+     'order': 8, 'battery': None, 'card': 'sensor', 'domain': 'sensor', 'roles': {},
      'cmds': [cmd(90091, 'Veille', 'info', 'string', 'GENERIC_INFO',
                   json.dumps({'offres': 1, 'erreurs': 0, 'verifie': '21/09 09:01',
                               'unites': [{'l': 'PJF Mons-Tournai', 'e': 'RIEN', 's': 1},
@@ -98,23 +98,23 @@ DEMOS = [
                              ensure_ascii=False)),
               cmd(90092, 'Vu le', 'info', 'numeric', 'GENERIC_INFO', 1789913135)]},
     {'id': 90010, 'name': 'Prochaine collecte', 'roomId': 9001, 'eqType': 'demo', 'category': '',
-     'order': 9, 'battery': None, 'card': 'sensor', 'roles': {},
+     'order': 9, 'battery': None, 'card': 'sensor', 'domain': 'sensor', 'roles': {},
      'cmds': [cmd(90101, 'Collecte', 'info', 'string', 'GENERIC_INFO',
                   json.dumps({'label': 'jeudi 24/09', 'days': 3, 'countdown': 'dans 3 jours',
                               'fractions': ['Organique', 'PMC']}, ensure_ascii=False))]},
     {'id': 90011, 'name': 'Robot bavard', 'roomId': 9001, 'eqType': 'demo', 'category': '',
-     'order': 10, 'battery': None, 'card': 'generic', 'roles': {},
+     'order': 10, 'battery': None, 'card': 'generic', 'domain': 'info', 'roles': {},
      'cmds': [cmd(90110 + i, 'Mesure %d' % i, 'info', 'numeric', 'GENERIC_INFO', i) for i in range(1, 10)] +
              [cmd(90130 + i, 'Nettoyer piece %d' % i, 'action', 'other', 'GENERIC_ACTION') for i in range(1, 13)] +
              [cmd(90160, 'Carte', 'info', 'string', '', 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='),
               cmd(90161, 'Plan absent', 'info', 'string', '', 'plugins/inexistant/core/php/map.php?id=1')]},
     {'id': 90012, 'name': 'Alerte caméra', 'roomId': 9001, 'eqType': 'demo', 'category': 'security',
-     'order': 11, 'battery': None, 'card': 'sensor', 'roles': {},
+     'order': 11, 'battery': None, 'card': 'sensor', 'domain': 'sensor', 'roles': {},
      'cmds': [dict(cmd(90201, 'Images de alerte', 'info', 'string', '', '{"a":"x","d":"quelque chose"}'),
                    widget=True),
               cmd(90202, 'Déclenchée', 'info', 'binary', 'GENERIC_INFO', 1)]},
     {'id': 90005, 'name': 'Prise TV', 'roomId': 9001, 'eqType': 'demo', 'category': 'energy',
-     'order': 4, 'battery': None, 'card': 'switch',
+     'order': 4, 'battery': None, 'card': 'switch', 'domain': 'socket',
      'roles': {'state': 90051, 'on': 90052, 'off': 90053},
      'cmds': [cmd(90051, 'État', 'info', 'binary', 'ENERGY_STATE', 1),
               cmd(90052, 'On', 'action', 'other', 'ENERGY_ON'),
@@ -230,8 +230,19 @@ def main():
     check('cartes construites', cards.length === Object.keys(jeeglowbeModel.devices).length,
           cards.length + ' cartes pour ' + Object.keys(jeeglowbeModel.devices).length + ' équipements')
     check('aucune erreur au chargement', ERRORS.length === 0, ERRORS.join(' / '))
-    check('sections construites', document.querySelectorAll('.jg-section').length === jeeglowbeModel.rooms.length)
-    check('pastilles construites', document.querySelectorAll('.jg-chip').length === jeeglowbeModel.rooms.length + 1)
+    var domains = {}
+    Object.keys(jeeglowbeModel.devices).forEach(function (k) { domains[jeeglowbeModel.devices[k].domain] = 1 })
+    check('vue par défaut : les fonctions', document.getElementById('jg-root').dataset.view === 'functions',
+          document.getElementById('jg-root').dataset.view)
+    check('une section par domaine présent',
+          document.querySelectorAll('.jg-section').length === Object.keys(domains).length,
+          document.querySelectorAll('.jg-section').length + ' sections pour ' + Object.keys(domains).length + ' domaines')
+    check('rail : quatre vues', document.querySelectorAll('.jg-rail-item').length === 4)
+    check('rail : la vue courante est marquée',
+          document.querySelector('.jg-rail-item.jg-rail-on').dataset.view === 'functions')
+    check('sous-onglets : Tout plus les domaines',
+          document.querySelectorAll('.jg-tab').length === Object.keys(domains).length + 1,
+          document.querySelectorAll('.jg-tab').length + ' onglets')
 
     // --- carte lumière allumée (90001 : state 90011 = 1, on 90012, off 90013) --
     var light = card(90001)
@@ -397,20 +408,42 @@ def main():
     // --- ce qu'une carte ne montre pas d'emblée (90011) ----------------------
     var talkative = card(90011)
     var shownRows = talkative.querySelectorAll('.jg-row').length
-    check('carte bavarde : lignes limitées', shownRows <= 6, shownRows + ' lignes')
+    check('carte bavarde : la carte reste une tuile', shownRows <= 3, shownRows + ' lignes')
     var shownButtons = talkative.querySelectorAll('.jg-actions .jg-btn').length
-    check('carte bavarde : actions limitées', shownButtons === 8, shownButtons + ' boutons')
+    check('carte bavarde : actions limitées', shownButtons === 4, shownButtons + ' boutons')
     var mores = talkative.querySelectorAll('.jg-more')
     check('carte bavarde : le reste est annoncé', mores.length === 2, mores.length + ' invitations')
-    mores.forEach(function (button) { button.click() })
-    check('carte bavarde : tout est révélé après appui',
-          talkative.querySelectorAll('.jg-actions .jg-btn').length === 12,
-          talkative.querySelectorAll('.jg-actions .jg-btn').length + ' boutons')
-    check('carte bavarde : plus rien à annoncer', talkative.querySelectorAll('.jg-more').length === 0)
+
+    // --- le panneau de détail -----------------------------------------------
+    mores[0].click()
+    check('panneau : ouvert par le bouton de détail',
+          document.getElementById('jg-panel').hidden === false)
+    var detail = document.querySelector('jg-card-detail')
+    check('panneau : toutes les actions y sont',
+          detail !== null && detail.querySelectorAll('.jg-actions .jg-btn').length === 12,
+          detail ? detail.querySelectorAll('.jg-actions .jg-btn').length + ' boutons' : 'pas de detail')
+    check('panneau : toutes les lignes y sont',
+          detail !== null && detail.querySelectorAll('.jg-row').length >= 9,
+          detail ? detail.querySelectorAll('.jg-row').length + ' lignes' : '')
+    check('panneau : le titre porte le nom', document.querySelector('.jg-panel-title').textContent === 'Robot bavard',
+          document.querySelector('.jg-panel-title').textContent)
+    document.getElementById('jg-panel-backdrop').click()
+    check('panneau : refermé par le voile', document.getElementById('jg-panel').hidden === true)
+    check('panneau : vidé en se fermant', document.querySelector('jg-card-detail') === null)
+
+    // L'en-tête d'une carte ouvre le détail sans déclencher la bascule.
+    CALLS = []
+    card(90001).querySelector('.jg-card-head').click()
+    check('en-tête : ouvre le détail', document.getElementById('jg-panel').hidden === false)
+    check('en-tête : ne bascule pas la lumière', CALLS.length === 0, JSON.stringify(CALLS))
+    document.getElementById('jg-panel-close').click()
+    check('panneau : refermé par la croix', document.getElementById('jg-panel').hidden === true)
 
     // --- images -------------------------------------------------------------
     var picture = talkative.querySelector('.jg-media img')
-    check('image : rendue comme une image et non comme une adresse', picture !== null)
+    check('image : rendue comme une image et non comme une adresse', picture !== null,
+          talkative.querySelectorAll('.jg-row').length + ' lignes, media=' +
+          talkative.querySelectorAll('.jg-media').length + ', contenu=' + talkative.textContent.slice(0, 60))
     check('image : aucune adresse en clair', talkative.textContent.indexOf('map.php') === -1,
           talkative.textContent.slice(-60))
 
@@ -425,33 +458,52 @@ def main():
 
     // --- recherche ----------------------------------------------------------
     var search = document.getElementById('jg-search')
+    function goToAll() {
+      window.location.hash = 'view=functions&tab=all'
+      window.dispatchEvent(new HashChangeEvent('hashchange'))
+    }
     search.value = 'plafonnier'
     search.dispatchEvent(new Event('input'))
-    var shown = Array.prototype.filter.call(document.querySelectorAll('.jg-card'), function (c) { return !c.hidden })
-    check('recherche : filtre les cartes', shown.length === 1 && shown[0].dataset.deviceId === '90001',
+    var shown = document.querySelectorAll('.jg-card')
+    check('recherche : une seule carte trouvée', shown.length === 1 && shown[0].dataset.deviceId === '90001',
           shown.length + ' carte(s)')
-    check('recherche : sections vides masquées',
-          document.querySelectorAll('.jg-section:not([hidden])').length === 1)
+    check('recherche : une section de résultats',
+          document.querySelectorAll('.jg-section').length === 1)
     search.value = ''
     search.dispatchEvent(new Event('input'))
     check('recherche : tout revient',
-          Array.prototype.filter.call(document.querySelectorAll('.jg-card'), function (c) { return !c.hidden }).length === cards.length)
+          document.querySelectorAll('.jg-card').length === cards.length,
+          document.querySelectorAll('.jg-card').length + ' cartes')
 
-    // --- filtre par pièce ---------------------------------------------------
-    var chips = document.querySelectorAll('.jg-chip')
-    chips[1].click()
-    check('pièce : une seule section visible', document.querySelectorAll('.jg-section:not([hidden])').length === 1)
-    check('pièce : pastille active', chips[1].classList.contains('jg-chip-on'))
-    check('pièce : adresse mise à jour', window.location.hash.indexOf('room=') !== -1, window.location.hash)
-    // recherche pendant un filtre de pièce : doit traverser les pièces
-    search.value = 'robot'
-    search.dispatchEvent(new Event('input'))
-    check('recherche traverse les pièces malgré le filtre',
-          Array.prototype.filter.call(document.querySelectorAll('.jg-card'), function (c) { return !c.hidden }).length >= 1)
-    search.value = ''
-    search.dispatchEvent(new Event('input'))
-    chips[0].click()
-    check('pièce : retour à tout', document.querySelectorAll('.jg-section:not([hidden])').length === jeeglowbeModel.rooms.length)
+    // --- navigation : vues et sous-onglets ----------------------------------
+    var tabs = document.querySelectorAll('.jg-tab')
+    tabs[1].click()
+    check('onglet : une seule section', document.querySelectorAll('.jg-section').length === 1,
+          document.querySelectorAll('.jg-section').length + ' sections')
+    check('onglet : marqué comme actif',
+          document.querySelectorAll('.jg-tab')[1].classList.contains('jg-tab-on'))
+    check('onglet : adresse mise à jour', window.location.hash.indexOf('tab=') !== -1, window.location.hash)
+
+    document.querySelector('.jg-rail-item[data-view="rooms"]').click()
+    check('vue Pièces : sections = pièces',
+          document.querySelectorAll('.jg-section').length === jeeglowbeModel.rooms.length,
+          document.querySelectorAll('.jg-section').length + ' sections')
+    check('vue Pièces : rail à jour',
+          document.querySelector('.jg-rail-item.jg-rail-on').dataset.view === 'rooms')
+
+    document.querySelector('.jg-rail-item[data-view="home"]').click()
+    check('accueil : pas de sous-onglets', document.getElementById('jg-subtabs').hidden === true)
+    check('accueil : une tuile par domaine',
+          document.querySelectorAll('.jg-domain').length === Object.keys(domains).length,
+          document.querySelectorAll('.jg-domain').length + ' tuiles')
+    check('accueil : des pastilles de mesure', document.querySelectorAll('.jg-badge').length > 0,
+          document.querySelectorAll('.jg-badge').length + ' pastilles')
+    document.querySelector('.jg-domain[data-domain="light"]').click()
+    check('accueil : une tuile mène à son domaine',
+          window.location.hash.indexOf('tab=light') !== -1, window.location.hash)
+
+    document.querySelector('.jg-rail-item[data-view="functions"]').click()
+    goToAll()
 
     // --- plein écran --------------------------------------------------------
     document.getElementById('jg-fullscreen').click()

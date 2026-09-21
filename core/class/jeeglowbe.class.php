@@ -73,6 +73,34 @@ class jeeglowbe extends eqLogic {
      * d'allumable n'est qu'un capteur de plus. */
     const PRIMARY_ROLES = array('state', 'on', 'off', 'toggle', 'slider', 'up', 'down');
 
+    /*
+     * Le domaine d'un équipement : ce qu'il est pour celui qui habite la
+     * maison, et non le plugin qui le pilote. C'est l'axe de rangement
+     * principal du dashboard, parce qu'il fonctionne toujours — là où le
+     * rangement par pièce dépend d'un travail que personne ne fait jamais
+     * entièrement.
+     *
+     * La table part des familles du coeur (familyid dans cmd::generic_type) :
+     * dix-huit familles, tenues à jour par Jeedom, qu'on regroupe en domaines
+     * lisibles. L'ordre est une priorité : un équipement qui relève de
+     * plusieurs domaines prend le premier. Une lampe sur prise commandée est
+     * d'abord une lampe, une caméra qui mesure la température est d'abord une
+     * caméra.
+     */
+    const DOMAINS = array(
+        'light'     => array('Light'),
+        'cover'     => array('Shutter'),
+        'climate'   => array('Thermostat', 'Heating'),
+        'socket'    => array('Outlet'),
+        'camera'    => array('Camera'),
+        'security'  => array('Security', 'Opening'),
+        'media'     => array('Multimedia'),
+        'appliance' => array('Robot', 'Fan'),
+        'weather'   => array('Weather'),
+        'energy'    => array('Electricity'),
+        'sensor'    => array('Environment', 'Battery'),
+    );
+
     /* Catégories du coeur, par ordre de spécificité : la première cochée donne
      * sa teinte à la carte. 'default' est volontairement absente, elle ne dit
      * rien de plus que l'absence de catégorie. */
@@ -300,6 +328,7 @@ class jeeglowbe extends eqLogic {
         return array(
             'id'       => intval($_eqLogic->getId()),
             'name'     => $_eqLogic->getName(),
+            'domain'   => self::domainOf($meta),
             'roomId'   => $_roomId,
             'eqType'   => $_eqLogic->getEqType_name(),
             'category' => self::categoryOf($_eqLogic),
@@ -377,6 +406,42 @@ class jeeglowbe extends eqLogic {
             );
         }
         return $return;
+    }
+
+    /*
+     * Le domaine, déduit des familles des types génériques présents. Sans
+     * aucun type reconnu — la moitié des équipements d'une installation
+     * ordinaire — l'équipement est rangé dans « information » : il dit
+     * quelque chose sans rien piloter.
+     */
+    private static function domainOf($_meta) {
+        static $families = null;
+        if ($families === null) {
+            $families = array();
+            $config = jeedom::getConfiguration('cmd::generic_type');
+            if (is_array($config)) {
+                foreach ($config as $type => $definition) {
+                    if (isset($definition['familyid'])) {
+                        $families[$type] = $definition['familyid'];
+                    }
+                }
+            }
+        }
+
+        $present = array();
+        foreach ($_meta as $entry) {
+            if ($entry['generic'] != '' && isset($families[$entry['generic']])) {
+                $present[$families[$entry['generic']]] = true;
+            }
+        }
+        foreach (self::DOMAINS as $domain => $keys) {
+            foreach ($keys as $key) {
+                if (isset($present[$key])) {
+                    return $domain;
+                }
+            }
+        }
+        return 'info';
     }
 
     private static function categoryOf($_eqLogic) {
