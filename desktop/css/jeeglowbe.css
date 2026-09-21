@@ -1,0 +1,433 @@
+/* jeeGlow — feuille de style du dashboard.
+ *
+ * Deux principes :
+ *
+ * 1. Rien ne fuit hors de #jg-root. Toutes les règles sont préfixées par .jg- et
+ *    portées par le conteneur : la page vit à l'intérieur de Jeedom, et un
+ *    sélecteur trop large repeindrait le reste de l'interface.
+ *
+ * 2. Le thème n'est pas deviné, il est mesuré. Le JS lit la luminosité du fond
+ *    de Jeedom et pose data-tone="light|dark" ; les couleurs sont définies deux
+ *    fois, une par ambiance. Cela fonctionne aussi avec un thème que nous ne
+ *    connaissons pas, ce qu'une liste de noms de thèmes ne permettrait pas.
+ */
+
+.jg-root {
+    --jg-radius: 20px;
+    --jg-gap: 14px;
+    --jg-surface: #ffffff;
+    --jg-surface-2: rgba(120, 130, 150, 0.08);
+    --jg-border: rgba(20, 24, 33, 0.07);
+    --jg-text: #1d2129;
+    --jg-muted: #6b7280;
+    --jg-accent: #2f80ed;
+    --jg-on-bg: linear-gradient(140deg, #ffd479 0%, #ffb340 100%);
+    --jg-on-text: #4a3208;
+    --jg-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 8px 24px rgba(16, 24, 40, 0.07);
+
+    color: var(--jg-text);
+    font-size: 14px;
+    padding-bottom: 32px;
+}
+
+.jg-root[data-tone="dark"] {
+    --jg-surface: #1e222b;
+    --jg-surface-2: rgba(255, 255, 255, 0.07);
+    --jg-border: rgba(255, 255, 255, 0.08);
+    --jg-text: #e9ebf0;
+    --jg-muted: #9aa3b2;
+    --jg-accent: #6ea8fe;
+    --jg-on-bg: linear-gradient(140deg, #f2b544 0%, #e08c1d 100%);
+    --jg-on-text: #2a1c03;
+    --jg-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 26px rgba(0, 0, 0, 0.32);
+}
+
+/* Teintes par catégorie Jeedom : ce qui est allumé ne se colore pas au hasard,
+ * une lampe est chaude, un volet est froid, une alarme est rouge. */
+.jg-root .jg-card[data-category="opening"] { --jg-on-bg: linear-gradient(140deg, #8fc4ff 0%, #4a94f0 100%); --jg-on-text: #08233f; }
+.jg-root .jg-card[data-category="security"] { --jg-on-bg: linear-gradient(140deg, #ff9b8f 0%, #ec5b4a 100%); --jg-on-text: #3d0d06; }
+.jg-root .jg-card[data-category="heating"] { --jg-on-bg: linear-gradient(140deg, #ffb27a 0%, #f2703a 100%); --jg-on-text: #3d1704; }
+.jg-root .jg-card[data-category="energy"] { --jg-on-bg: linear-gradient(140deg, #9ee8b8 0%, #3fbd74 100%); --jg-on-text: #05301a; }
+.jg-root .jg-card[data-category="multimedia"] { --jg-on-bg: linear-gradient(140deg, #cdb4ff 0%, #8b63f0 100%); --jg-on-text: #21093f; }
+
+/* --------------------------------------------------------------- barre haute */
+
+.jg-topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 2px 14px;
+    flex-wrap: wrap;
+}
+
+.jg-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.2px;
+}
+
+.jg-brand-mark {
+    color: var(--jg-accent);
+    font-size: 18px;
+}
+
+.jg-topbar-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.jg-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--jg-surface-2);
+    border-radius: 999px;
+    padding: 0 14px;
+    height: 38px;
+    margin: 0;
+    color: var(--jg-muted);
+}
+
+.jg-search input {
+    background: transparent;
+    border: 0;
+    outline: none;
+    color: var(--jg-text);
+    width: 150px;
+    height: 36px;
+    font-size: 14px;
+}
+
+.jg-icon-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    border: 0;
+    background: var(--jg-surface-2);
+    color: var(--jg-text);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.jg-icon-btn:hover { background: var(--jg-border); }
+
+/* ------------------------------------------------------------------ pastilles */
+
+.jg-rooms {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 2px 2px 16px;
+    scrollbar-width: none;
+}
+
+.jg-rooms::-webkit-scrollbar { display: none; }
+
+.jg-chip {
+    flex: 0 0 auto;
+    border: 1px solid var(--jg-border);
+    background: var(--jg-surface);
+    color: var(--jg-muted);
+    border-radius: 999px;
+    padding: 7px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.jg-chip-on {
+    background: var(--jg-text);
+    border-color: var(--jg-text);
+    color: var(--jg-surface);
+}
+
+/* -------------------------------------------------------------------- grille */
+
+.jg-section { margin-bottom: 26px; }
+.jg-section[hidden] { display: none; }
+
+.jg-section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 12px 2px;
+    font-size: 15px;
+    font-weight: 600;
+    text-transform: none;
+    border: 0;
+    color: var(--jg-text);
+}
+
+.jg-section-count {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--jg-muted);
+    background: var(--jg-surface-2);
+    border-radius: 999px;
+    padding: 2px 8px;
+}
+
+.jg-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: var(--jg-gap);
+    align-items: start;
+}
+
+/* --------------------------------------------------------------- les cartes */
+
+.jg-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--jg-surface);
+    border: 1px solid var(--jg-border);
+    border-radius: var(--jg-radius);
+    box-shadow: var(--jg-shadow);
+    padding: 14px 16px 16px;
+    min-height: 116px;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.jg-card[hidden] { display: none; }
+
+.jg-tappable { cursor: pointer; }
+.jg-tappable:hover { transform: translateY(-1px); }
+.jg-tappable:active { transform: translateY(0); }
+
+/* L'état allumé se voit à la couleur de toute la carte, pas à une pastille :
+ * c'est ce qui permet de savoir d'un regard, depuis l'autre bout de la pièce,
+ * ce qui tourne encore dans la maison. */
+.jg-card[data-on="1"] {
+    background: var(--jg-on-bg);
+    color: var(--jg-on-text);
+    border-color: transparent;
+}
+
+/* color: inherit ne convient pas ici : le parent .jg-metrics porte déjà le gris
+ * des mesures, et l'héritage ramènerait ce gris sur une carte colorée, où il
+ * devient illisible. La couleur est donc nommée. */
+.jg-card[data-on="1"] .jg-metrics,
+.jg-card[data-on="1"] .jg-metric-value,
+.jg-card[data-on="1"] .jg-row-value { color: var(--jg-on-text); }
+
+.jg-card[data-on="1"] .jg-card-sub,
+.jg-card[data-on="1"] .jg-metric-name,
+.jg-card[data-on="1"] .jg-row-name { color: var(--jg-on-text); opacity: 0.72; }
+
+.jg-card[data-on="1"] .jg-battery { color: var(--jg-on-text); opacity: 0.8; }
+
+.jg-card.jg-busy { opacity: 0.55; }
+
+.jg-card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.jg-card-icon {
+    font-size: 17px;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    border-radius: 12px;
+    background: var(--jg-surface-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.jg-card[data-on="1"] .jg-card-icon { background: rgba(255, 255, 255, 0.38); }
+
+.jg-card-titles {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.jg-card-name {
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.jg-card-sub {
+    font-size: 12px;
+    color: var(--jg-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.jg-battery {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #e0654b;
+}
+
+.jg-card-body {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: auto;
+}
+
+.jg-state { font-size: 15px; font-weight: 600; }
+.jg-value { font-size: 26px; font-weight: 600; letter-spacing: -0.5px; line-height: 1.1; }
+
+.jg-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    font-size: 12px;
+    color: var(--jg-muted);
+}
+
+.jg-metric { display: flex; gap: 5px; }
+.jg-metric-value { font-weight: 600; color: var(--jg-text); }
+
+.jg-rows { display: flex; flex-direction: column; gap: 5px; }
+
+.jg-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 12.5px;
+}
+
+.jg-row-name { color: var(--jg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jg-row-value { font-weight: 600; white-space: nowrap; }
+
+/* ----------------------------------------------------------- les commandes */
+
+.jg-actions { display: flex; gap: 8px; }
+.jg-actions-wrap { flex-wrap: wrap; }
+
+.jg-btn {
+    flex: 1;
+    min-height: 38px;
+    padding: 0 12px;
+    border-radius: 12px;
+    border: 1px solid var(--jg-border);
+    background: var(--jg-surface-2);
+    color: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+}
+
+.jg-btn:hover { filter: brightness(0.96); }
+.jg-btn:active { filter: brightness(0.9); }
+.jg-btn-icon { flex: 1 1 0; font-size: 14px; }
+.jg-btn.jg-busy { opacity: 0.5; }
+
+.jg-select {
+    flex: 1;
+    min-height: 38px;
+    border-radius: 12px;
+    border: 1px solid var(--jg-border);
+    background: var(--jg-surface-2);
+    color: inherit;
+    padding: 0 10px;
+    font-size: 13px;
+}
+
+.jg-slider { display: flex; align-items: center; gap: 10px; }
+
+.jg-slider input[type="range"] {
+    flex: 1;
+    /* Un input range a une largeur intrinsèque d'environ 130 pixels, et un
+     * élément flex ne descend pas sous son contenu sans y être autorisé : sur
+     * une carte étroite, le curseur débordait et poussait sa valeur hors de la
+     * carte. */
+    min-width: 0;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--jg-surface-2);
+    outline: none;
+}
+
+.jg-card[data-on="1"] .jg-slider input[type="range"] { background: rgba(255, 255, 255, 0.4); }
+
+.jg-slider input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--jg-surface);
+    border: 1px solid var(--jg-border);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+}
+
+.jg-slider input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border: 1px solid var(--jg-border);
+    border-radius: 50%;
+    background: var(--jg-surface);
+    cursor: pointer;
+}
+
+.jg-slider-value { font-size: 12px; font-weight: 600; color: var(--jg-muted); min-width: 34px; text-align: right; }
+.jg-card[data-on="1"] .jg-slider-value { color: inherit; }
+
+/* ------------------------------------------------------------------ à vide */
+
+.jg-empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--jg-muted);
+}
+
+.jg-empty i { font-size: 34px; opacity: 0.5; }
+.jg-empty-title { font-size: 16px; font-weight: 600; color: var(--jg-text); margin: 14px 0 6px; }
+.jg-empty-hint { max-width: 460px; margin: 0 auto; font-size: 13px; }
+
+/* ------------------------------------------------------------------ kiosque */
+
+/* En plein écran, la page n'est plus consultée mais regardée : on gagne la
+ * place du menu disparu, et les cibles tactiles grandissent. */
+.jg-root[data-kiosk="1"] { padding: 14px 4px 40px; }
+.jg-root[data-kiosk="1"] .jg-btn,
+.jg-root[data-kiosk="1"] .jg-select { min-height: 44px; }
+.jg-root[data-kiosk="1"] .jg-chip { padding: 10px 18px; font-size: 14px; }
+
+/* --------------------------------------------------------------- téléphone */
+
+@media (max-width: 767px) {
+    .jg-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+    .jg-card { padding: 12px 13px 14px; min-height: 104px; border-radius: 16px; }
+    .jg-value { font-size: 22px; }
+    .jg-search input { width: 90px; }
+    .jg-brand { font-size: 17px; }
+    .jg-topbar { padding-top: 2px; }
+    /* Le pouce passe avant la densité : une carte étroite garde des boutons
+     * atteignables plutôt que trois boutons côte à côte de 28 pixels. */
+    .jg-btn { min-height: 40px; }
+    /* Le pourcentage de batterie mange le nom de l'équipement sur une carte de
+     * 150 pixels ; l'icône seule dit déjà qu'il faut s'en occuper. */
+    .jg-battery span { display: none; }
+}
+
+@media (max-width: 380px) {
+    .jg-grid { grid-template-columns: 1fr; }
+}

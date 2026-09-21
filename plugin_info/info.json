@@ -1,0 +1,35 @@
+{
+    "id": "jeeglowbe",
+    "name": "jeeGlow",
+    "pluginVersion": "0.1",
+    "description": {
+        "fr_FR": "Dashboard moderne pour Jeedom, pensé pour l'écran mural comme pour le téléphone. Il n'altère rien : le dashboard d'origine reste en place, jeeGlow en construit un second à côté, en relisant vos objets, équipements et commandes. Les cartes sont déduites des types génériques — lumière, volet, prise, capteur — et se mettent à jour en temps réel. Un mode plein écran sans menu permet d'en faire un tableau de bord permanent sur tablette.",
+        "en_US": "A modern dashboard for Jeedom, designed for wall tablets as much as for phones. It changes nothing: the original dashboard stays where it is, jeeGlow builds a second one beside it by reading your objects, devices and commands. Cards are derived from generic types — light, shutter, socket, sensor — and refresh in real time. A full screen mode without any menu turns it into a permanent wall dashboard."
+    },
+    "licence": "AGPL",
+    "author": "sMug (Jérôme Fafchamps)",
+    "require": "4.4",
+    "requireOsVersion": "11",
+    "category": "other",
+    "index": "jeeglowbe",
+    "display": "jeeglowbe",
+    "hasDependency": 0,
+    "hasOwnDeamon": 0,
+    "maxDependancyInstallTime": 5,
+    "eventjs": 0,
+    "issue": "https://github.com/replicatorbe/jeedom-plugin-jeeglowbe/issues",
+    "documentation": "https://github.com/replicatorbe/jeedom-plugin-jeeglowbe/blob/master/docs/#language#/index.md",
+    "documentation_beta": "https://github.com/replicatorbe/jeedom-plugin-jeeglowbe/blob/beta/docs/#language#/index.md",
+    "changelog": "https://github.com/replicatorbe/jeedom-plugin-jeeglowbe/blob/master/docs/#language#/changelog.md",
+    "changelog_beta": "https://github.com/replicatorbe/jeedom-plugin-jeeglowbe/blob/beta/docs/#language#/changelog.md",
+    "language": [
+        "fr_FR",
+        "en_US"
+    ],
+    "compatibility": [
+        "smart",
+        "rpi",
+        "docker",
+        "diy"
+    ]
+}
