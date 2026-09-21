@@ -134,7 +134,9 @@
         "Résultats": "Results",
         "Le nom n\\'a pas pu être enregistré.": "The name could not be saved.",
         "La pièce n\\'a pas pu être changée.": "The room could not be changed.",
-        "Trop d\\'équipements pour un seul dashboard : la liste est tronquée.": "Too many devices for a single dashboard: the list is truncated."
+        "Trop d\\'équipements pour un seul dashboard : la liste est tronquée.": "Too many devices for a single dashboard: the list is truncated.",
+        "Tout éteint": "All off",
+        "État inconnu": "State unknown"
     },
     "plugins/jeeglowbe/plugin_info/configuration.php": {
         "401 - Accès non autorisé": "401 - Unauthorized access",

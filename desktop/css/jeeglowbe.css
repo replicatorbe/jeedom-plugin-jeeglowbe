@@ -318,7 +318,12 @@
 .jg-root .jg-card[data-category="light"] { --jg-tint: #F2A93B; }
 .jg-root .jg-card[data-category="heating"] { --jg-tint: #F2714A; }
 .jg-root .jg-card[data-category="opening"] { --jg-tint: #4C9AF5; }
-.jg-root .jg-card[data-category="security"] { --jg-tint: #F2545B; }
+/* L'indigo et non le rouge. La sécurité est un GENRE d'équipement ; le rouge
+ * est un ÉTAT, celui de l'alarme en cours. Tant que le domaine portait le
+ * rouge, une tuile « Sécurité » au repos était rose, exactement comme le
+ * bandeau d'alerte posé trois centimètres au-dessus — et un détecteur qui ne
+ * détectait rien avait la couleur de celui qui détecte. */
+.jg-root .jg-card[data-category="security"] { --jg-tint: #5A63C7; }
 .jg-root .jg-card[data-category="energy"] { --jg-tint: #2FBF71; }
 .jg-root .jg-card[data-category="multimedia"] { --jg-tint: #8B6CF0; }
 .jg-root .jg-card[data-category="automatism"] { --jg-tint: #06B6D4; }
@@ -686,15 +691,6 @@
 .jg-card[data-on="1"] .jg-card-icon {
     background: var(--jg-tint);
     color: var(--jg-tint-glyph);
-}
-
-/* Une teinte plus sombre que son encre ne peut pas porter un glyphe sombre. La
- * caméra qui détecte quelque chose prend le rouge d'attention (en fin de
- * feuille) : c'est la seule de la page dans ce cas, et sa pastille repasse donc
- * au blanc — 6,5:1. De nuit, ce même rouge est clair et le glyphe sombre
- * reprend sa place. */
-.jg-root[data-tone="light"] .jg-card[data-card-type="camera"][data-on="1"] {
-    --jg-tint-glyph: #ffffff;
 }
 
 /* L'icône d'une tuile de pièce est une encre posée sur la surface, et sa teinte
@@ -1849,10 +1845,9 @@
 .jg-clock-date::first-letter { text-transform: uppercase; }
 
 /* Une caméra qui détecte quelque chose n'est pas « allumée » : elle réclame un
- * regard. L'ambre de l'état en marche dirait le contraire de ce qu'il faut
- * comprendre, la teinte passe donc au rouge d'attention — sans aller jusqu'au
- * remplissage plein, réservé aux alarmes véritables. */
-.jg-root .jg-card[data-card-type="camera"][data-on="1"] { --jg-tint: var(--jg-danger); }
+ * regard. Elle ne porte donc plus data-on mais data-active, la marque des
+ * capteurs, dont le traitement est écrit avec la convention d'état en fin de
+ * feuille. */
 
 /* ------------------------------------------------------------- l'en-tête */
 
@@ -2161,7 +2156,7 @@
 .jg-root .jg-card:not([data-category])[data-domain="socket"] { --jg-tint: #2FBF71; }
 .jg-root .jg-card:not([data-category])[data-domain="cover"] { --jg-tint: #4C9AF5; }
 .jg-root .jg-card:not([data-category])[data-domain="climate"] { --jg-tint: #F2714A; }
-.jg-root .jg-card:not([data-category])[data-domain="security"] { --jg-tint: #F2545B; }
+.jg-root .jg-card:not([data-category])[data-domain="security"] { --jg-tint: #5A63C7; }
 .jg-root .jg-card:not([data-category])[data-domain="camera"] { --jg-tint: #8B6CF0; }
 .jg-root .jg-card:not([data-category])[data-domain="media"] { --jg-tint: #8B6CF0; }
 .jg-root .jg-card:not([data-category])[data-domain="appliance"] { --jg-tint: #06B6D4; }
@@ -2235,36 +2230,15 @@
 
 /* ------------------------------------------------ la carte, teintée au repos */
 
-/* Le changement qui porte tout le reste : une carte n'est plus grise en
- * attendant d'être allumée. Elle porte la couleur de ce qu'elle pilote, en
- * sourdine, et s'illumine quand l'équipement tourne. Vingt-huit prises grises
- * deviennent vingt-huit prises vertes, et l'écran cesse d'être un tableau. */
-.jg-root .jg-card:not([data-alert="1"]) {
-    background-color: color-mix(in srgb, var(--jg-tint) var(--jg-rest-fill), var(--jg-surface));
-    border-color: color-mix(in srgb, var(--jg-tint) var(--jg-rest-edge), var(--jg-surface));
-}
+/* Cette étape est dépassée : teinter aussi le repos revenait à dépenser la
+ * couleur pour dire ce que l'icône dit déjà. Ce qu'il en reste — la pastille
+ * qui porte la couleur du domaine — est écrit avec la convention d'état, en
+ * fin de feuille. */
 
-/* Allumé : la teinte monte d'un cran et le liseré devient franc. L'écart entre
- * repos et marche doit rester lisible de loin, maintenant que le repos est
- * lui-même coloré. */
-.jg-root .jg-card[data-on="1"] {
-    background-color: color-mix(in srgb, var(--jg-tint) 34%, var(--jg-surface));
-    border-color: var(--jg-tint);
-}
-
-.jg-root .jg-card[data-on="1"]::before { width: 0; }
-
-/* La pastille garde son rôle, mais discrètement : la couleur est partout
- * maintenant, elle n'a plus besoin d'être criée par un rond plein. */
 .jg-root .jg-card:not([data-on="1"]):not([data-alert="1"]) .jg-card-icon {
     background: transparent;
     color: var(--jg-tint);
     font-size: calc(var(--jg-fs-xl) * 1.15);
-}
-
-.jg-root .jg-card[data-on="1"] .jg-card-icon {
-    background: transparent;
-    color: var(--jg-tint);
 }
 
 /* ------------------------------------------------------- la grande icône */
@@ -2341,7 +2315,7 @@
 .jg-root .jg-launch[data-domain="socket"] { --jg-tint: #2FBF71; }
 .jg-root .jg-launch[data-domain="cover"] { --jg-tint: #4C9AF5; }
 .jg-root .jg-launch[data-domain="climate"] { --jg-tint: #F2714A; }
-.jg-root .jg-launch[data-domain="security"] { --jg-tint: #F2545B; }
+.jg-root .jg-launch[data-domain="security"] { --jg-tint: #5A63C7; }
 .jg-root .jg-launch[data-domain="camera"] { --jg-tint: #8B6CF0; }
 .jg-root .jg-launch[data-domain="media"] { --jg-tint: #8B6CF0; }
 .jg-root .jg-launch[data-domain="appliance"] { --jg-tint: #06B6D4; }
@@ -2402,9 +2376,11 @@
  * ======================================================================== */
 
 .jg-grid-launch {
-    /* Des tuiles larges et peu nombreuses plutôt que douze vignettes : c'est
-     * un lanceur, on le vise du doigt. */
-    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+    /* Assez large pour se viser du doigt, pas au point d'occuper l'écran.
+     * Douze tuiles de dix-sept rem au rapport 16/10 faisaient trois rangées de
+     * cent soixante-dix pixels : à elles seules, le premier écran d'une
+     * tablette murale. Un lanceur se parcourt, il ne se contemple pas. */
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
     margin-bottom: var(--jg-space-5);
 }
 
@@ -2414,29 +2390,34 @@
     align-items: flex-start;
     text-align: left;
     justify-content: space-between;
-    /* Une forme imposée, identique pour toutes. Sans elle, la hauteur suivait
-     * le texte : « 18 équipements » passait à la ligne là où « 1/4 » tenait, et
-     * la rangée devenait un assemblage de rectangles dépareillés. */
-    /* Le rapport SEUL, sans hauteur minimale : avec les deux, la hauteur
-     * devenait définie, la largeur s'en déduisait, et la tuile débordait de sa
-     * colonne — la rangée sortait de l'écran par la droite. C'est la grille qui
-     * donne la largeur, et le rapport qui en déduit la hauteur. */
-    aspect-ratio: 16 / 10;
-    padding: var(--jg-space-4);
-    border: 0;
-    /* Un aplat et non un lavis : le lanceur est le seul endroit de la page qui
-     * se remplit de couleur, et c'est ce qui le distingue du reste. */
-    background-image: linear-gradient(145deg,
-        color-mix(in srgb, var(--jg-tint) 88%, #ffffff) 0%,
-        var(--jg-tint) 100%);
-    background-color: var(--jg-tint);
-    color: var(--jg-tint-glyph);
+    /* Une hauteur imposée, et non plus un rapport : le rapport liait la hauteur
+     * à la largeur de la colonne, et des tuiles plus étroites devenaient du
+     * même coup plus basses. Une hauteur fixe garde la rangée alignée quelle
+     * que soit la place, ce qui était le but de départ. */
+    min-height: calc(5.5rem * var(--jg-scale));
+    padding: var(--jg-space-3) var(--jg-space-4);
+    border: 1px solid color-mix(in srgb, var(--jg-tint) var(--jg-rest-edge), var(--jg-surface));
+    /* Un lavis, et non plus un aplat.
+     *
+     * Le lanceur ne fait que mener ailleurs : quand il se remplissait de
+     * couleur pleine, il criait plus fort que les cartes qu'on peut réellement
+     * éteindre. Il garde donc la couleur de son domaine — l'écran ne redevient
+     * pas gris — mais en sourdine, et l'aplat est réservé à ce qui tourne. */
+    background-image: none;
+    background-color: color-mix(in srgb, var(--jg-tint) var(--jg-rest-fill), var(--jg-surface));
+    color: var(--jg-ink);
 }
 
+/* Le seul signal du lanceur, et il était inversé : la tuile « allumée » partait
+ * d'un mélange à 70 % de blanc là où l'éteinte partait de 88 %, autrement dit
+ * la tuile qui signalait quelque chose était la plus PÂLE des deux. « Prises
+ * 2/2 » et « Sécurité » étaient indiscernables à l'écran. Elle prend désormais
+ * l'aplat de l'état en marche, comme tout le reste de la page. */
 .jg-launch-on {
-    background-image: linear-gradient(145deg,
-        color-mix(in srgb, var(--jg-tint) 70%, #ffffff) 0%,
-        var(--jg-tint) 100%);
+    background-image: none;
+    background-color: var(--jg-on);
+    border-color: var(--jg-on-edge);
+    color: var(--jg-on-ink);
 }
 
 /* Le filigrane. Il déborde volontairement : une icône entière et centrée
@@ -2454,41 +2435,45 @@
     right: var(--jg-space-3);
     bottom: var(--jg-space-3);
     display: block;
-    width: calc(3.4rem * var(--jg-scale));
-    height: calc(3.4rem * var(--jg-scale));
-    font-size: calc(3.4rem * var(--jg-scale));
+    width: calc(2.4rem * var(--jg-scale));
+    height: calc(2.4rem * var(--jg-scale));
+    font-size: calc(2.4rem * var(--jg-scale));
     line-height: 1;
     text-align: center;
-    color: color-mix(in srgb, var(--jg-tint-glyph) 30%, transparent);
+    color: color-mix(in srgb, var(--jg-tint) 60%, transparent);
     pointer-events: none;
 }
 
 /* Le libellé et le compte ne passent jamais sous l'icône : la tuile leur
  * réserve la place, sans quoi un nom long viendrait s'y superposer. */
 .jg-launch-name,
-.jg-launch-count { padding-right: calc(3.6rem * var(--jg-scale)); }
+.jg-launch-count { padding-right: calc(2.8rem * var(--jg-scale)); }
 
 .jg-launch-name {
     position: relative;
-    font-size: var(--jg-fs-xl);
+    font-size: var(--jg-fs-lg);
     font-weight: 800;
     letter-spacing: -0.02em;
-    color: var(--jg-tint-glyph);
+    color: var(--jg-ink);
 }
 
-/* Court, et de chasse fixe : « 9/28 » et « 1/4 » occupent alors exactement la
- * même largeur, et la rangée retrouve son alignement. */
+/* L'état en toutes lettres — « 3 en marche », « Tout éteint » — et non plus un
+ * rapport. Il n'a donc plus à être énorme : c'est le nom qu'on vise, et l'état
+ * qu'on lit une fois la tuile trouvée. */
 .jg-launch-count {
     position: relative;
-    font-size: var(--jg-fs-2xl);
-    font-weight: 800;
-    letter-spacing: -0.02em;
+    font-size: var(--jg-fs-md);
+    font-weight: 700;
+    letter-spacing: -0.01em;
     font-variant-numeric: tabular-nums;
-    color: color-mix(in srgb, var(--jg-tint-glyph) 78%, transparent);
+    color: var(--jg-ink-2);
     white-space: nowrap;
 }
 
-.jg-launch-on .jg-launch-count { color: var(--jg-tint-glyph); }
+.jg-launch-on .jg-launch-name,
+.jg-launch-on .jg-launch-count { color: var(--jg-on-ink); }
+
+.jg-launch-on .jg-launch-mark { color: color-mix(in srgb, var(--jg-on-ink) 28%, transparent); }
 
 .jg-launch:hover { transform: translateY(-2px); filter: brightness(1.06); }
 
@@ -2540,18 +2525,10 @@
  * s'allume, s'ouvre, chauffe ou détecte.
  * ======================================================================== */
 
-.jg-root .jg-card[data-card-type="sensor"]:not([data-on="1"]):not([data-alert="1"]),
-.jg-root .jg-card[data-card-type="generic"]:not([data-on="1"]):not([data-alert="1"]),
-.jg-root .jg-card[data-domain="info"]:not([data-on="1"]):not([data-alert="1"]) {
-    background-color: var(--jg-surface);
-    border-color: var(--jg-border);
-}
-
-.jg-root .jg-card[data-card-type="sensor"]:not([data-on="1"]) .jg-card-icon,
-.jg-root .jg-card[data-card-type="generic"]:not([data-on="1"]) .jg-card-icon,
-.jg-root .jg-card[data-domain="info"]:not([data-on="1"]) .jg-card-icon {
-    color: var(--jg-ink-2);
-}
+/* Ces exceptions n'en sont plus : depuis la convention d'état, AUCUNE carte
+ * n'est teintée au repos, et l'icône garde partout la couleur de son domaine —
+ * une couleur posée sur un glyphe n'a jamais disputé sa place à un état.
+ * L'exception des tuiles de pièce, elle, tient toujours. */
 
 /* Les tuiles de pièce sans rien d'allumé retombent elles aussi au neutre : une
  * pièce endormie n'a pas à porter la couleur d'une pièce vivante. */
@@ -2561,3 +2538,207 @@
 }
 
 .jg-root .jg-room-tile:not(.jg-domain-on) .jg-tile-art { color: var(--jg-ink-2); }
+
+/* ==================================================== la convention d'état
+ *
+ * Une révision qui reprend tout ce qui précède, et la seule règle qu'il faut
+ * retenir de cette feuille : LA COULEUR DIT L'ÉTAT, L'ICÔNE DIT LE GENRE.
+ *
+ * Ce qui était fait jusqu'ici disait l'inverse. Une lampe éteinte était jaune
+ * pâle, une prise éteinte verte pâle, une lampe allumée jaune un peu moins
+ * pâle : la couleur dépensait tout son pouvoir à distinguer une lampe d'une
+ * prise — ce que l'icône, le nom et le titre de section disaient déjà trois
+ * fois — et il ne restait, pour le seul fait qu'on cherche des yeux depuis
+ * l'autre bout de la pièce, qu'une différence de dose. Mesurée sur le thème
+ * clair : #FBF0DE contre #F9E0BB, soit 1,13:1. Autant dire rien. Un aplat
+ * d'ambre sur une surface claire, lui, est à 1,95:1, et se voit de trois
+ * mètres sans qu'on ait à lire le mot « Allumée ».
+ *
+ * D'où quatre états, et quatre seulement :
+ *
+ *   repos          surface neutre, icône dans la couleur du domaine
+ *   en marche      aplat de --jg-on, encre sombre par-dessus
+ *   actif          liseré et pastille pleine — un fait constaté, pas une mise
+ *                  en marche : une porte ouverte, une présence, un mouvement
+ *   alerte         aplat rouge plein, inchangé, et toujours le seul
+ *
+ * --jg-on est l'ambre pour tout ce qui s'allume et consomme. Les deux domaines
+ * dont l'état n'est pas « allumé » gardent leur couleur propre — un volet est
+ * ouvert, un radiateur chauffe — et une caméra qui détecte n'est pas en marche
+ * du tout : elle filmait déjà.
+ * ======================================================================== */
+
+.jg-root .jg-card,
+.jg-root .jg-launch,
+.jg-root .jg-domain {
+    --jg-on: #F2A93B;
+    /* Dérivées ici, sur l'élément qui porte --jg-on : une propriété
+     * personnalisée qui en appelle une autre est résolue là où elle est
+     * déclarée, et les surcharges par domaine ci-dessous portent sur ce même
+     * élément — elles sont donc bien vues. Écrites sur .jg-root, elles y
+     * figeraient l'ambre. */
+    --jg-on-ink: color-mix(in srgb, var(--jg-on) 14%, #000000);
+    --jg-on-edge: color-mix(in srgb, var(--jg-on) 76%, #000000);
+}
+
+.jg-root .jg-card[data-domain="cover"],
+.jg-root .jg-launch[data-domain="cover"] { --jg-on: #4C9AF5; }
+.jg-root .jg-card[data-domain="climate"],
+.jg-root .jg-launch[data-domain="climate"] { --jg-on: #F2714A; }
+.jg-root .jg-card[data-domain="camera"],
+.jg-root .jg-launch[data-domain="camera"] { --jg-on: #8B6CF0; }
+
+/* ------------------------------------------------------------------ repos */
+
+/* Neutre, sans exception. L'écran ne redevient pas gris pour autant : la
+ * pastille garde la couleur de son domaine, le lanceur son lavis, et c'est
+ * assez pour reconnaître une rangée sans la lire. */
+.jg-root .jg-card:not([data-alert="1"]) {
+    background-color: var(--jg-surface);
+    border-color: var(--jg-border);
+}
+
+/* -------------------------------------------------------------- en marche */
+
+/* [data-tone] n'ajoute aucune condition — l'attribut est toujours posé — mais
+ * il porte cette règle au-dessus des tables de teintes de l'ambiance sombre,
+ * qui autrement reprendraient la main sur les jetons dérivés. Même dispositif
+ * que pour l'alerte, quelques centaines de lignes plus haut. */
+.jg-root[data-tone] .jg-card[data-on="1"]:not([data-alert="1"]) {
+    /* L'aplat porte l'encre, et non l'inverse : tout ce qui vit dans la carte
+     * — sous-titre, mesures, piste de curseur, filet — est redéfini d'un bloc
+     * plutôt que règle par règle. C'est ce qui évite qu'un composant ajouté
+     * demain sorte en gris clair sur de l'ambre. */
+    --jg-ink: var(--jg-on-ink);
+    --jg-ink-2: color-mix(in srgb, var(--jg-on-ink) 68%, var(--jg-on));
+    --jg-surface-2: rgba(0, 0, 0, 0.13);
+    --jg-border: rgba(0, 0, 0, 0.20);
+    --jg-line: rgba(0, 0, 0, 0.55);
+    --jg-state-hover: rgba(0, 0, 0, 0.09);
+    --jg-state-press: rgba(0, 0, 0, 0.17);
+    --jg-tint: var(--jg-on-ink);
+    --jg-tint-line: var(--jg-on-ink);
+    background-color: var(--jg-on);
+    border-color: var(--jg-on-edge);
+    color: var(--jg-ink);
+}
+
+/* Le liseré latéral a fait son temps : il signalait l'état quand le fond ne le
+ * faisait pas. Sur un aplat, il ne reste qu'une barre sombre au bord. */
+.jg-root .jg-card[data-on="1"]::before { width: 0; }
+
+/* La pastille ne se remplit plus : elle serait un rond sombre sur un fond
+ * plein. Le glyphe seul, dans l'encre de la carte. */
+.jg-root .jg-card[data-on="1"]:not([data-alert="1"]) .jg-card-icon {
+    background: transparent;
+    color: var(--jg-on-ink);
+}
+
+/* Une commande posée sur un aplat : une plaque claire, comme un bouton posé
+ * sur une façade. La teinte n'a plus à la détacher, le fond s'en charge. */
+.jg-root .jg-card[data-on="1"]:not([data-alert="1"]) .jg-btn,
+.jg-root .jg-card[data-on="1"]:not([data-alert="1"]) .jg-select,
+.jg-root .jg-card[data-on="1"]:not([data-alert="1"]) .jg-color input[type="color"] {
+    background-color: rgba(255, 255, 255, 0.62);
+    border-color: rgba(0, 0, 0, 0.22);
+    color: var(--jg-on-ink);
+}
+
+/* ------------------------------------------------------------------ actif */
+
+/* Un capteur ne se met pas en marche, il constate. Lui donner l'aplat de
+ * l'état allumé faisait passer « Déclenchée : Oui » pour une alarme en cours,
+ * et une carte rose vif ne disait rien de plus qu'un binaire à vrai. Le fait
+ * reste visible — liseré et pastille pleine, dans la couleur du domaine — sans
+ * emprunter le vocabulaire de ce qui consomme. */
+.jg-root .jg-card[data-active="1"]:not([data-alert="1"])::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: var(--jg-space-3);
+    bottom: var(--jg-space-3);
+    width: 5px;
+    border-radius: var(--jg-radius-pill);
+    background: var(--jg-tint-line);
+}
+
+.jg-root .jg-card[data-active="1"]:not([data-alert="1"]) .jg-card-icon {
+    background: var(--jg-tint);
+    color: var(--jg-tint-glyph);
+}
+
+/* --------------------------------------------------------- état inconnu */
+
+/* Une applique commandée par deux boutons sans retour, un variateur qui
+ * n'expose qu'un curseur : le dashboard ne sait pas si c'est allumé. Dessinée
+ * comme une carte au repos, elle affirmait « éteint ». Le pointillé dit qu'on
+ * ne sait pas — et le texte le dit en toutes lettres juste à côté. */
+.jg-root .jg-card[data-unknown="1"]:not([data-on="1"]):not([data-alert="1"]) {
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--jg-line) 55%, transparent);
+}
+
+.jg-root .jg-card[data-unknown="1"] .jg-state {
+    color: var(--jg-ink-2);
+    font-weight: 600;
+}
+
+/* ------------------------------------------------------- tuiles de pièce */
+
+/* La couleur choisie dans Jeedom reste celle de la pièce, mais sur l'icône, où
+ * elle identifie — elle était jusqu'ici grisée au repos et ne servait qu'à
+ * teindre le fond des pièces vivantes, c'est-à-dire exactement l'inverse. Une
+ * pièce où quelque chose tourne prend l'aplat commun. */
+.jg-root .jg-room-tile:not(.jg-domain-on) .jg-tile-art { color: var(--jg-tint-line); }
+
+.jg-root .jg-domain-on {
+    background-color: var(--jg-on);
+    border-color: var(--jg-on-edge);
+    color: var(--jg-on-ink);
+}
+
+.jg-root .jg-domain-on .jg-tile-art,
+.jg-root .jg-domain-on .jg-domain-name,
+.jg-root .jg-domain-on .jg-domain-count { color: var(--jg-on-ink); }
+
+/* ------------------------------------------------------------ le bento */
+
+/* Sans caméra, l'en-tête gardait deux rangées et une seule carte de synthèse :
+ * sur une tablette de 1280, une carte étroite à gauche et 60 % de vide à
+ * droite. Une rangée unique, partagée en deux, ne laisse pas de trou quel que
+ * soit le nombre de cartes. */
+.jg-root .jg-bento[data-cam="0"] .jg-bento-clock,
+.jg-root .jg-bento[data-cam="0"] .jg-bento-side {
+    grid-column: span 6;
+    grid-row: span 1;
+}
+
+.jg-root .jg-bento[data-cam="0"] .jg-bento-side { flex-direction: row; }
+
+@media (max-width: 1100px) {
+    .jg-root .jg-bento[data-cam="0"] .jg-bento-clock,
+    .jg-root .jg-bento[data-cam="0"] .jg-bento-side { grid-column: span 12; }
+}
+
+@media (max-width: 700px) {
+    .jg-root .jg-bento[data-cam="0"] .jg-bento-side { flex-direction: column; }
+}
+
+/* Le repli des WebView sans color-mix(), pour les deux jetons que la
+ * convention d'état vient d'ajouter.
+ *
+ * Il est écrit ICI et non dans le bloc @supports du début, et ce n'est pas un
+ * détail de rangement : une propriété personnalisée accepte n'importe quelle
+ * suite de jetons à l'analyse, et ne devient invalide qu'au moment d'être
+ * substituée. --jg-on-ink porterait donc son color-mix() intact jusqu'à la
+ * cascade, y gagnerait — il est déclaré plus bas — et ne s'effondrerait qu'à
+ * l'usage, en emportant la couleur du texte posé sur l'aplat. La déclaration
+ * de repli doit venir après celle qu'elle remplace. */
+@supports not (color: color-mix(in srgb, red, blue)) {
+    .jg-root .jg-card,
+    .jg-root .jg-launch,
+    .jg-root .jg-domain {
+        --jg-on-ink: #1d1407;
+        --jg-on-edge: var(--jg-on);
+    }
+}

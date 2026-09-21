@@ -494,6 +494,17 @@
     return String(value) + (cmd.unit ? ' ' + cmd.unit : '')
   }
 
+  /* Ce qui mérite la taille d'affichage d'une carte : un nombre qui se mesure,
+   * et rien d'autre. La règle suit exactement ce que format() rend — un entier
+   * sans unité dans les bornes d'un horodatage en ressort en date, et une date
+   * en vingt-six pixels gras n'est pas plus une mesure qu'une phrase. */
+  function isMeasure(cmd) {
+    if (cmd.subType !== 'numeric') {
+      return false
+    }
+    return !(cmd.unit === '' && isEpoch(parseFloat(JG.VALUES[cmd.id])))
+  }
+
   /* L'état d'une entrée physique n'est pas une mesure : « Événement entrée 1 :
    * Non » et « Appui long 1 » occupaient les deux lignes d'une carte de prise,
    * devant la puissance et la température. */
@@ -713,6 +724,11 @@
        * l'ouverture du détail ou la céder à la pastille. */
       this._actionable = this.actionable()
       this.dataset.actionable = this._actionable ? '1' : '0'
+      /* Le panneau est en train d'être lu : il n'a pas à porter la marque de ce
+       * qu'on ignore, il la dit en toutes lettres sur ses lignes. */
+      if (this.tagName !== 'JG-CARD-DETAIL') {
+        this.markUnknown()
+      }
       /* Les commandes d'alarme sont repérées ici, et non dans chaque carte :
        * un détecteur de fumée est une carte capteur, un sabotage arrive sur
        * une carte générique, et une alarme sur une bascule. Chercher le rôle
@@ -746,6 +762,38 @@
       this.dataset.on = next
       if (known) {
         flash(this, 'jg-card-ping')
+      }
+    }
+
+    /* Vrai, mais pas « allumé ».
+     *
+     * Une porte ouverte, une présence détectée, un mouvement devant une caméra
+     * sont des états vrais qu'il faut voir — mais un capteur ne se pilote pas,
+     * et lui donner l'aplat de l'état allumé faisait passer « Déclenchée : Oui »
+     * pour une alarme en cours. La marque est donc distincte, et son traitement
+     * l'est aussi : un liseré et une icône pleine, jamais un fond rempli. */
+    markActive(on) {
+      var next = on ? '1' : '0'
+      if (this.dataset.active === next) {
+        return
+      }
+      var known = this.dataset.active !== undefined
+      this.dataset.active = next
+      if (known) {
+        flash(this, 'jg-card-ping')
+      }
+    }
+
+    /* Ce qui se pilote sans jamais dire où il en est : une applique commandée
+     * par deux boutons sans retour, un variateur qui n'expose qu'un curseur.
+     * Sans cette marque, la carte est dessinée comme une carte éteinte — et ne
+     * pas savoir n'est pas savoir que c'est éteint. */
+    markUnknown() {
+      var pilots = ['toggle', 'on', 'off', 'up', 'down', 'slider'].some(function (name) {
+        return this.role(name) !== undefined
+      }, this)
+      if (pilots && this.role('state') === undefined) {
+        this.dataset.unknown = '1'
       }
     }
 
@@ -1310,7 +1358,11 @@
       this.markState(on)
       this.syncAlert()
       var stateId = this.role('state')
-      var text = (stateId === undefined) ? '' : format(stateId)
+      /* Sans commande d'état, la carte ne se taisait pas : elle se dessinait
+       * exactement comme une carte éteinte, et une applique commandée sans
+       * retour se lisait « éteinte » alors qu'elle éclairait la pièce. Le
+       * dashboard dit donc ce qu'il en est — rien. */
+      var text = (stateId === undefined) ? '{{État inconnu}}' : format(stateId)
       var brightnessId = this.role('brightness')
       if (brightnessId !== undefined && on) {
         text = format(brightnessId)
@@ -1392,6 +1444,10 @@
           this.write(this._state, format(stateId))
           this.markState(isTrue(cmd, JG.VALUES[stateId]))
         }
+      } else {
+        /* Un volet qui monte et descend sans rapporter sa position : même
+         * cas que l'applique sans retour, même réponse. */
+        this.write(this._state, '{{État inconnu}}')
       }
       this.syncAlert()
       this.syncMetrics()
@@ -1420,6 +1476,14 @@
       if (this._primary !== null) {
         var body = el('div', 'jg-card-body')
         this._value = el('span', 'jg-value', format(this._primary.id))
+        /* La taille d'affichage est celle d'une mesure, et d'une mesure
+         * seulement. « Rien à signaler », « Fermé » ou « 20/09 16:05 » en
+         * vingt-six pixels gras ne hiérarchisent plus rien : la carte crie ce
+         * qu'elle a, au lieu de dire ce qu'elle mesure. Ce qui n'est pas un
+         * nombre reprend donc le corps du texte. */
+        if (!isMeasure(this._primary)) {
+          this._value.classList.add('jg-value-text')
+        }
         body.appendChild(this._value)
         this.appendChild(body)
       }
@@ -1432,9 +1496,6 @@
          * jour : l'oublier ici la figerait à sa valeur de chargement. */
         var entry = { id: this._primary.id, node: this._value, host: this }
         if (jsonOf(this._primary.id) !== null) {
-          /* Un résumé de structure est une phrase, pas un nombre : la taille
-           * d'affichage d'une température le rendrait illisible. */
-          this._value.classList.add('jg-value-text')
           this.makeExpandable(entry)
         }
         this._rows.push(entry)
@@ -1450,7 +1511,7 @@
       if (this._primary) {
         var cmd = JG.CMDS[this._primary.id]
         if (cmd && cmd.subType === 'binary') {
-          this.markState(isTrue(cmd, JG.VALUES[this._primary.id]))
+          this.markActive(isTrue(cmd, JG.VALUES[this._primary.id]))
         }
       }
       this.syncAlert()
@@ -1706,7 +1767,9 @@
         return isTrue(cmd, JG.VALUES[cmd.id])
       })
       this._motion.hidden = !moving
-      this.markState(moving)
+      /* Un mouvement devant une caméra est un fait, pas une mise en marche : la
+       * caméra filmait déjà. Elle prend donc la marque des capteurs. */
+      this.markActive(moving)
       this.write(this._line, (this._event === null) ? '' : format(this._event.id))
       this.syncAlert()
       this.syncRows()
@@ -2393,6 +2456,16 @@
 
     buildHero()
     buildAlertBar()
+    /* Ce qui est allumé passe devant le lanceur, et ce n'est pas un goût de
+     * rangement.
+     *
+     * Mesuré sur une tablette murale de 1280 par 800 : l'en-tête, le bandeau
+     * d'alerte et douze tuiles de domaine remplissaient l'écran entier. Le
+     * premier écran d'un dashboard domotique ne contenait donc rien sur quoi
+     * appuyer — « En ce moment », la seule section où l'on éteint quelque
+     * chose, commençait sous la ligne de flottaison. Un menu passe après ce
+     * qu'on est venu faire. */
+    buildRunning()
     /* Les domaines en tuiles pleines et non en pilules grises : c'est le
      * lanceur de la maison, l'endroit d'où l'on part. Une pilule de treize
      * pixels ne se vise pas au doigt et ne se distingue pas de loin. */
@@ -2415,7 +2488,6 @@
     if (shortcuts.children.length > 0) {
       sectionsNode.appendChild(shortcuts)
     }
-    buildRunning()
     buildScenes()
 
     var node = el('section', 'jg-section')
@@ -2657,7 +2729,13 @@
       return device.roles && device.roles.state !== undefined
     }).length
     if (pilotable > 0) {
-      return lit + '/' + pilotable
+      /* « 1/2 » est un rapport, et personne ne lit un rapport de loin : il faut
+       * savoir que le premier nombre est l'allumé, deviner que le second n'est
+       * pas le total du domaine mais celui de ce qui rapporte son état, et
+       * faire la différence. Le dashboard sait tout cela — il n'a qu'à le
+       * dire. Le vocabulaire est celui du reste de la page : les pastilles de
+       * l'en-tête et les tuiles de pièces comptent déjà « en marche ». */
+      return (lit > 0) ? (lit + ' {{en marche}}') : '{{Tout éteint}}'
     }
     /* Pas d'état à montrer : une mesure, mais seulement si elle caractérise le
      * domaine. La première température venue donnait « Sécurité 22,1 °C » et
