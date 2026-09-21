@@ -1,0 +1,58 @@
+{
+    "plugins/jeeglowbe/core/class/jeeglowbe.class.php": {
+        "Non classé": "Unassigned"
+    },
+    "plugins/jeeglowbe/core/ajax/jeeglowbe.ajax.php": {
+        "401 - Accès non autorisé": "401 - Unauthorized access",
+        "Aucune méthode correspondante à :": "No matching method for:"
+    },
+    "plugins/jeeglowbe/desktop/php/jeeglowbe.php": {
+        "401 - Accès non autorisé": "401 - Unauthorized access",
+        "Rechercher": "Search",
+        "Plein écran": "Full screen",
+        "Rien à afficher pour le moment": "Nothing to show yet",
+        "jeeGlow lit les équipements visibles et actifs de vos objets. Vérifiez qu'au moins un équipement est visible, ou élargissez votre recherche.": "jeeGlow reads the visible and enabled devices of your objects. Check that at least one device is visible, or widen your search."
+    },
+    "plugins/jeeglowbe/desktop/js/jeeglowbe.js": {
+        "Ouvert": "Open",
+        "Fermé": "Closed",
+        "Ouverte": "Open",
+        "Fermée": "Closed",
+        "Déverrouillé": "Unlocked",
+        "Verrouillé": "Locked",
+        "Fumée détectée": "Smoke detected",
+        "Rien à signaler": "All clear",
+        "Inondation": "Flood",
+        "Fuite": "Leak",
+        "Sabotage": "Tamper",
+        "Choc": "Shock",
+        "En alarme": "Triggered",
+        "Au repos": "Idle",
+        "En ligne": "Online",
+        "Hors ligne": "Offline",
+        "En charge": "Charging",
+        "Sur batterie": "On battery",
+        "Allumée": "On",
+        "Éteinte": "Off",
+        "Oui": "Yes",
+        "Non": "No",
+        "Allumer": "Turn on",
+        "Éteindre": "Turn off",
+        "Monter": "Up",
+        "Stop": "Stop",
+        "Descendre": "Down",
+        "Tout": "All",
+        "Détectée": "Detected",
+        "Aucune": "None"
+    },
+    "plugins/jeeglowbe/plugin_info/configuration.php": {
+        "401 - Accès non autorisé": "401 - Unauthorized access",
+        "Dashboard": "Dashboard",
+        "Titre affiché": "Displayed title",
+        "Nom affiché en haut du dashboard. Vide, c'est « jeeGlow ».": "Name shown at the top of the dashboard. Empty means \"jeeGlow\".",
+        "Afficher les équipements sans objet": "Show devices without an object",
+        "Les équipements qui n'appartiennent à aucun objet sont regroupés dans une pièce « Non classé ». Les masquer donne un dashboard plus propre, mais fait oublier qu'ils existent.": "Devices that belong to no object are grouped in an \"Unassigned\" room. Hiding them gives a cleaner dashboard, but makes it easy to forget they exist.",
+        "Masquer les pièces vides": "Hide empty rooms",
+        "Une pièce sans aucun équipement visible n'apparaît pas. Décochez pour voir toute l'arborescence de vos objets, y compris les étages qui ne servent qu'à ranger.": "A room without any visible device does not appear. Untick to see your whole object tree, including floors that only exist to organise it."
+    }
+}
