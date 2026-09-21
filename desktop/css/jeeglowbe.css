@@ -2408,13 +2408,16 @@
 /* Le seul signal du lanceur, et il était inversé : la tuile « allumée » partait
  * d'un mélange à 70 % de blanc là où l'éteinte partait de 88 %, autrement dit
  * la tuile qui signalait quelque chose était la plus PÂLE des deux. « Prises
- * 2/2 » et « Sécurité » étaient indiscernables à l'écran. Elle prend désormais
- * l'aplat de l'état en marche, comme tout le reste de la page. */
+ * 2/2 » et « Sécurité » étaient indiscernables à l'écran.
+ *
+ * Elle ne prend pas l'aplat pour autant. Une tuile de domaine ne s'éteint pas,
+ * elle mène à la page du domaine : le liseré et l'encre lui suffisent. Voir la
+ * note sur les conteneurs, plus bas. */
 .jg-launch-on {
     background-image: none;
-    background-color: var(--jg-on);
-    border-color: var(--jg-on-edge);
-    color: var(--jg-on-ink);
+    border-color: var(--jg-on);
+    border-width: 2px;
+    color: var(--jg-ink);
 }
 
 /* Le filigrane. Il déborde volontairement : une icône entière et centrée
@@ -2467,10 +2470,14 @@
     white-space: nowrap;
 }
 
-.jg-launch-on .jg-launch-name,
-.jg-launch-on .jg-launch-count { color: var(--jg-on-ink); }
+.jg-launch-on .jg-launch-name { color: var(--jg-ink); }
 
-.jg-launch-on .jg-launch-mark { color: color-mix(in srgb, var(--jg-on-ink) 28%, transparent); }
+.jg-launch-on .jg-launch-count {
+    color: var(--jg-on-line);
+    font-weight: 800;
+}
+
+.jg-launch-on .jg-launch-mark { color: var(--jg-on); }
 
 .jg-launch:hover { transform: translateY(-2px); filter: brightness(1.06); }
 
@@ -2576,6 +2583,19 @@
      * figeraient l'ambre. */
     --jg-on-ink: color-mix(in srgb, var(--jg-on) 14%, #000000);
     --jg-on-edge: color-mix(in srgb, var(--jg-on) 76%, #000000);
+    /* L'activité quand elle devient trait ou encre, et non remplissage : le
+     * liseré d'un conteneur, le compte qu'il affiche. Assombrie, elle tient le
+     * 3:1 contre une surface claire — l'ambre pleine y est à 1,96:1. Même
+     * dérivation que --jg-tint-line, et pour la même raison. */
+    --jg-on-line: color-mix(in srgb, var(--jg-on) 72%, #000000);
+}
+
+/* De nuit, la surface est profonde : la couleur d'activité est son propre
+ * trait, et l'assombrir la ferait disparaître. */
+.jg-root[data-tone="dark"] .jg-card,
+.jg-root[data-tone="dark"] .jg-launch,
+.jg-root[data-tone="dark"] .jg-domain {
+    --jg-on-line: var(--jg-on);
 }
 
 .jg-root .jg-card[data-domain="cover"],
@@ -2682,21 +2702,27 @@
 
 /* ------------------------------------------------------- tuiles de pièce */
 
-/* La couleur choisie dans Jeedom reste celle de la pièce, mais sur l'icône, où
- * elle identifie — elle était jusqu'ici grisée au repos et ne servait qu'à
- * teindre le fond des pièces vivantes, c'est-à-dire exactement l'inverse. Une
- * pièce où quelque chose tourne prend l'aplat commun. */
-.jg-root .jg-room-tile:not(.jg-domain-on) .jg-tile-art { color: var(--jg-tint-line); }
+/* La couleur choisie dans Jeedom est celle de la pièce, et elle vit sur
+ * l'icône, où elle identifie. Elle y reste dans les deux états : une pièce ne
+ * change pas de couleur parce qu'on y a allumé une lampe. */
+.jg-root .jg-room-tile .jg-tile-art { color: var(--jg-tint-line); }
 
+/* Une pièce ne s'éteint pas — on ne peut que s'y rendre. Elle n'a donc pas
+ * droit à l'aplat, qui est réservé à ce qu'un appui coupe : voir la note sur
+ * les conteneurs, plus bas. Liseré, et le compte en couleur. */
 .jg-root .jg-domain-on {
-    background-color: var(--jg-on);
-    border-color: var(--jg-on-edge);
-    color: var(--jg-on-ink);
+    background-color: var(--jg-surface);
+    border-color: var(--jg-on);
+    border-width: 2px;
+    color: var(--jg-ink);
 }
 
-.jg-root .jg-domain-on .jg-tile-art,
-.jg-root .jg-domain-on .jg-domain-name,
-.jg-root .jg-domain-on .jg-domain-count { color: var(--jg-on-ink); }
+.jg-root .jg-domain-on .jg-domain-name { color: var(--jg-ink); }
+
+.jg-root .jg-domain-on .jg-domain-count {
+    color: var(--jg-on-line);
+    font-weight: 700;
+}
 
 /* ------------------------------------------------------------ le bento */
 
@@ -2900,3 +2926,37 @@
  * et non de la trame : une carte y occupe toute sa colonne. */
 .jg-root .jg-sections[data-layout="columns"] .jg-grid { grid-template-columns: 1fr; }
 .jg-root .jg-sections[data-layout="columns"] .jg-card { grid-column: span 1; }
+
+/* ================================== l'aplat, réservé à ce qu'on peut éteindre
+ *
+ * « Pourquoi ne pas mettre que l'icône en orange ? C'est flash là. »
+ *
+ * Le constat est juste, la cause n'était pas le mécanisme. Essayée, l'icône
+ * seule ne tient pas : sur une carte de 229 par 190, l'aplat couvre quarante-
+ * trois mille pixels, la pastille pleine seize cents, le glyphe à peine trois
+ * cents. La couleur portée par le glyphe est CENT FOIS plus petite que celle
+ * portée par le fond — une grande plage se détecte en vision périphérique, on
+ * la voit sans la regarder, ce qu'on demande précisément à un écran posé au
+ * mur ; un glyphe demande qu'on pose l'oeil sur chaque carte, l'une après
+ * l'autre. Sur douze lumières dont quatre allumées, il faut les chercher.
+ *
+ * Et l'icône porte déjà la couleur du domaine : une lampe a une icône ambre AU
+ * REPOS. L'ambre y devenant aussi le signal « allumé », allumée et éteinte
+ * redeviendraient identiques — il faudrait griser toutes les icônes au repos,
+ * et la page redeviendrait le tableau monochrome d'il y a deux révisions.
+ *
+ * Ce qui était flash, c'est la QUANTITÉ. L'accueil disait trois fois le même
+ * fait dans la même couleur : les bandes (ce qui est allumé), les tuiles de
+ * domaine (les domaines où quelque chose l'est), les tuiles de pièce (les
+ * pièces où quelque chose l'est). Dix-neuf blocs ambre sur trente-cinq, pour
+ * trois énoncés d'une seule chose.
+ *
+ * D'où la règle, qui affine la convention sans la contredire : L'APLAT EST
+ * RÉSERVÉ À CE QU'UN APPUI PEUT ÉTEINDRE. Les équipements — cartes et bandes —
+ * le gardent. Les conteneurs — domaines, pièces — ne se pilotent pas, ils
+ * mènent ailleurs : liseré de deux pixels, icône et compte dans la couleur.
+ * Une zone forte au lieu de trois, et la page respire.
+ *
+ * Les règles sont posées à leur place, avec les tuiles et le lanceur ; cette
+ * note dit pourquoi, en un seul endroit.
+ * ======================================================================== */
