@@ -123,6 +123,31 @@
     return (room && room.id !== 0) ? room.name : ''
   }
 
+  /* Ce dans quoi la recherche cherche.
+   *
+   * La pièce en fait partie : chercher « cuisine » et ne rien trouver parce
+   * qu'aucun équipement ne porte le mot dans son nom serait une fausse
+   * réponse.
+   *
+   * Le nom réel aussi, et c'est ce qui manquait. Les noms courts sont actifs
+   * par défaut, et ils retirent précisément ce par quoi on cherche un
+   * équipement dont on ne connaît que le matériel : sur l'installation
+   * d'essai, trente et un équipements sur soixante-quatre affichent un nom
+   * dont le nom Jeedom a disparu, et taper « Shelly » ou « OpenMQTTGateway »
+   * ne renvoyait rien — eqType, lui, vaut « mqttbe » ou « dahua ». Le modèle
+   * transporte déjà realName pour l'afficher en sous-titre ; le chercher ne
+   * coûte qu'une concaténation.
+   *
+   * Recalculé à chaque fois, et non retenu sur l'équipement : startRename()
+   * change device.name en place sans relire le modèle, et un foin mis en
+   * cache ferait retrouver un équipement par un nom qu'il ne porte plus.
+   * Quatre cents concaténations par rendu ne se mesurent pas — et il n'y a
+   * plus qu'un rendu par recherche. */
+  function haystack(device) {
+    return (device.name + ' ' + (device.realName || '') + ' '
+      + device.eqType + ' ' + roomName(device)).toLowerCase()
+  }
+
   /* Relancer une animation demande de la retirer, de forcer un recalcul, puis
    * de la reposer : sans la lecture de offsetWidth, deux changements coup sur
    * coup ne produisent qu'un seul clignotement. */
@@ -2059,7 +2084,6 @@
     var card = document.createElement('jg-card-quick')
     card.device = device
     card.dataset.deviceId = device.id
-    card.dataset.search = (device.name + ' ' + device.eqType + ' ' + roomName(device)).toLowerCase()
     return card
   }
 
@@ -2076,7 +2100,6 @@
     if (device.cmds.some(function (cmd) { return cmd.widget })) {
       card.dataset.span = '2'
     }
-    card.dataset.search = (device.name + ' ' + device.eqType + ' ' + roomName(device)).toLowerCase()
     return card
   }
 
@@ -2972,11 +2995,7 @@
     if (needle !== '') {
       tabsNode.hidden = true
       var found = allDevices().filter(function (device) {
-        /* La pièce fait partie de ce qu'on tape : chercher « cuisine » et ne
-         * rien trouver parce qu'aucun équipement ne porte le mot dans son nom
-         * serait une fausse réponse. */
-        return (device.name + ' ' + device.eqType + ' ' + roomName(device))
-          .toLowerCase().indexOf(needle) !== -1
+        return haystack(device).indexOf(needle) !== -1
       })
       emptyNode.hidden = (found.length > 0)
       sectionsNode.dataset.layout = 'grid'
@@ -3436,6 +3455,14 @@
    * redevient visible, et seulement si elle a dormi : personne n'est interrompu
    * en train de la regarder. */
   var REFRESH_AFTER = 300000
+  /* Le délai minimal entre deux relectures déclenchées par le coeur. Une
+   * minute : assez pour qu'une rafale — un plugin qui enregistre ses vingt
+   * équipements à la suite — ne produise qu'une relecture, assez court pour
+   * qu'un équipement qui tombe se voie pendant qu'on est encore devant. */
+  var MODEL_QUIET = 60000
+  /* L'âge au-delà duquel le modèle est relu même si personne n'a rien
+   * annoncé. */
+  var MODEL_MAX_AGE = 900000
   var loadedAt = Date.now()
 
   function render(model) {
@@ -3487,6 +3514,63 @@
     })
   }
 
+  /*
+   * Ce que cmd::update ne dit pas.
+   *
+   * Tout ce qui n'est pas une valeur de commande vit dans le modèle, et le
+   * modèle ne se relisait que sur visibilitychange. Or une tablette murale en
+   * kiosque ne change jamais d'onglet : l'événement ne se produit pas, et le
+   * modèle affiché reste celui du chargement de la page — indéfiniment,
+   * puisque cette tablette n'est jamais rechargée non plus. Un équipement qui
+   * tombe injoignable n'apparaissait donc jamais dans la vue Santé, la
+   * pastille du rail restait celle du matin, et un équipement ajouté ou rangé
+   * dans une pièce n'apparaissait pas.
+   *
+   * Le signal existe pourtant, à côté de celui qu'on écoute déjà :
+   * jeedom.changes() diffuse « eqLogic::update » sur document.body, par le
+   * même chemin que « cmd::update » (core/js/jeedom.class.js, ligne 75). Le
+   * coeur l'émet depuis eqLogic::refreshWidget() (eqLogic.class.php, ligne
+   * 1231), que setStatus() appelle dès qu'une clé d'alerte change — timeout,
+   * batterie, warning, danger (ligne 2064) — et que save() appelle après un
+   * renommage ou un changement d'objet. C'est exactement ce dont le modèle a
+   * besoin, et il ne coûte rien : le transport tourne déjà.
+   *
+   * Reste à ne pas relire à chaque annonce. Une relecture coûte un modèle
+   * entier côté serveur, et l'ordre de grandeur est celui d'une par minute.
+   */
+  var modelTimer = null
+
+  function modelChanged() {
+    if (modelTimer !== null) {
+      return
+    }
+    /* Le banc d'essai raccourcit ce délai : il ne peut pas attendre une
+     * minute, comme il ne peut pas attendre les cinq minutes de la veille
+     * kiosque. C'est le seul réglage qu'il touche ici, et JG est déjà l'objet
+     * par lequel ce fichier expose ce qui doit survivre à sa ré-exécution. */
+    var quiet = (typeof JG.QUIET === 'number') ? JG.QUIET : MODEL_QUIET
+    var wait = Math.max(quiet - (Date.now() - loadedAt), Math.min(1000, quiet))
+    modelTimer = setTimeout(function () {
+      modelTimer = null
+      /* Pas sous les doigts de quelqu'un. render() ferme le panneau de détail
+       * et rebâtit les sections : le faire pendant qu'on lit une fiche ou
+       * qu'on tape une recherche retirerait l'écran à celui qui s'en sert. Ce
+       * n'est que partie remise, la prochaine annonce reviendra — et à défaut
+       * la relecture de fond s'en chargera. */
+      if (ROOT.dataset.panel === '1' || searchNode.value.trim() !== '') {
+        return
+      }
+      reloadModel(true)
+    }, wait)
+  }
+
+  function onEqLogicUpdate() {
+    if (!document.body.contains(ROOT) || document.hidden) {
+      return
+    }
+    modelChanged()
+  }
+
   /* ------------------------------------------------------------------ démarrage */
 
   brandNode.textContent = MODEL.title ? MODEL.title : 'jeeGlow'
@@ -3505,7 +3589,40 @@
   renderView()
   syncTone()
 
-  searchNode.addEventListener('input', renderView)
+  /* La recherche attend la fin du mot.
+   *
+   * Sans ce délai, chaque frappe reconstruisait l'écran entier : mesuré dans
+   * le banc d'essai sur l'installation d'essai — soixante-quatre équipements —
+   * taper « salon » depuis la vue Fonctions créait 2 365 noeuds, dont 711
+   * seulement, ceux du dernier rendu, comptent. Quatre écrans jetés à la
+   * poubelle, et six fois plus sur une installation de quatre cents
+   * équipements : c'est exactement ce qui donne à une dalle de tablette
+   * l'allure d'un clavier qui colle.
+   *
+   * 150 ms : au-dessous, une frappe ordinaire déclenche encore un rendu par
+   * lettre ; au-dessus, le retard commence à se voir. */
+  var searchTimer = null
+
+  function onSearch() {
+    clearTimeout(searchTimer)
+    searchTimer = setTimeout(function () {
+      searchTimer = null
+      renderView()
+    }, 150)
+  }
+
+  /* Entrée, la croix de vidage du champ, ou la sortie du champ : celui qui a
+   * fini de taper ne doit pas attendre les 150 ms de plus. Le champ est un
+   * type="search", et le navigateur émet « search » sur les deux premiers. */
+  function flushSearch() {
+    clearTimeout(searchTimer)
+    searchTimer = null
+    renderView()
+  }
+
+  searchNode.addEventListener('input', onSearch)
+  searchNode.addEventListener('search', flushSearch)
+  searchNode.addEventListener('change', flushSearch)
   window.addEventListener('hashchange', onHashChange)
   backdropNode.addEventListener('click', closePanel)
   document.getElementById('jg-panel-close').addEventListener('click', closePanel)
@@ -3538,6 +3655,17 @@
      * getComputedStyle par minute règle la question sans rien attendre de
      * personne. */
     syncTone()
+    /* Et le modèle, à défaut d'annonce.
+     *
+     * eqLogic::update couvre ce que le coeur signale, mais tout ne passe pas
+     * par lui : un plugin qui crée ses équipements sans appeler
+     * refreshWidget() n'émet rien, et une tablette murale ne changera jamais
+     * d'onglet pour déclencher la relecture. Un quart d'heure est le prix
+     * d'un modèle par quart d'heure et par tablette — soit moins qu'une
+     * seconde de la rafale de valeurs que la même page reçoit déjà. */
+    if (Date.now() - loadedAt >= MODEL_MAX_AGE) {
+      modelChanged()
+    }
   }, 60000)
   /* Revenir sur l'onglet redemande le verrou : le navigateur l'a rendu en
    * partant. */
@@ -3566,6 +3694,7 @@
 
   function teardown() {
     document.body.removeEventListener('cmd::update', onCmdUpdate)
+    document.body.removeEventListener('eqLogic::update', onEqLogicUpdate)
     document.body.removeEventListener('changeTheme', onThemeChange)
     document.body.removeEventListener('checkThemechange', onThemeChange)
     document.body.removeEventListener('changeThemeEvent', onThemeChange)
@@ -3593,6 +3722,12 @@
       clearTimeout(homeTimer)
       homeTimer = null
     }
+    if (modelTimer !== null) {
+      clearTimeout(modelTimer)
+      modelTimer = null
+    }
+    clearTimeout(searchTimer)
+    searchTimer = null
     pending = []
     clearInterval(dimTimer)
     if (observer !== null) {
@@ -3723,6 +3858,7 @@
   }
 
   document.body.addEventListener('cmd::update', onCmdUpdate)
+  document.body.addEventListener('eqLogic::update', onEqLogicUpdate)
   document.body.addEventListener('changeTheme', onThemeChange)
   document.body.addEventListener('checkThemechange', onThemeChange)
   /* Le nom réellement émis par triggerThemechange() quand la page est dans sa

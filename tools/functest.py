@@ -128,7 +128,10 @@ DEMOS = [
               cmd(90214, 'Événement entrée 1', 'info', 'binary', 'BUTTON', 0),
               cmd(90215, 'Appui long 1', 'info', 'binary', 'BUTTON', 0),
               dict(cmd(90216, 'Puissance', 'info', 'numeric', 'POWER', 64.5, 'W'), history=True)]},
-    {'id': 90005, 'name': 'Prise TV', 'roomId': 9001, 'eqType': 'demo', 'category': 'energy',
+    # Le nom raccourci, comme en production : c'est ce que la recherche doit
+    # savoir retrouver par son nom Jeedom, que l'affichage a jeté.
+    {'id': 90005, 'name': 'Prise TV', 'realName': 'Shelly Plug S A4E57C — Prise TV',
+     'roomId': 9001, 'eqType': 'demo', 'category': 'energy',
      'order': 4, 'battery': None, 'card': 'switch', 'domain': 'socket',
      'roles': {'state': 90051, 'on': 90052, 'off': 90053},
      'cmds': [cmd(90051, 'État', 'info', 'binary', 'ENERGY_STATE', 1),
@@ -271,6 +274,11 @@ def main():
       var opener = node.querySelector('.jg-card-open') || node.querySelector('.jg-card-head')
       opener.click()
     }
+    // Le délai de silence entre deux relectures du modèle vaut une minute en
+    // service. Le banc ne peut pas l'attendre, comme il ne peut pas attendre
+    // les cinq minutes de la veille kiosque : il le ramène à 40 ms.
+    window.jeeglowbeRuntime = window.jeeglowbeRuntime || {}
+    window.jeeglowbeRuntime.QUIET = 40
     function run() { try { (0, eval)(SRC) } catch (e) { ERRORS.push('eval: ' + e.message) } }
     function reload() { document.getElementById('host').innerHTML = MARKUP; run() }
     function card(id) { return document.querySelector('.jg-card[data-device-id="' + id + '"]') }
@@ -658,13 +666,30 @@ def main():
     function goToAll() { showAll() }
     search.value = 'plafonnier'
     search.dispatchEvent(new Event('input'))
+    // La frappe seule ne redessine pas : sans ce délai, taper cinq lettres
+    // reconstruisait cinq fois l'écran entier.
+    check('recherche : la frappe seule ne redessine pas',
+          document.querySelectorAll('.jg-card').length === cards.length,
+          document.querySelectorAll('.jg-card').length + ' cartes')
+    // Entrée, ou la croix du champ : le rendu a lieu sur-le-champ.
+    search.dispatchEvent(new Event('change'))
     var shown = document.querySelectorAll('.jg-card')
     check('recherche : une seule carte trouvée', shown.length === 1 && shown[0].dataset.deviceId === '90001',
           shown.length + ' carte(s)')
     check('recherche : une section de résultats',
           document.querySelectorAll('.jg-section').length === 1)
+    // Le nom Jeedom, que l'affichage a raccourci : c'est par là qu'on cherche
+    // un équipement dont on ne connaît que le matériel. On vise le numéro de
+    // série, et non « Shelly » : la marque, elle, est partout sur une vraie
+    // installation, et le banc tourne sur le modèle réel.
+    search.value = 'a4e57c'
+    search.dispatchEvent(new Event('change'))
+    var byReal = document.querySelectorAll('.jg-card')
+    check('recherche : le nom réel est trouvé',
+          byReal.length === 1 && byReal[0].dataset.deviceId === '90005',
+          byReal.length + ' carte(s)')
     search.value = ''
-    search.dispatchEvent(new Event('input'))
+    search.dispatchEvent(new Event('change'))
     check('recherche : tout revient',
           document.querySelectorAll('.jg-card').length === cards.length,
           document.querySelectorAll('.jg-card').length + ' cartes')
@@ -798,8 +823,20 @@ def main():
     check('rechargement : temps réel encore branché',
           light2 !== null && light2.dataset.on === '1', light2 ? light2.dataset.on : 'pas de carte')
 
+    // --- le modèle se relit quand le coeur annonce un changement ------------
+    // Sans cela, une tablette murale qui ne change jamais d'onglet garde
+    // indéfiniment le modèle de son chargement : un équipement qui tombe
+    // injoignable n'apparaît jamais dans la vue Santé.
+    MODEL_RELOADS = 0
+    document.body.dispatchEvent(new CustomEvent('eqLogic::update',
+      { detail: [{ eqLogic_id: 90001, visible: 1, enable: 1 }] }))
+    check('modèle : une annonce ne relit pas sur-le-champ', MODEL_RELOADS === 0,
+          MODEL_RELOADS + ' relecture(s)')
+
     setTimeout(function () {
       // --- la tablette est revenue à l'accueil toute seule -------------------
+      check('modèle : l annonce du coeur a provoqué une relecture', MODEL_RELOADS === 1,
+            MODEL_RELOADS + ' relecture(s)')
       check('kiosque : retour à l accueil après inactivité',
             document.getElementById('jg-root').dataset.view === 'home',
             document.getElementById('jg-root').dataset.view)

@@ -208,18 +208,15 @@ class jeeglowbe extends eqLogic {
          */
         if (config::byKey('showUnassigned', 'jeeglowbe', 1) == 1) {
             $orphans = array();
-            foreach (eqLogic::all() as $eqLogic) {
-                /* Le coeur reconnaît deux façons de n'avoir aucun objet :
-                 * eqLogic::byObjectId() interroge « object_id IS NULL OR
-                 * object_id = -1 ». Ne tester que la chaîne vide laissait les
-                 * seconds nulle part — ni dans une pièce, ni dans « Non classé ». */
-                $objectId = $eqLogic->getObject_id();
-                if ($objectId !== null && $objectId !== '' && intval($objectId) > 0) {
-                    continue;
-                }
-                if ($eqLogic->getIsEnable() != 1 || $eqLogic->getIsVisible() != 1) {
-                    continue;
-                }
+            /* byObjectId(null) et non all() filtré à la main. Le coeur
+             * reconnaît deux façons de n'avoir aucun objet — « object_id IS
+             * NULL OR object_id = -1 » (core/class/eqLogic.class.php, ligne
+             * 116) — et les deux arguments suivants ajoutent « AND isEnable =
+             * 1 AND isVisible = 1 » à la même requête. C'est exactement le tri
+             * qu'on faisait ici, mais fait par la base : all() hydratait toute
+             * la table eqLogic, désactivés et invisibles compris, pour n'en
+             * garder que les orphelins. */
+            foreach (eqLogic::byObjectId(null, true, true) as $eqLogic) {
                 if (is_object($_user) && !$eqLogic->hasRight('r', $_user)) {
                     continue;
                 }
