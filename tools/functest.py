@@ -85,6 +85,10 @@ DEMOS = [
     {'id': 90007, 'name': 'Porte garage', 'roomId': 9001, 'eqType': 'demo', 'category': 'opening',
      'order': 6, 'battery': None, 'card': 'sensor', 'roles': {},
      'cmds': [dict(cmd(90071, 'Ouverture', 'info', 'binary', 'OPENING', 1), invert=True)]},
+    {'id': 90008, 'name': 'Variateur seul', 'roomId': 9001, 'eqType': 'demo', 'category': 'light',
+     'order': 7, 'battery': None, 'card': 'light',
+     'roles': {'slider': 90081},
+     'cmds': [cmd(90081, 'Intensite', 'action', 'slider', 'LIGHT_SLIDER', extra={'min': 0, 'max': 255})]},
     {'id': 90005, 'name': 'Prise TV', 'roomId': 9001, 'eqType': 'demo', 'category': 'energy',
      'order': 4, 'battery': None, 'card': 'switch',
      'roles': {'state': 90051, 'on': 90052, 'off': 90053},
@@ -147,10 +151,14 @@ def main():
      * mesure pour décider de son ambiance. La fixer ici suffit à jouer le thème
      * clair ou le thème sombre. */
     :root { --bg-color: """ + root_bg + """; }
+    /* Reproduction exacte de desktop/css/desktop.main.css:4274 : selecteur de
+     * type, donc n'importe quel header descendant. */
+    body.fullscreen header, body.fullscreen footer { display: none; }
     body { margin:0; padding:18px; background:""" + page_bg + """;
            font-family: Roboto, "Helvetica Neue", Arial, sans-serif; }
     """ + css + """
     </style></head><body>
+    <header id="jeedomMenuBar">menu de Jeedom</header>
     <div id="host">""" + body + """</div>
     <pre id="results"></pre>
     <script id="jgsrc" type="text/plain">""" + js + """</script>
@@ -214,8 +222,26 @@ def main():
     var slider = light.querySelector('input[type=range]')
     slider.value = 42
     slider.dispatchEvent(new Event('change'))
-    check('lumière : curseur envoie la valeur', CALLS.length === 1 && CALLS[0].id === 90014 && CALLS[0].value === 42,
+    check('lumière : curseur envoie une valeur nommée',
+          CALLS.length === 1 && CALLS[0].id === 90014 && CALLS[0].value && CALLS[0].value.slider === 42,
           JSON.stringify(CALLS))
+    slider.value = 0
+    slider.dispatchEvent(new Event('change'))
+    check('curseur : le zéro survit', CALLS.length === 2 && CALLS[1].value.slider === 0, JSON.stringify(CALLS[1]))
+
+    // --- variateur sans allumage (90008) ------------------------------------
+    var dimmer = card(90008)
+    check('variateur seul : pas annoncé comme bouton', !dimmer.classList.contains('jg-tappable') &&
+          dimmer.getAttribute('role') !== 'button')
+    var dimmerSlider = dimmer.querySelector('input[type=range]')
+    dimmerSlider.value = 180
+    dimmerSlider.dispatchEvent(new Event('change'))
+    check('variateur seul : curseur opérant', CALLS.length === 3 && CALLS[2].value.slider === 180,
+          JSON.stringify(CALLS[2]))
+    update(90081, 200)
+    check('variateur seul : pas de pourcentage inventé sur une échelle 0-255',
+          dimmer.querySelector('.jg-slider-value').textContent === '200',
+          dimmer.querySelector('.jg-slider-value').textContent)
 
     // --- bascule unique (90002 : toggle) ------------------------------------
     CALLS = []
@@ -324,6 +350,13 @@ def main():
     // --- plein écran --------------------------------------------------------
     document.getElementById('jg-fullscreen').click()
     check('kiosque : body.fullscreen posé', document.body.classList.contains('fullscreen'))
+    check('kiosque : le menu de Jeedom disparaît',
+          getComputedStyle(document.getElementById('jeedomMenuBar')).display === 'none')
+    check('kiosque : la barre du dashboard reste',
+          getComputedStyle(document.querySelector('.jg-topbar')).display !== 'none',
+          getComputedStyle(document.querySelector('.jg-topbar')).display)
+    check('kiosque : bouton de sortie atteignable',
+          document.getElementById('jg-fullscreen').offsetParent !== null)
     check('kiosque : attribut sur la racine', document.getElementById('jg-root').dataset.kiosk === '1')
     check('kiosque : adresse porte fullscreen=1', window.location.search.indexOf('fullscreen=1') !== -1,
           window.location.search)
@@ -343,8 +376,22 @@ def main():
     check('rechargement : temps réel encore branché',
           light2 !== null && light2.dataset.on === '1', light2 ? light2.dataset.on : 'pas de carte')
 
-    document.getElementById('results').textContent = results.join('\\n') +
-      '\\nERREURS JS: ' + (ERRORS.length ? ERRORS.join(' / ') : 'aucune')
+    // --- sortie de page : Jeedom doit retrouver son menu ---------------------
+    document.getElementById('jg-fullscreen').click()
+    document.getElementById('host').innerHTML = ''
+    var fetched = 0
+    window.fetch = function () { fetched++; return new Promise(function () {}) }
+    document.dispatchEvent(new Event('visibilitychange'))
+
+    setTimeout(function () {
+      check('sortie : la classe fullscreen est retirée du body',
+            !document.body.classList.contains('fullscreen'))
+      check('sortie : le menu de Jeedom revient',
+            getComputedStyle(document.getElementById('jeedomMenuBar')).display !== 'none')
+      check('sortie : plus de relecture du modèle', fetched === 0, fetched + ' appel(s)')
+      document.getElementById('results').textContent = results.join('\\n') +
+        '\\nERREURS JS: ' + (ERRORS.length ? ERRORS.join(' / ') : 'aucune')
+    }, 80)
     </script>
     </body></html>"""
 

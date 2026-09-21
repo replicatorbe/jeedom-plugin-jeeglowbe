@@ -42,15 +42,19 @@
   JG.VALUES = {}
   JG.WATCH = {}
 
-  Object.keys(MODEL.devices || {}).forEach(function (key) {
-    var device = MODEL.devices[key]
-    device.cmds.forEach(function (cmd) {
-      JG.CMDS[cmd.id] = cmd
-      if (cmd.type === 'info') {
-        JG.VALUES[cmd.id] = cmd.value
-      }
+  function indexModel() {
+    JG.CMDS = {}
+    JG.VALUES = {}
+    JG.WATCH = {}
+    Object.keys(MODEL.devices || {}).forEach(function (key) {
+      MODEL.devices[key].cmds.forEach(function (cmd) {
+        JG.CMDS[cmd.id] = cmd
+        if (cmd.type === 'info') {
+          JG.VALUES[cmd.id] = cmd.value
+        }
+      })
     })
-  })
+  }
 
   /* ------------------------------------------------------------------ outils */
 
@@ -167,9 +171,23 @@
 
   /* Exécution d'une commande.
    *
+   * La valeur doit partir NOMMÉE — { slider: 60 }, { select: 'eco' } — et non
+   * en scalaire. Le chemin est sans appel : jeedom.cmd.execute() ne sérialise
+   * que les objets (core/js/cmd.class.js), et côté serveur
+   * core/ajax/cmd.ajax.php fait is_json(init('value'), array()), qui renvoie un
+   * tableau vide dès que la valeur n'est pas un JSON de tableau. Un « 60 » part
+   * donc, ne provoque aucune erreur, et n'arrive jamais : $options['slider']
+   * n'existe pas. Les templates du coeur envoient tous la forme nommée.
+   *
+   * Passer par l'objet règle du même coup le cas du zéro : dans le coeur,
+   * value: _params.value || '' effacerait un 0 scalaire, alors qu'un objet
+   * sérialisé est toujours une chaîne non vide.
+   *
    * notify:false est volontaire : jeedom.cmd.execute() cherche sinon la tuile
    * native .eqLogic-widget correspondante pour l'animer, et nos cartes n'en
    * sont pas. On montre donc nous-mêmes que quelque chose se passe. */
+  var VALUE_KEYS = { slider: 'slider', select: 'select', color: 'color' }
+
   function exec(cmdId, value, source) {
     if (cmdId === undefined || cmdId === null) {
       return
@@ -180,7 +198,16 @@
     }
     var params = { id: cmdId, notify: false }
     if (value !== undefined && value !== null) {
-      params.value = value
+      var cmd = JG.CMDS[cmdId]
+      var key = (cmd && VALUE_KEYS[cmd.subType]) ? VALUE_KEYS[cmd.subType] : null
+      if (key === null) {
+        /* Sous-type sans paramètre attendu : on n'invente pas de nom de champ,
+         * l'action part telle quelle. */
+        params.value = value
+      } else {
+        params.value = {}
+        params.value[key] = value
+      }
     }
     params.error = function (error) {
       if (typeof jeedomUtils !== 'undefined' && jeedomUtils.showAlert) {
@@ -319,7 +346,7 @@
         return
       }
       this._slider.input.value = number
-      this._slider.bubble.textContent = Math.round(number) + ' %'
+      this._slider.bubble.textContent = Math.round(number) + (this._suffix || '')
     }
 
     build() {}
@@ -343,9 +370,20 @@
         this.appendChild(slider)
       }
 
+      /* Rien à basculer : un variateur qui n'expose qu'un curseur, une prise
+       * qui ne rapporte que sa consommation. La carte reste informative — la
+       * déclarer bouton la ferait répondre au clavier et se soulever au
+       * survol pour ne rien faire. */
+      var canToggle = (this.role('toggle') !== undefined || this.role('on') !== undefined || this.role('off') !== undefined)
+
       /* Sans commande d'état, on ne peut pas savoir sur quel pied danser : deux
        * boutons explicites valent mieux qu'une bascule qui se trompe. */
-      if (this.role('state') === undefined && (this.role('on') !== undefined || this.role('off') !== undefined)) {
+      if (!canToggle) {
+        this.metrics(2)
+        this.watchState()
+        return
+      }
+      if (this.role('state') === undefined) {
         var pair = el('div', 'jg-actions')
         if (this.role('on') !== undefined) {
           var onBtn = el('button', 'jg-btn', '{{Allumer}}')
@@ -386,14 +424,15 @@
       }
 
       this.metrics(2)
-      ;[this.role('state'), this.role('brightness')].forEach(function (id) {
-        if (id !== undefined) {
-          watch(id, this)
+      this.watchState()
+    }
+
+    watchState() {
+      ;['state', 'brightness', 'slider'].forEach(function (role) {
+        if (this.role(role) !== undefined) {
+          watch(this.role(role), this)
         }
       }, this)
-      if (this.role('slider') !== undefined) {
-        watch(this.role('slider'), this)
-      }
     }
 
     toggle() {
@@ -560,7 +599,12 @@
        * les enverrait vides ne rendrait service à personne, et l'échec est
        * silencieux côté équipement. Elles attendront leur propre carte. */
       var actions = this.device.cmds.filter(function (cmd) {
-        return cmd.type === 'action' && cmd.visible && cmd.subType !== 'message'
+        if (cmd.type !== 'action' || !cmd.visible || cmd.subType === 'message') {
+          return false
+        }
+        /* Une liste sans valeurs déclarées n'a rien à proposer : le bouton de
+         * repli partirait sans le { select: … } que le coeur attend. */
+        return !(cmd.subType === 'select' && !cmd.list)
       }).slice(0, 8)
       if (actions.length > 0) {
         var bar = el('div', 'jg-actions jg-actions-wrap')
@@ -572,6 +616,17 @@
     }
 
     actionNode(cmd) {
+      if (cmd.subType === 'color') {
+        /* Le coeur attend { color: '#rrggbb' } ; un bouton nu enverrait une
+         * action sans couleur, que l'équipement refuse en silence. */
+        var wrapColor = el('label', 'jg-color')
+        var picker = document.createElement('input')
+        picker.type = 'color'
+        picker.addEventListener('change', function () { exec(cmd.id, picker.value, picker) })
+        wrapColor.appendChild(picker)
+        wrapColor.appendChild(el('span', null, cmd.name))
+        return wrapColor
+      }
       if (cmd.subType === 'select' && cmd.list) {
         var select = document.createElement('select')
         select.className = 'jg-select'
@@ -717,8 +772,10 @@
     var needle = searchNode.value.trim().toLowerCase()
     var visible = 0
 
+    /* Pendant une recherche le filtre de pièce est suspendu : garder la
+     * pastille allumée ferait croire qu'il s'applique encore. */
     roomsNode.querySelectorAll('.jg-chip').forEach(function (chip) {
-      chip.classList.toggle('jg-chip-on', chip.dataset.roomId === room)
+      chip.classList.toggle('jg-chip-on', needle === '' && chip.dataset.roomId === room)
     })
 
     Object.keys(sections).forEach(function (roomId) {
@@ -785,8 +842,53 @@
     window.history.replaceState(null, '', url.toString())
   }
 
+  /* ------------------------------------------------------------- rafraîchir */
+
+  /* Le modèle est rendu avec la page. Un équipement ajouté, renommé ou rangé
+   * dans une autre pièce n'apparaîtrait donc qu'au rechargement — or une
+   * tablette murale n'est jamais rechargée. On relit le modèle quand la page
+   * redevient visible, et seulement si elle a dormi : personne n'est interrompu
+   * en train de la regarder. */
+  var REFRESH_AFTER = 300000
+  var loadedAt = Date.now()
+
+  function render(model) {
+    MODEL = model
+    indexModel()
+    sections = {}
+    sectionsNode.textContent = ''
+    roomsNode.textContent = ''
+    roomsNode.hidden = false
+    buildSections()
+    buildRoomFilter()
+    applyFilter()
+  }
+
+  function refreshModel() {
+    if (document.hidden || !document.body.contains(ROOT) || Date.now() - loadedAt < REFRESH_AFTER) {
+      return
+    }
+    var form = new FormData()
+    form.append('action', 'model')
+    fetch('plugins/jeeglowbe/core/ajax/jeeglowbe.ajax.php', {
+      method: 'POST', body: form, credentials: 'same-origin'
+    }).then(function (response) {
+      return response.json()
+    }).then(function (data) {
+      if (!data || data.state !== 'ok' || !data.result) {
+        return
+      }
+      loadedAt = Date.now()
+      render(data.result)
+    }).catch(function () {
+      /* Réseau coupé, session expirée : on garde à l'écran ce qu'on avait
+       * plutôt que de vider le dashboard. */
+    })
+  }
+
   /* ------------------------------------------------------------------ démarrage */
 
+  indexModel()
   buildSections()
   buildRoomFilter()
   applyFilter()
@@ -794,6 +896,7 @@
 
   searchNode.addEventListener('input', applyFilter)
   window.addEventListener('hashchange', applyFilter)
+  document.addEventListener('visibilitychange', refreshModel)
   document.getElementById('jg-fullscreen').addEventListener('click', function () {
     setFullscreen(!document.body.classList.contains('fullscreen'))
   })
@@ -801,13 +904,39 @@
     setFullscreen(true)
   }
 
+  /* Quitter la page, dans Jeedom, c'est un remplacement de contenu en ajax :
+   * aucun événement de déchargement n'est émis, et nos écouteurs sur
+   * document.body survivraient à chaque aller-retour. Surtout, la classe
+   * fullscreen resterait posée sur le body : tout Jeedom se retrouverait sans
+   * menu ni pied de page, sans moyen de les rétablir depuis l'interface. */
+  var observer = null
+
+  function teardown() {
+    document.body.removeEventListener('cmd::update', onCmdUpdate)
+    document.body.removeEventListener('changeTheme', onThemeChange)
+    document.body.removeEventListener('checkThemechange', onThemeChange)
+    document.removeEventListener('visibilitychange', refreshModel)
+    window.removeEventListener('hashchange', applyFilter)
+    document.body.classList.remove('fullscreen')
+    if (observer !== null) {
+      observer.disconnect()
+      observer = null
+    }
+  }
+
+  if (typeof MutationObserver !== 'undefined') {
+    observer = new MutationObserver(function () {
+      if (!document.body.contains(ROOT)) {
+        teardown()
+      }
+    })
+    observer.observe(document.getElementById('div_pageContainer') || document.body, { childList: true })
+  }
+
   function onCmdUpdate(event) {
-    /* Jeedom charge ses pages en ajax : la nôtre peut avoir été remplacée alors
-     * que l'écouteur, lui, vit sur document.body. On se retire nous-mêmes. */
+    /* Filet de sécurité si l'observateur n'a pas vu le remplacement. */
     if (!document.body.contains(ROOT)) {
-      document.body.removeEventListener('cmd::update', onCmdUpdate)
-      document.body.removeEventListener('changeTheme', onThemeChange)
-      document.body.removeEventListener('checkThemechange', onThemeChange)
+      teardown()
       return
     }
     var updates = Array.isArray(event.detail) ? event.detail : [event.detail]

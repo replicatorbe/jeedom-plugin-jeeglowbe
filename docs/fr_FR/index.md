@@ -50,6 +50,11 @@ mobile et les assistants vocaux.
 Les valeurs se mettent à jour **en temps réel**, sans rechargement : jeeGlow
 écoute le même flux d'événements que le dashboard d'origine.
 
+La liste des équipements, elle, est relue quand la page redevient visible après
+plus de cinq minutes. Un équipement ajouté, renommé ou rangé dans une autre
+pièce apparaît donc tout seul sur une tablette murale, sans qu'on ait à la
+toucher.
+
 Seules les commandes **visibles** apparaissent, plus celles dont la carte a
 besoin. Pour retirer une information du dashboard, décochez *Afficher* sur la
 commande ; pour la faire apparaître, cochez-la.
@@ -95,8 +100,13 @@ La recherche, elle, traverse toutes les pièces.
 - **Titre affiché** : le nom en haut du dashboard.
 - **Afficher les équipements sans objet** : les regroupe dans une pièce
   « Non classé ». Utile tant que le rangement n'est pas fait.
-- **Masquer les pièces vides** : cache les objets qui ne servent qu'à structurer
-  l'arborescence, comme un étage.
+
+## Utilisateurs en lecture seule
+
+Un utilisateur qui a le droit de **voir** un équipement sans celui de l'**agir**
+ne reçoit aucun bouton, aucun curseur, aucune liste : la carte affiche l'état et
+s'arrête là. Le cœur refuserait de toute façon l'exécution, mais un dashboard
+couvert de commandes qui répondent par une alerte rouge n'aurait aucun sens.
 
 ## Ce que jeeGlow ne fait pas
 
