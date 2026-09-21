@@ -85,7 +85,11 @@
         "Humidité": "Humidity",
         "Le nom n'a pas pu être enregistré.": "The name could not be saved.",
         "Pièce": "Room",
-        "La pièce n'a pas pu être changée.": "The room could not be changed."
+        "La pièce n'a pas pu être changée.": "The room could not be changed.",
+        "Kiosque": "Kiosk",
+        "Quitter": "Leave",
+        "Masquer le menu de Jeedom": "Hide the Jeedom menu",
+        "Rendre son menu à Jeedom": "Give Jeedom its menu back"
     },
     "plugins/jeeglowbe/plugin_info/configuration.php": {
         "401 - Accès non autorisé": "401 - Unauthorized access",
@@ -101,6 +105,8 @@
         "Atténuation de nuit": "Night dimming",
         "Pourcentage d'assombrissement de l'écran la nuit, de 0 à 70. Les heures de nuit sont celles que vous avez données à Jeedom pour changer de thème.": "How much the screen is darkened at night, from 0 to 70 per cent. Night hours are the ones you gave Jeedom to switch themes.",
         "Noms courts": "Short names",
-        "Retire des noms affichés les identifiants matériels et ce qui précède un tiret : « OpenMQTTGateway 1629AC — OMG_ESP32_BLE_SALON » devient « OMG_ESP32_BLE_SALON ». N'affecte que l'affichage dans jeeGlow, jamais le nom dans Jeedom, et un nom donné à la main l'emporte toujours.": "Removes hardware identifiers and whatever precedes a dash from displayed names: \"OpenMQTTGateway 1629AC — OMG_ESP32_BLE_SALON\" becomes \"OMG_ESP32_BLE_SALON\". Affects the display in jeeGlow only, never the name in Jeedom, and a hand-given name always wins."
+        "Retire des noms affichés les identifiants matériels et ce qui précède un tiret : « OpenMQTTGateway 1629AC — OMG_ESP32_BLE_SALON » devient « OMG_ESP32_BLE_SALON ». N'affecte que l'affichage dans jeeGlow, jamais le nom dans Jeedom, et un nom donné à la main l'emporte toujours.": "Removes hardware identifiers and whatever precedes a dash from displayed names: \"OpenMQTTGateway 1629AC — OMG_ESP32_BLE_SALON\" becomes \"OMG_ESP32_BLE_SALON\". Affects the display in jeeGlow only, never the name in Jeedom, and a hand-given name always wins.",
+        "Démarrer en kiosque": "Start in kiosk mode",
+        "jeeGlow s'ouvre directement sans le menu ni la barre du haut de Jeedom, sur tous les appareils. Le bouton en haut à droite du dashboard reste maître sur l'appareil où on s'en sert : ce qu'on y choisit est retenu et l'emporte sur ce réglage.": "jeeGlow opens straight away without the Jeedom menu or top bar, on every device. The button in the dashboard remains in charge on the device where it is used: what you choose there is remembered and wins over this setting."
     }
 }

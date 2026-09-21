@@ -16,6 +16,8 @@ Première version.
 - Noms raccourcis automatiquement à l'affichage, réglage « Noms courts ».
 - Rangement d'un équipement dans une pièce depuis le panneau de détail.
 - Horloge sur l'accueil et écran maintenu allumé en kiosque.
+- Bouton « Kiosque » nommé dans le rail, et réglage « Démarrer en kiosque »
+  pour ouvrir jeeGlow sans le menu de Jeedom sans rien cliquer.
 - Mode kiosque retenu par l'appareil, retour à l'accueil après inactivité et
   atténuation de nuit.
 - Thème clair ou sombre accordé automatiquement à celui de Jeedom.

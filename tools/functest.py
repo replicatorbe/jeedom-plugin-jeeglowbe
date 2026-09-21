@@ -152,7 +152,7 @@ def prepare(model):
     model['objects'] = [{'id': 9001, 'name': 'Salon'}, {'id': 9002, 'name': 'Cuisine'}]
     # Une veille de 120 ms et une nuit permanente : le banc ne peut pas
     # attendre cinq minutes ni changer d'heure.
-    model['kiosk'] = {'idle': 0.002, 'dim': 40, 'night': '00:00', 'day': '23:59'}
+    model['kiosk'] = {'idle': 0.002, 'dim': 40, 'night': '00:00', 'day': '23:59', 'start': False}
     for device in DEMOS:
         model['devices'][str(device['id'])] = device
     model['rooms'].insert(0, {'id': 9001, 'name': 'Salon (démonstration)', 'fatherId': 0,
@@ -276,7 +276,12 @@ def main():
     check('une section par domaine présent',
           document.querySelectorAll('.jg-section').length === Object.keys(domains).length,
           document.querySelectorAll('.jg-section').length + ' sections pour ' + Object.keys(domains).length + ' domaines')
-    check('rail : quatre vues', document.querySelectorAll('.jg-rail-item').length === 4)
+    check('rail : quatre vues plus le kiosque',
+          document.querySelectorAll('.jg-rail-item').length === 5,
+          document.querySelectorAll('.jg-rail-item').length + ' entrées')
+    check('rail : le kiosque est nommé',
+          document.querySelector('.jg-rail-kiosk .jg-rail-label').textContent === 'Kiosque',
+          document.querySelector('.jg-rail-kiosk .jg-rail-label').textContent)
     check('rail : la vue courante est marquée',
           document.querySelector('.jg-rail-item.jg-rail-on').dataset.view === 'functions')
     check('sous-onglets : Tout plus les domaines',
@@ -610,6 +615,16 @@ def main():
     check('kiosque : retour arrière', !document.body.classList.contains('fullscreen') && window.location.search.indexOf('fullscreen') === -1)
     check('kiosque : oublié en sortant', window.localStorage.getItem('jeeglowbe.kiosk') === '0',
           String(window.localStorage.getItem('jeeglowbe.kiosk')))
+
+    // --- le kiosque depuis le rail -----------------------------------------
+    document.querySelector('.jg-rail-kiosk').click()
+    check('rail : le kiosque s allume depuis le rail',
+          document.body.classList.contains('fullscreen'))
+    check('rail : le bouton dit comment en sortir',
+          document.querySelector('.jg-rail-kiosk .jg-rail-label').textContent === 'Quitter',
+          document.querySelector('.jg-rail-kiosk .jg-rail-label').textContent)
+    document.querySelector('.jg-rail-kiosk').click()
+    check('rail : et s éteint de même', !document.body.classList.contains('fullscreen'))
 
     // --- veille et nuit : on rallume le kiosque et on laisse faire ----------
     document.getElementById('jg-fullscreen').click()

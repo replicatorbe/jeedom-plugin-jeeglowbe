@@ -1374,6 +1374,8 @@
   var backdropNode = document.getElementById('jg-panel-backdrop')
   var renameButton = document.getElementById('jg-panel-rename')
 
+  var kioskButton = null
+
   var VIEWS = [
     { key: 'home', name: '{{Accueil}}', icon: 'fas fa-home' },
     { key: 'functions', name: '{{Fonctions}}', icon: 'fas fa-th-large' },
@@ -1512,6 +1514,29 @@
       button.addEventListener('click', function () { goTo(view.key, 'all') })
       railNode.appendChild(button)
     })
+
+    /* Le kiosque au bas du rail, avec son nom écrit. Il existait déjà, mais
+     * sous la forme d'une icône muette au milieu des outils : personne n'avait
+     * de raison d'y voir le bouton qui retire le menu de Jeedom. */
+    kioskButton = el('button', 'jg-rail-item jg-rail-kiosk')
+    kioskButton.appendChild(el('i', 'fas fa-expand'))
+    kioskButton.appendChild(el('span', 'jg-rail-label', '{{Kiosque}}'))
+    kioskButton.addEventListener('click', function () {
+      setFullscreen(!document.body.classList.contains('fullscreen'))
+    })
+    railNode.appendChild(kioskButton)
+    syncKioskButton()
+  }
+
+  /* Le même état sur les deux boutons : celui du rail et celui de la barre. */
+  function syncKioskButton() {
+    var on = kioskOn()
+    if (kioskButton !== null) {
+      kioskButton.classList.toggle('jg-rail-on', on)
+      kioskButton.querySelector('i').className = on ? 'fas fa-compress' : 'fas fa-expand'
+      kioskButton.querySelector('.jg-rail-label').textContent = on ? '{{Quitter}}' : '{{Kiosque}}'
+      kioskButton.title = on ? '{{Rendre son menu à Jeedom}}' : '{{Masquer le menu de Jeedom}}'
+    }
   }
 
   function buildTabs(groups) {
@@ -1878,6 +1903,7 @@
     document.body.classList.toggle('fullscreen', on)
     ROOT.dataset.kiosk = on ? '1' : '0'
     remember('kiosk', on ? '1' : '0')
+    syncKioskButton()
     watchIdle()
     syncDim()
     syncWakeLock()
@@ -2169,7 +2195,15 @@
   document.getElementById('jg-fullscreen').addEventListener('click', function () {
     setFullscreen(!document.body.classList.contains('fullscreen'))
   })
-  if (urlVar('fullscreen') === '1' || remembered('kiosk') === '1') {
+  /* Trois sources, dans cet ordre : l'adresse pour un favori ou une page de
+   * démarrage, puis le choix fait sur cet appareil — y compris le refus, qui
+   * doit tenir — puis le réglage de l'installation. */
+  var choix = remembered('kiosk')
+  if (urlVar('fullscreen') === '1') {
+    setFullscreen(true)
+  } else if (choix === '1') {
+    setFullscreen(true)
+  } else if (choix === null && MODEL.kiosk && MODEL.kiosk.start) {
     setFullscreen(true)
   }
 
