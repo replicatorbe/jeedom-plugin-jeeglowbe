@@ -113,6 +113,15 @@ DEMOS = [
      'cmds': [dict(cmd(90201, 'Images de alerte', 'info', 'string', '', '{"a":"x","d":"quelque chose"}'),
                    widget=True),
               cmd(90202, 'Déclenchée', 'info', 'binary', 'GENERIC_INFO', 1)]},
+    {'id': 90013, 'name': 'Prise bavarde', 'roomId': 9001, 'eqType': 'demo', 'category': 'energy',
+     'order': 12, 'battery': None, 'card': 'switch', 'domain': 'socket',
+     'roles': {'state': 90211, 'on': 90212, 'off': 90213},
+     'cmds': [cmd(90211, 'État', 'info', 'binary', 'ENERGY_STATE', 1),
+              cmd(90212, 'On', 'action', 'other', 'ENERGY_ON'),
+              cmd(90213, 'Off', 'action', 'other', 'ENERGY_OFF'),
+              cmd(90214, 'Événement entrée 1', 'info', 'binary', 'BUTTON', 0),
+              cmd(90215, 'Appui long 1', 'info', 'binary', 'BUTTON', 0),
+              dict(cmd(90216, 'Puissance', 'info', 'numeric', 'POWER', 64.5, 'W'), history=True)]},
     {'id': 90005, 'name': 'Prise TV', 'roomId': 9001, 'eqType': 'demo', 'category': 'energy',
      'order': 4, 'battery': None, 'card': 'switch', 'domain': 'socket',
      'roles': {'state': 90051, 'on': 90052, 'off': 90053},
@@ -139,6 +148,10 @@ def prepare(model):
                 entry['value'] = round(random.uniform(entry.get('min', 0), entry.get('max', 100) or 100), 1)
             else:
                 entry['value'] = random.choice(TEXTES)
+    model['admin'] = True
+    # Une veille de 120 ms et une nuit permanente : le banc ne peut pas
+    # attendre cinq minutes ni changer d'heure.
+    model['kiosk'] = {'idle': 0.002, 'dim': 40, 'night': '00:00', 'day': '23:59'}
     for device in DEMOS:
         model['devices'][str(device['id'])] = device
     model['rooms'].insert(0, {'id': 9001, 'name': 'Salon (démonstration)', 'fatherId': 0,
@@ -195,9 +208,18 @@ def main():
       '<scr' + 'ipt>window.WIDGET_RAN = true</scr' + 'ipt>'
     window.WIDGET_RAN = false
     var FETCHES = []
+    var RENAMED = null
     window.fetch = function (url, options) {
       FETCHES.push(url)
       var action = (options && options.body && options.body.get) ? options.body.get('action') : ''
+      if (action === 'rename') {
+        RENAMED = options.body.get('name')
+        return Promise.resolve({
+          json: function () {
+            return Promise.resolve({ state: 'ok', result: { id: 90013, name: RENAMED, realName: 'Prise bavarde' } })
+          }
+        })
+      }
       if (action === 'toHtml') {
         return Promise.resolve({
           json: function () {
@@ -209,7 +231,11 @@ def main():
     }
     window.onerror = function (message, source, line) { ERRORS.push(message + ' @' + line) }
     window.jeeglowbeModel = """ + json.dumps(model, ensure_ascii=False) + """
-    window.jeedom = { cmd: { execute: function (p) { CALLS.push(p) } } }
+    var CHARTS = []
+    window.jeedom = {
+      cmd: { execute: function (p) { CALLS.push(p) } },
+      history: { drawChart: function (p) { CHARTS.push(p) } }
+    }
     window.jeedomUtils = { showAlert: function () {} }
 
     var results = []
@@ -456,6 +482,35 @@ def main():
     check('widget : la commande ordinaire reste une ligne',
           card(90012).querySelectorAll('.jg-row').length >= 1)
 
+    // --- mesures secondaires : le bruit d'entrée écarté ---------------------
+    var chatty = card(90013)
+    check('mesures : les entrées physiques sont écartées',
+          chatty.textContent.indexOf('Appui long') === -1 && chatty.textContent.indexOf('Événement entrée') === -1,
+          chatty.textContent.slice(0, 70))
+    check('mesures : la puissance est montrée', chatty.textContent.indexOf('64.5 W') !== -1,
+          chatty.textContent.slice(0, 70))
+
+    // --- courbes dans le panneau -------------------------------------------
+    CHARTS = []
+    chatty.querySelector('.jg-card-head').click()
+    check('panneau : une courbe par commande historisée', document.querySelectorAll('.jg-chart').length === 1,
+          document.querySelectorAll('.jg-chart').length + ' conteneurs')
+    check('panneau : la courbe a un identifiant unique',
+          document.querySelector('.jg-chart') !== null && document.querySelector('.jg-chart').id === 'jg-chart-90216',
+          document.querySelector('.jg-chart') ? document.querySelector('.jg-chart').id : '')
+
+    // --- renommer ------------------------------------------------------------
+    var renameBtn = document.getElementById('jg-panel-rename')
+    check('renommer : bouton offert à l administrateur', renameBtn.hidden === false)
+    renameBtn.click()
+    var renameInput = document.querySelector('.jg-rename')
+    check('renommer : champ de saisie ouvert', renameInput !== null)
+    RENAMED = null
+    renameInput.value = 'Prise du salon'
+    renameInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    check('renommer : envoyé au serveur', RENAMED === 'Prise du salon', String(RENAMED))
+    document.getElementById('jg-panel-close').click()
+
     // --- recherche ----------------------------------------------------------
     var search = document.getElementById('jg-search')
     function goToAll() {
@@ -520,6 +575,15 @@ def main():
           window.location.search)
     document.getElementById('jg-fullscreen').click()
     check('kiosque : retour arrière', !document.body.classList.contains('fullscreen') && window.location.search.indexOf('fullscreen') === -1)
+    check('kiosque : oublié en sortant', window.localStorage.getItem('jeeglowbe.kiosk') === '0',
+          String(window.localStorage.getItem('jeeglowbe.kiosk')))
+
+    // --- veille et nuit : on rallume le kiosque et on laisse faire ----------
+    document.getElementById('jg-fullscreen').click()
+    check('kiosque : mémorisé pour la prochaine ouverture',
+          window.localStorage.getItem('jeeglowbe.kiosk') === '1')
+    check('kiosque : la nuit assombrit', document.getElementById('jg-root').dataset.dim === '1',
+          document.getElementById('jg-root').dataset.dim)
 
     // --- rechargement de page façon Jeedom (loadPage ré-exécute le script) ---
     var errorsBefore = ERRORS.length
@@ -535,6 +599,19 @@ def main():
           light2 !== null && light2.dataset.on === '1', light2 ? light2.dataset.on : 'pas de carte')
 
     setTimeout(function () {
+      // --- la tablette est revenue à l'accueil toute seule -------------------
+      check('kiosque : retour à l accueil après inactivité',
+            document.getElementById('jg-root').dataset.view === 'home',
+            document.getElementById('jg-root').dataset.view)
+      document.getElementById('jg-fullscreen').click()
+      check('kiosque : éteint, plus d assombrissement',
+            document.getElementById('jg-root').dataset.dim === '0',
+            'dim=' + document.getElementById('jg-root').dataset.dim +
+            ' kiosk=' + document.getElementById('jg-root').dataset.kiosk +
+            ' body=' + document.body.classList.contains('fullscreen'))
+      window.location.hash = 'view=functions&tab=all'
+      window.dispatchEvent(new HashChangeEvent('hashchange'))
+
       // --- le widget est arrivé --------------------------------------------
       var ready = document.querySelector('.jg-widget[data-cmd-id="90201"]')
       check('widget : inséré', ready !== null && ready.classList.contains('jg-widget-ready'))
@@ -561,7 +638,7 @@ def main():
         document.getElementById('results').textContent = results.join('\\n') +
           '\\nERREURS JS: ' + (ERRORS.length ? ERRORS.join(' / ') : 'aucune')
       }, 80)
-    }, 60)
+    }, 220)
     </script>
     </body></html>"""
 

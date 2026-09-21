@@ -843,3 +843,50 @@
     .jg-grid-domains { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
     .jg-domain { min-height: 100px; padding: 14px 12px; }
 }
+
+/* ------------------------------------------------------- renommer, courbes */
+
+.jg-panel-head { position: relative; }
+.jg-panel-title { flex: 1 1 auto; }
+.jg-panel-rename[hidden] { display: none; }
+
+.jg-rename {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--jg-text);
+    background: var(--jg-surface-2);
+    border: 1px solid var(--jg-border);
+    border-radius: 10px;
+    padding: 6px 10px;
+}
+
+.jg-chart-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--jg-muted);
+    margin-top: 4px;
+}
+
+.jg-chart {
+    min-height: 170px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--jg-surface-2);
+}
+
+/* ------------------------------------------------------------- nuit kiosque */
+
+/* Un voile, et non une baisse de luminosité de l'écran : une page web ne
+ * commande pas le rétroéclairage. Il couvre tout, panneau compris, et ne
+ * mange aucun appui. */
+.jg-root[data-dim="1"]::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    pointer-events: none;
+    background: rgba(0, 0, 0, var(--jg-dim, 0));
+    transition: background 1.2s ease;
+}

@@ -106,6 +106,17 @@ class jeeglowbe extends eqLogic {
      * rien de plus que l'absence de catégorie. */
     const CATEGORIES = array('light', 'heating', 'opening', 'security', 'energy', 'multimedia', 'automatism');
 
+    /* La clé de configuration qui porte les noms choisis par l'utilisateur.
+     * Renommer l'équipement dans Jeedom aurait des effets partout — scénarios,
+     * historique, autres plugins ; jeeGlow garde donc ses noms pour lui. */
+    const ALIAS_KEY = 'aliases';
+
+    /* Les alias du modèle en cours de construction. Statique — donc jamais une
+     * colonne pour DB::save() — et rechargée à chaque appel de model() : un
+     * cache de fonction gardait la table d'un appel à l'autre, si bien qu'un
+     * renommage n'apparaissait pas dans le modèle relu juste après. */
+    private static $_aliases = array();
+
     /* Un modèle complet coûte une lecture de cache par commande renvoyée. Au
      * delà de ce seuil on n'a plus affaire à un dashboard mais à un inventaire :
      * on tronque, et la page le dit. */
@@ -122,6 +133,7 @@ class jeeglowbe extends eqLogic {
      */
     public static function model($_user = null) {
         $started = microtime(true);
+        self::$_aliases = self::aliases();
         $rooms = array();
         $devices = array();
 
@@ -220,7 +232,53 @@ class jeeglowbe extends eqLogic {
             'devices'   => $devices,
             'truncated' => (count($devices) >= self::MAX_DEVICES),
             'title'     => trim(config::byKey('title', 'jeeglowbe', '')),
+            /* Renommer touche à la configuration du plugin : réservé aux
+             * administrateurs, comme toute écriture. */
+            'admin'     => (is_object($_user) && $_user->getProfils() == 'admin'),
+            'kiosk'     => self::kioskSettings(),
         );
+    }
+
+    /*
+     * Les réglages du mode kiosque. Les heures de nuit ne sont pas réinventées :
+     * ce sont celles que l'utilisateur a déjà données à Jeedom pour basculer son
+     * thème. Un réglage de moins à tenir, et deux interfaces qui s'accordent.
+     */
+    private static function kioskSettings() {
+        $theme = jeedom::getThemeConfig();
+        return array(
+            'idle'  => intval(config::byKey('kioskIdle', 'jeeglowbe', 0)),
+            'dim'   => intval(config::byKey('kioskDim', 'jeeglowbe', 0)),
+            'night' => isset($theme['theme_end_day_hour']) ? $theme['theme_end_day_hour'] : '20:00',
+            'day'   => isset($theme['theme_start_day_hour']) ? $theme['theme_start_day_hour'] : '08:00',
+        );
+    }
+
+    public static function aliases() {
+        $raw = config::byKey(self::ALIAS_KEY, 'jeeglowbe', '');
+        if ($raw === '' || $raw === null) {
+            return array();
+        }
+        $decoded = is_array($raw) ? $raw : json_decode($raw, true);
+        return is_array($decoded) ? $decoded : array();
+    }
+
+    /*
+     * Pose ou retire le nom choisi pour un équipement. Un nom vide efface
+     * l'entrée plutôt que d'enregistrer une chaîne vide : sans quoi la table des
+     * alias enflerait d'entrées qui ne disent rien.
+     */
+    public static function rename($_id, $_name) {
+        $aliases = self::aliases();
+        $id = intval($_id);
+        $name = trim($_name);
+        if ($name === '') {
+            unset($aliases[$id]);
+        } else {
+            $aliases[$id] = mb_substr($name, 0, 60);
+        }
+        config::save(self::ALIAS_KEY, json_encode($aliases, JSON_UNESCAPED_UNICODE), 'jeeglowbe');
+        return isset($aliases[$id]) ? $aliases[$id] : '';
     }
 
     /*
@@ -253,6 +311,9 @@ class jeeglowbe extends eqLogic {
                 'generic' => $cmd->getGeneric_type(),
                 'visible' => ($cmd->getIsVisible() == 1),
                 'invert'  => ($cmd->getSubType() == 'binary' && $cmd->getDisplay('invertBinary') == 1),
+                /* Une commande historisée peut être tracée : c'est la seule
+                 * condition, le coeur se charge du reste. */
+                'history' => ($cmd->getIsHistorized() == 1),
             );
             if ($cmd->getSubType() == 'slider' || $cmd->getSubType() == 'numeric') {
                 $entry['min'] = ($cmd->getConfiguration('minValue', '') === '') ? 0 : floatval($cmd->getConfiguration('minValue'));
@@ -325,9 +386,13 @@ class jeeglowbe extends eqLogic {
             $battery = '';
         }
 
+        $id = intval($_eqLogic->getId());
+        $alias = isset(self::$_aliases[$id]) ? self::$_aliases[$id] : '';
+
         return array(
-            'id'       => intval($_eqLogic->getId()),
-            'name'     => $_eqLogic->getName(),
+            'id'       => $id,
+            'name'     => ($alias !== '') ? $alias : $_eqLogic->getName(),
+            'realName' => ($alias !== '') ? $_eqLogic->getName() : '',
             'domain'   => self::domainOf($meta),
             'roomId'   => $_roomId,
             'eqType'   => $_eqLogic->getEqType_name(),

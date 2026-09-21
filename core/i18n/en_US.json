@@ -4,7 +4,8 @@
     },
     "plugins/jeeglowbe/core/ajax/jeeglowbe.ajax.php": {
         "401 - Accès non autorisé": "401 - Unauthorized access",
-        "Aucune méthode correspondante à :": "No matching method for:"
+        "Aucune méthode correspondante à :": "No matching method for:",
+        "Équipement introuvable": "Device not found"
     },
     "plugins/jeeglowbe/desktop/php/jeeglowbe.php": {
         "401 - Accès non autorisé": "401 - Unauthorized access",
@@ -14,7 +15,8 @@
         "jeeGlow lit les équipements visibles et actifs de vos objets. Vérifiez qu'au moins un équipement est visible, ou élargissez votre recherche.": "jeeGlow reads the visible and enabled devices of your objects. Check that at least one device is visible, or widen your search.",
         "Vues": "Views",
         "Détail de l'équipement": "Device details",
-        "Fermer": "Close"
+        "Fermer": "Close",
+        "Renommer dans jeeGlow": "Rename in jeeGlow"
     },
     "plugins/jeeglowbe/desktop/js/jeeglowbe.js": {
         "Ouvert": "Open",
@@ -79,7 +81,8 @@
         "Consommation": "Power",
         "Température": "Temperature",
         "Dehors": "Outside",
-        "Humidité": "Humidity"
+        "Humidité": "Humidity",
+        "Le nom n'a pas pu être enregistré.": "The name could not be saved."
     },
     "plugins/jeeglowbe/plugin_info/configuration.php": {
         "401 - Accès non autorisé": "401 - Unauthorized access",
@@ -88,6 +91,11 @@
         "Nom affiché en haut du dashboard. Vide, c'est « jeeGlow ».": "Name shown at the top of the dashboard. Empty means \"jeeGlow\".",
         "Afficher les équipements sans objet": "Show devices without an object",
         "Les équipements qui n'appartiennent à aucun objet sont regroupés dans une pièce « Non classé ». Les masquer donne un dashboard plus propre, mais fait oublier qu'ils existent.": "Devices that belong to no object are grouped in an \"Unassigned\" room. Hiding them gives a cleaner dashboard, but makes it easy to forget they exist.",
-        "Une pièce sans aucun équipement visible n'apparaît pas. Décochez pour voir toute l'arborescence de vos objets, y compris les étages qui ne servent qu'à ranger.": "A room without any visible device does not appear. Untick to see your whole object tree, including floors that only exist to organise it."
+        "Une pièce sans aucun équipement visible n'apparaît pas. Décochez pour voir toute l'arborescence de vos objets, y compris les étages qui ne servent qu'à ranger.": "A room without any visible device does not appear. Untick to see your whole object tree, including floors that only exist to organise it.",
+        "Mode kiosque": "Kiosk mode",
+        "Retour à l'accueil après": "Return home after",
+        "Minutes d'inactivité au bout desquelles une tablette revient à l'accueil. 0 pour ne jamais revenir. Ne s'applique qu'en mode kiosque.": "Minutes of inactivity after which a tablet returns to the home view. 0 never returns. Only applies in kiosk mode.",
+        "Atténuation de nuit": "Night dimming",
+        "Pourcentage d'assombrissement de l'écran la nuit, de 0 à 70. Les heures de nuit sont celles que vous avez données à Jeedom pour changer de thème.": "How much the screen is darkened at night, from 0 to 70 per cent. Night hours are the ones you gave Jeedom to switch themes."
     }
 }

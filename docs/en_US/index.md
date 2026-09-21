@@ -133,15 +133,46 @@ A card shows at most six pieces of information and eight commands. Beyond that
 it says so: **"+ 4 more"**, one tap unfolds the rest. Nothing disappears
 silently.
 
+## Your own names
+
+`Shelly 1 91E2EE — spotcuisinep` will never look good on a wall. Open a device's
+detail and click the pencil: the name you give is used everywhere in jeeGlow.
+
+**The device name in Jeedom is left alone.** Your scenarios, your history and
+other plugins rely on it. The chosen name lives in jeeGlow's configuration.
+Clear it to go back to the original name. Renaming writes to the plugin
+configuration, so it is reserved for administrators.
+
+## Charts
+
+In the detail panel, **historised** commands are plotted over the last 24 hours,
+two charts at most. Jeedom's own chart engine draws them: same data, same
+colours as everywhere else.
+
 ## Kiosk mode
 
-The button in the top right corner switches to full screen: the Jeedom menu and
-footer disappear, only the dashboard remains. The address follows, so it can be
-bookmarked or used as a start page on a tablet:
+The button in the top right corner switches to full screen: **the Jeedom menu
+and top bar disappear**, along with the footer. Only the dashboard remains.
+
+The mode is **remembered by the device**: a tablet reopening the page finds it
+in kiosk mode, with no URL parameter and no action. A computer opening the same
+address keeps its menu — the setting belongs to the browser. The same button
+leaves, and Jeedom gets its menu back.
+
+The address works too, for a bookmark or a start page:
 
 ```
 index.php?v=d&m=jeeglowbe&p=jeeglowbe&fullscreen=1
 ```
+
+Two settings go with this mode, in the plugin configuration, and apply to it
+only:
+
+- **Return home after** *n* minutes of inactivity. An open detail panel suspends
+  that return: nobody's reading gets interrupted.
+- **Night dimming**: a veil darkens the screen, from 0 to 70 per cent. Night
+  hours are the ones you already gave Jeedom to switch themes. A web page cannot
+  control the backlight: this is a veil, not a brightness change.
 
 For a properly locked wall tablet:
 
