@@ -64,6 +64,12 @@ temperature, humidity, whenever your installation measures them. Each badge
 over the probe buried inside another appliance, which mostly measures the heat
 of its own casing.
 
+When your installation reports the weather condition, the "Outside" card's icon
+**follows the actual weather** — rain, snow, thunder, fog, overcast — and turns
+into a moon at night for a clear sky. A condition it does not recognise leaves
+the original icon: getting the weather wrong would be worse than not changing
+it.
+
 **A "needs attention" banner**, when there is something to report, counting the
 problems and leading to the Health view.
 
@@ -76,10 +82,21 @@ the row's heading. It asks for confirmation, and it spaces the commands 120
 milliseconds apart: fifteen simultaneous executions bring some plugin daemons
 down.
 
+The same button heads the page of a domain and that of a room: step into
+"Lights" or into "Living room" and you can cut everything in one gesture. It
+does not appear on the overview, where rows are clipped — a button switching
+twenty-eight devices off under a row showing six would promise something other
+than what it does — nor in the Health view, where a low battery does not switch
+off. It removes itself as soon as a single thing is left running in the row:
+that one switches off on its own card.
+
 **Scenes**, if you have scenarios. Only the ones that are active, visible and
-that you are allowed to run are offered. A scenario in progress says so, because
-a long one — closing twelve shutters — otherwise gives no sign between the tap
-and the end. The scenario's own log records a manual launch, under your name,
+that you are allowed to run are offered. Each scene states **how long ago it
+last ran** — "2 hr. ago", "yesterday", a date beyond a week — next to its group:
+that is the question you ask with your hand above the button, and a scenario
+never launched simply says nothing. The mention turns to "just now" on the tap.
+A scenario in progress says so too, because a long one — closing twelve shutters
+— otherwise gives no sign between the tap and the end. The scenario's own log records a manual launch, under your name,
 exactly as if it had come from the core.
 
 **Rooms**, one tile each, carrying **the icon and the colour you already chose in
@@ -226,7 +243,19 @@ numbers would be exactly the wrong way round.
 ## What you can see change
 
 Values refresh **in real time**, with no reload: jeeGlow listens to the same
-event stream as the original dashboard. And since a live dashboard that swaps a
+event stream as the original dashboard. That holds for cards, and also for
+**everything that sums Home up**: the "Outside" and "Inside" cards, a domain
+tile's reading, a room tile's temperature, the count of what is running. None of
+those tiles is a card, and none of them followed anything: they stayed at the
+value they had when the page was drawn — which, on a wall tablet nobody ever
+reloads, means this morning's.
+
+**Scenes** follow too. A scenario started from another screen, by a sensor or by
+its own schedule shows its hourglass here, and its line goes back to "just now"
+— jeeGlow listens to the announcement the core already makes to all its clients,
+instead of waiting for the quarter-hourly re-read.
+
+And since a live dashboard that swaps a
 piece of text without a pixel of signal forces you to re-read the whole screen
 to find out what moved:
 

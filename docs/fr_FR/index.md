@@ -66,6 +66,12 @@ relevé on ne sait où n'est la température de personne. Un capteur dédié pas
 devant la sonde interne d'un autre appareil, qui mesure surtout la chaleur de
 son propre boîtier.
 
+Quand votre installation rapporte la condition météo, l'icône de la carte
+« Dehors » **suit le temps qu'il fait** — pluie, neige, orage, brouillard, ciel
+couvert — et devient une lune la nuit pour un ciel dégagé. Une condition qu'elle
+ne reconnaît pas laisse l'icône d'origine : se tromper de temps serait pire que
+de ne pas en changer.
+
 **Un bandeau « points à surveiller »**, s'il y a lieu, qui compte les ennuis et
 mène à la vue Santé.
 
@@ -78,9 +84,21 @@ le titre de la rangée. Il demande confirmation, et il espace les commandes de
 120 millisecondes : quinze exécutions simultanées font tomber certains démons de
 plugin.
 
+Le même bouton coiffe la page d'un domaine et celle d'une pièce : entrez dans
+« Lumières » ou dans « Salon » et vous pouvez tout couper d'un geste. Il
+n'apparaît pas sur l'aperçu, où les rangées sont écrêtées — un bouton qui
+éteindrait vingt-huit équipements sous une rangée qui en montre six promettrait
+autre chose que ce qu'il fait — ni dans la vue Santé, où une pile faible ne
+s'éteint pas. Il s'efface de lui-même dès qu'il ne reste plus qu'une seule chose
+allumée dans la rangée : celle-là s'éteint sur sa carte.
+
 **Les scènes**, quand vous avez des scénarios. Ne sont proposés que ceux qui
-sont actifs, visibles, et que vous avez le droit de lancer. Un scénario en cours
-le dit, parce qu'un scénario long — fermer douze volets — ne donne sinon aucun
+sont actifs, visibles, et que vous avez le droit de lancer. Chaque scène indique
+**depuis quand elle n'a pas tourné** — « il y a 2 h », « hier », une date
+au-delà d'une semaine — à côté de son groupe : c'est la question qu'on se pose
+la main au-dessus du bouton, et un scénario jamais lancé ne dit simplement rien.
+La mention passe à « à l'instant » dès l'appui. Un scénario en cours le dit
+aussi, parce qu'un scénario long — fermer douze volets — ne donne sinon aucun
 signe entre l'appui et la fin. Le journal du scénario enregistre un lancement
 manuel, à votre nom, comme s'il partait du cœur.
 
@@ -240,7 +258,20 @@ trois nombres serait exactement l'inverse de ce qu'on cherche.
 ## Ce qui se voit bouger
 
 Les valeurs se mettent à jour **en temps réel**, sans rechargement : jeeGlow
-écoute le même flux d'événements que le dashboard d'origine. Et comme un
+écoute le même flux d'événements que le dashboard d'origine. Cela vaut pour les
+cartes, mais aussi pour **tout ce qui résume l'accueil** : les cartes « Dehors »
+et « Intérieur », la mesure d'une tuile de domaine, la température d'une tuile
+de pièce, le nombre de choses en marche. Aucune de ces tuiles n'est une carte,
+et aucune ne suivait rien : elles restaient à la valeur qu'elles avaient au
+dessin de la page, c'est-à-dire, sur une tablette murale qu'on ne recharge
+jamais, à celle du matin.
+
+Les **scènes** suivent aussi. Un scénario lancé depuis un autre écran, par un
+capteur ou par sa programmation montre son sablier ici, et sa ligne repasse à
+« à l'instant » — jeeGlow écoute l'annonce que le cœur fait déjà à tous ses
+clients, au lieu d'attendre la relecture du quart d'heure.
+
+Et comme un
 dashboard temps réel qui remplace un texte sans un pixel de signal oblige à
 relire l'écran entier pour savoir ce qui vient de bouger :
 

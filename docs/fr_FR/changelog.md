@@ -63,6 +63,31 @@ règle ce qu'il montre.
   fait ramer les tablettes bon marché.
 - La recherche porte aussi sur le nom de la pièce.
 - Les réglages d'une carte occupent chacun une rangée pleine largeur.
+- Chaque scène dit depuis quand elle n'a pas tourné : « il y a 2 h », « hier »,
+  une date au-delà d'une semaine. Le relevé voyageait dans le modèle depuis la
+  première version et n'était affiché nulle part. La mention passe à
+  « à l'instant » dès l'appui, sans attendre la relecture du modèle.
+- « Tout éteindre » coiffe aussi la page d'un domaine et celle d'une pièce. Il
+  n'existait que sur « En ce moment » — or c'est en entrant dans « Lumières » ou
+  dans « Salon » qu'on veut couper d'un geste. Pas sur l'aperçu, où les rangées
+  sont écrêtées, ni dans la vue Santé, où une pile faible ne s'éteint pas ; et
+  il s'efface dès qu'il ne reste qu'une seule chose allumée.
+- L'icône de la carte « Dehors » suit le temps qu'il fait. Elle était un soleil
+  voilé par construction, quelle qu'ait été la condition météo — et la condition
+  était déjà lue, écrite en toutes lettres au bas de cette même carte. Un ciel
+  dégagé devient une lune la nuit, et une condition non reconnue garde l'icône
+  d'origine.
+- **Tout l'accueil suit le temps réel.** Les cartes « Dehors » et
+  « Intérieur », la mesure d'une tuile de domaine, la température d'une tuile de
+  pièce ne sont pas des cartes : elles n'avaient aucun abonnement et restaient à
+  la valeur du dessin de la page. Sur une tablette murale, qui n'est jamais
+  rechargée et ne change jamais d'onglet, l'écran affichait la maison de tout à
+  l'heure — ce qui retire à un dashboard connecté à peu près tout son intérêt.
+- Les scènes suivent l'annonce que le cœur fait déjà : un scénario lancé depuis
+  un autre écran, par un capteur ou par sa programmation montre son sablier ici,
+  et sa ligne repasse à « à l'instant ». Ce qui est appris ainsi est écrit dans
+  le modèle et non sur le seul bouton, sans quoi le premier redessin le
+  perdrait.
 - Documentation : l'adresse d'une pièce s'écrit `#view=rooms&tab=5` et non
   `#room=5`, et une carte montre trois informations et quatre commandes, non six
   et huit.

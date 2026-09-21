@@ -2055,6 +2055,64 @@
 
   }
 
+  /* Une tuile d'accueil qui suit le temps réel.
+   *
+   * Les tuiles de l'accueil ne sont pas des cartes : ni élément personnalisé,
+   * ni sync(), ni désabonnement. Elles restaient donc à la valeur qu'elles
+   * avaient au dessin. La température du dehors, la consommation du compteur,
+   * le résumé d'une pièce ne bougeaient qu'au redessin complet de l'accueil —
+   * c'est-à-dire quand un équipement basculait, ou au quart d'heure. Sur une
+   * tablette murale, autant dire jamais : l'écran affichait la maison de tout
+   * à l'heure.
+   *
+   * Un abonné minimal suffit, et c'est exactement ce qu'est une carte vue du
+   * registre : un objet qui porte un sync(). Le noeud lui-même fait l'affaire.
+   *
+   * La classe jg-follows n'est pas décorative : forgetAll() balaye les abonnés
+   * par leur classe avant de remplacer une vue, et il n'avait aucune raison
+   * d'aller chercher un bouton d'accueil. Sans elle, chaque redessin
+   * laisserait derrière lui une tuile abonnée à vie — et le registre
+   * grossirait d'autant à chaque aller-retour dans le menu.
+   *
+   * Elle ne s'appelle surtout pas « jg-live » : ce nom est déjà pris par la
+   * pastille rouge d'une caméra qui détecte du mouvement, et le poser sur une
+   * tuile lui collait sa casse, sa couleur et sa forme de pilule. Une classe
+   * qui ne sert qu'à retrouver un noeud reste invisible à la feuille de
+   * style.
+   *
+   * Le rendu est rejoué une fois à la construction : la tuile n'a ainsi qu'une
+   * seule façon de se remplir, et non deux qui finiraient par diverger. */
+  function live(node, ids, render) {
+    node.classList.add('jg-follows')
+    node.sync = render
+    ids.forEach(function (id) {
+      if (id !== undefined && id !== null) {
+        watch(id, node)
+      }
+    })
+    render()
+    return node
+  }
+
+  /* Ce qu'une tuile doit surveiller : l'état de ce qu'elle compte, et la mesure
+   * qu'elle affiche. Les deux, parce qu'une tuile dit les deux — « 2 en marche
+   * · 21,4 °C » se périme par l'un comme par l'autre. */
+  function tileIds(devices, generics) {
+    var ids = []
+    devices.forEach(function (device) {
+      if (device.roles && device.roles.state !== undefined) {
+        ids.push(device.roles.state)
+      }
+      if (generics !== undefined) {
+        var cmd = firstGeneric(device, generics)
+        if (cmd !== null) {
+          ids.push(cmd.id)
+        }
+      }
+    })
+    return ids
+  }
+
   function watch(cmdId, card) {
     if (!JG.WATCH[cmdId]) {
       JG.WATCH[cmdId] = []
@@ -2944,6 +3002,45 @@
    * la page du domaine, qui montre tout. */
   var PREVIEW_LIMIT = 6
 
+  /* Le bouton d'extinction d'une rangée entière, et son entretien.
+   *
+   * Hors de l'accueil, rien ne redessine la vue quand une lampe s'éteint : les
+   * cartes se synchronisent d'elles-mêmes, la page reste en place. Un
+   * « Tout éteindre » construit une fois pour toutes resterait donc affiché
+   * sous une rangée entièrement éteinte — un bouton qui ment. Il porte sa
+   * propre liste et se relit à chaque changement d'état.
+   *
+   * Le seuil est celui de « En ce moment » : deux. Une seule lampe allumée
+   * s'éteint sur sa carte, et un bouton de rangée pour un seul équipement est
+   * un détour. */
+  function offAction(pool) {
+    var button = el('button', 'jg-section-action', '{{Tout éteindre}}')
+    button.type = 'button'
+    button._jgPool = pool
+    button.addEventListener('click', function () {
+      /* La cible est relue à l'appui, et non celle d'il y a dix minutes : ce
+       * qui s'est éteint entre-temps n'a pas à recevoir une commande. */
+      var lit = pool.filter(isLit)
+      if (lit.length > 1) {
+        turnAllOff(lit, button)
+      }
+    })
+    syncOffAction(button)
+    return button
+  }
+
+  function syncOffAction(button) {
+    button.hidden = (button._jgPool.filter(isLit).length < 2)
+  }
+
+  function syncOffActions() {
+    Array.prototype.forEach.call(sectionsNode.querySelectorAll('.jg-section-action'), function (button) {
+      if (button._jgPool !== undefined) {
+        syncOffAction(button)
+      }
+    })
+  }
+
   function section(group, view, limit) {
     var node = el('section', 'jg-section')
     node.dataset.groupKey = group.key
@@ -2960,6 +3057,27 @@
      * une prise. « Non classé » non plus : ce n'est pas une pièce. */
     if (editingHere() && (view === 'system' || view === 'rooms') && group.key !== '0') {
       title.appendChild(groupEye(view === 'system' ? 'type' : 'room', group.key))
+    }
+    /* « Tout éteindre » appartient aussi aux pages de domaine et de pièce.
+     *
+     * Il n'existait que sur « En ce moment ». Or c'est en entrant dans
+     * « Lumières » ou dans « Salon » qu'on veut couper d'un geste, et c'est là
+     * qu'il fallait éteindre douze cartes une par une.
+     *
+     * Trois vues sont écartées, et pour trois raisons différentes. L'aperçu,
+     * parce qu'une section écrêtée montre six cartes sur vingt-huit : un
+     * bouton qui en éteindrait vingt-huit sous une rangée de six promet autre
+     * chose que ce qu'il fait. La vue Santé, parce qu'une pile faible ne
+     * s'éteint pas. La recherche, parce qu'une liste de résultats n'est pas un
+     * ensemble qu'on pilote — « volet » rapporte aussi bien le volet du salon
+     * que le scénario qui les ferme. */
+    if (!limit && (view === 'functions' || view === 'rooms')) {
+      var pool = drawnOnly(group.devices).filter(function (device) {
+        return device.roles && (device.roles.off !== undefined || device.roles.toggle !== undefined)
+      })
+      if (pool.length > 1) {
+        title.appendChild(offAction(pool))
+      }
     }
     node.appendChild(title)
     var grid = el('div', 'jg-grid')
@@ -3007,7 +3125,6 @@
      * pixels ne se vise pas au doigt et ne se distingue pas de loin. */
     var shortcuts = el('div', 'jg-grid jg-grid-launch')
     groups.forEach(function (group) {
-      var lit = group.devices.filter(isLit).length
       /* Le nom en haut, l'état en bas, et l'icône en filigrane derrière,
        * débordant du coin : elle donne à la tuile sa silhouette sans disputer
        * la place au texte. C'est ce qui permet de reconnaître une tuile du
@@ -3016,9 +3133,17 @@
       tile.dataset.domain = group.key
       tile.appendChild(el('span', 'jg-launch-name', group.name))
       tile.appendChild(el('i', group.icon + ' jg-launch-mark'))
-      tile.appendChild(el('span', 'jg-launch-count', launchState(group, lit)))
-      tile.classList.toggle('jg-launch-on', lit > 0)
+      var count = el('span', 'jg-launch-count', '')
+      tile.appendChild(count)
       tile.addEventListener('click', function () { goTo('functions', group.key) })
+      /* « Météo 12,4 °C » et « Énergie 1,8 kW » se périment sans qu'aucun
+       * équipement n'ait basculé : le redessin de l'accueil, qui ne se
+       * déclenche que sur une bascule, ne les rattrapait jamais. */
+      live(tile, tileIds(group.devices, LAUNCH_MEASURES[group.key]), function () {
+        var lit = group.devices.filter(isLit).length
+        count.textContent = launchState(group, lit)
+        tile.classList.toggle('jg-launch-on', lit > 0)
+      })
       shortcuts.appendChild(tile)
     })
     if (shortcuts.children.length > 0) {
@@ -3047,7 +3172,6 @@
     peopled.forEach(function (entry) {
       var room = entry.room
       var devices = entry.devices
-      var lit = entry.lit
       /* Toutes de la même taille.
        *
        * La première était double pour donner à l'oeil un point d'entrée, à une
@@ -3072,10 +3196,18 @@
       art.appendChild(el('i', room.icon || 'fas fa-door-open'))
       tile.appendChild(art)
       tile.appendChild(el('span', 'jg-domain-name', room.name))
-      tile.appendChild(el('span', 'jg-domain-count',
-        summaryOf(devices) || (devices.length + ' ' + ((devices.length > 1) ? '{{équipements}}' : '{{équipement}}'))))
-      tile.classList.toggle('jg-domain-on', lit > 0)
+      var count = el('span', 'jg-domain-count', '')
+      tile.appendChild(count)
       tile.addEventListener('click', function () { goTo('rooms', String(room.id)) })
+      /* La température d'une pièce change sans que rien n'ait basculé : c'est
+       * même ce qu'elle fait de plus régulier. Sans abonnement, la tuile
+       * affichait celle du dernier redessin. */
+      live(tile, tileIds(devices, ROOM_MEASURES), function () {
+        var lit = devices.filter(isLit).length
+        count.textContent = summaryOf(devices) ||
+          (devices.length + ' ' + ((devices.length > 1) ? '{{équipements}}' : '{{équipement}}'))
+        tile.classList.toggle('jg-domain-on', lit > 0)
+      })
       rooms.appendChild(tile)
     })
     node.appendChild(rooms)
@@ -3206,6 +3338,80 @@
     { generic: 'POWER', name: '{{Consommation}}', icon: 'fas fa-bolt' }
   ]
 
+  /* Le ciel, en icône.
+   *
+   * La carte « Dehors » portait « fas fa-cloud-sun » par construction, quel que
+   * soit le temps : la plus grande vignette de l'accueil — celle qu'on lit à
+   * trois mètres, sans s'approcher — annonçait une éclaircie sous la pluie. Le
+   * renseignement était pourtant déjà là, lu et écrit en toutes lettres au bas
+   * de cette même carte.
+   *
+   * La reconnaissance se fait sur des mots et non sur un code. Les plugins
+   * météo ne s'accordent sur aucune table de codes — chacun a la sienne, et
+   * certains ne rendent qu'un texte — mais tous écrivent la condition en clair
+   * dans la langue de Jeedom. Les deux langues du plugin sont couvertes, les
+   * accents retirés de part et d'autre de la comparaison.
+   *
+   * L'ordre est celui du plus précis au plus général : « partiellement
+   * nuageux » contient « nuageux », et doit rendre l'éclaircie plutôt que le
+   * ciel couvert. Une condition non reconnue garde l'icône d'origine, qui
+   * reste une icône de météo : se tromper de temps serait pire que de ne pas
+   * en changer. */
+  var SKIES = [
+    { icon: 'fas fa-bolt', words: ['orage', 'tonnerre', 'thunder', 'storm'] },
+    { icon: 'fas fa-snowflake', words: ['neige', 'grele', 'snow', 'sleet', 'hail'] },
+    { icon: 'fas fa-cloud-showers-heavy', words: ['averse', 'shower', 'pluie forte', 'heavy rain'] },
+    { icon: 'fas fa-cloud-rain', words: ['pluie', 'bruine', 'rain', 'drizzle'] },
+    { icon: 'fas fa-smog', words: ['brouillard', 'brume', 'fog', 'mist', 'haze'] },
+    { icon: 'fas fa-wind', words: ['vent', 'wind'] },
+    { icon: 'fas fa-cloud-sun', words: ['eclaircie', 'partiellement', 'partly', 'variable'] },
+    { icon: 'fas fa-cloud', words: ['couvert', 'nuageux', 'nuage', 'overcast', 'cloud'] },
+    { icon: 'fas fa-sun', words: ['ensoleille', 'soleil', 'degage', 'clair', 'sunny', 'clear', 'fair'] }
+  ]
+
+  /* Un soleil à vingt-trois heures se remarque plus que la bonne icône. Deux
+   * bornes fixes plutôt qu'un calcul d'éphémérides : l'icône n'a pas à être
+   * juste à la minute du coucher, elle a à ne pas montrer le jour en pleine
+   * nuit. Les heures de nuit du kiosque ne conviennent pas — elles règlent
+   * l'atténuation d'un écran, qui est une autre question, et restent vides sur
+   * la plupart des installations. */
+  var NIGHT_SKIES = { 'fas fa-sun': 'fas fa-moon', 'fas fa-cloud-sun': 'fas fa-cloud-moon' }
+
+  /* Minuscules et sans accents, des deux côtés de la comparaison : les plugins
+   * météo écrivent aussi bien « Ensoleillé » que « ENSOLEILLE ». Le nom est
+   * distinct de la variable « plain » des cartes, qui désigne tout autre chose
+   * — une ligne sans widget ni image. */
+  function plainWords(text) {
+    var value = String(text).toLowerCase()
+    return value.normalize ? value.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : value
+  }
+
+  function skyIcon(values) {
+    var fallback = values[0].icon
+    var sky = null
+    values.forEach(function (found) {
+      if (found.generic === 'WEATHER_CONDITION') {
+        sky = plainWords(format(found.id))
+      }
+    })
+    if (sky === null) {
+      return fallback
+    }
+    var chosen = fallback
+    for (var i = 0; i < SKIES.length; i++) {
+      var hit = SKIES[i].words.some(function (word) { return sky.indexOf(word) !== -1 })
+      if (hit) {
+        chosen = SKIES[i].icon
+        break
+      }
+    }
+    var hour = new Date().getHours()
+    if ((hour >= 21 || hour < 7) && NIGHT_SKIES[chosen] !== undefined) {
+      return NIGHT_SKIES[chosen]
+    }
+    return chosen
+  }
+
   function summaryCards() {
     return [OUTSIDE, INSIDE].map(function (set) {
       var values = set.map(pickMeasure).filter(function (found) { return found !== null })
@@ -3216,18 +3422,40 @@
       card.type = 'button'
       var head = el('div', 'jg-hero-head')
       head.appendChild(el('span', 'jg-hero-label', values[0].name))
-      head.appendChild(el('i', values[0].icon + ' jg-hero-mark'))
+      var mark = el('i', 'jg-hero-mark')
+      head.appendChild(mark)
       card.appendChild(head)
-      card.appendChild(el('div', 'jg-hero-value', format(values[0].id)))
+      var big = el('div', 'jg-hero-value', '')
+      card.appendChild(big)
+      var lines = []
       if (values.length > 1) {
         var rest = el('div', 'jg-hero-rest')
         values.slice(1).forEach(function (found) {
-          rest.appendChild(el('span', null, found.name + ' ' + format(found.id)))
+          var line = el('span', null, '')
+          rest.appendChild(line)
+          lines.push({ found: found, node: line })
         })
         card.appendChild(rest)
       }
       card.title = values[0].source
       card.addEventListener('click', function () { openPanel(values[0].deviceId) })
+      /* La plus grande vignette de l'accueil, et la plus figée : « 12,4 °C »
+       * dehors, la consommation du compteur, le ciel, restaient tels qu'ils
+       * étaient au dessin de la page. C'est précisément l'inverse de ce qu'on
+       * demande à un écran mural — et c'est ce qu'on lit à trois mètres, donc
+       * la seule valeur du dashboard que personne ne vérifie jamais de près.
+       *
+       * L'icône est refaite à chaque passage, et non seulement les nombres :
+       * la condition météo décide du ciel dessiné, et un nuage de pluie
+       * au-dessus d'un soleil revenu serait un mensonge de plus, pas un de
+       * moins. */
+      live(card, values.map(function (found) { return found.id }), function () {
+        mark.className = skyIcon(values) + ' jg-hero-mark'
+        big.textContent = format(values[0].id)
+        lines.forEach(function (line) {
+          line.node.textContent = line.found.name + ' ' + format(line.found.id)
+        })
+      })
       return card
     }).filter(function (card) { return card !== null })
   }
@@ -3260,6 +3488,10 @@
       id: chosen,
       name: entry.name,
       icon: entry.icon,
+      /* Repris tel quel : skyIcon() a besoin de retrouver la condition météo
+       * parmi les mesures retenues, et leurs rangs ne se correspondent plus dès
+       * qu'une seule manque. */
+      generic: entry.generic,
       deviceId: JG.OWNER[chosen],
       source: owner ? owner.name : ''
     }
@@ -3321,7 +3553,14 @@
 
   /* Le résumé d'une pièce : ce qu'on lit d'un coup d'oeil sur sa tuile. Une
    * température vaut mieux qu'un compte d'équipements, et « 2 en marche »
-   * mieux que les deux. */
+   * mieux que les deux.
+   *
+   * La liste est nommée plutôt qu'écrite ici : summaryOf() l'affiche, et la
+   * tuile s'y abonne pour se tenir à jour. Deux copies auraient fini par
+   * diverger, et le symptôme aurait été une température figée sur une seule
+   * sorte de pièce. */
+  var ROOM_MEASURES = ['TEMPERATURE', 'THERMOSTAT_TEMPERATURE']
+
   function summaryOf(devices) {
     var parts = []
     var lit = devices.filter(isLit).length
@@ -3329,7 +3568,7 @@
       parts.push(lit + ' {{en marche}}')
     }
     for (var i = 0; i < devices.length; i++) {
-      var cmd = firstGeneric(devices[i], ['TEMPERATURE', 'THERMOSTAT_TEMPERATURE'])
+      var cmd = firstGeneric(devices[i], ROOM_MEASURES)
       if (cmd !== null && JG.VALUES[cmd.id] !== null && JG.VALUES[cmd.id] !== undefined && JG.VALUES[cmd.id] !== '') {
         parts.push(format(cmd.id))
         break
@@ -3424,6 +3663,81 @@
     setTimeout(function () { source.disabled = false }, devices.length * 120 + 400)
   }
 
+  /* Depuis quand, et non depuis quelle date.
+   *
+   * « il y a 2 h » répond à la question qu'on se pose la main au-dessus du
+   * bouton — est-ce que quelqu'un l'a déjà lancé ce soir ? — là où
+   * « 2026-09-21 18:04:11 » demande de faire la soustraction soi-même. Le
+   * relevé voyageait déjà dans le modèle, payé à chaque construction par une
+   * lecture de cache, et lu par personne.
+   *
+   * Intl.RelativeTimeFormat fait le travail, pluriels et langues compris,
+   * plutôt qu'une table de formes à traduire deux fois. Absent d'un navigateur
+   * trop vieux, il ne rend rien : une ligne en moins vaut mieux qu'un
+   * horodatage que personne ne soustrait de tête. */
+  var RELATIVE
+
+  function relative() {
+    if (RELATIVE === undefined) {
+      RELATIVE = (typeof Intl !== 'undefined' && typeof Intl.RelativeTimeFormat === 'function')
+        ? new Intl.RelativeTimeFormat(MODEL.lang || undefined, { numeric: 'auto' })
+        : null
+    }
+    return RELATIVE
+  }
+
+  function agoText(time) {
+    if (!time) {
+      return ''
+    }
+    var rtf = relative()
+    if (rtf === null) {
+      return ''
+    }
+    var seconds = Math.round((Date.now() - time) / 1000)
+    /* Une horloge de tablette en avance sur celle du Jeedom rendrait « dans 4
+     * secondes » pour un scénario qui vient de tourner. */
+    if (seconds < 60) {
+      return '{{à l\'instant}}'
+    }
+    if (seconds < 3600) {
+      return rtf.format(-Math.round(seconds / 60), 'minute')
+    }
+    if (seconds < 86400) {
+      return rtf.format(-Math.round(seconds / 3600), 'hour')
+    }
+    var days = Math.round(seconds / 86400)
+    if (days <= 7) {
+      return rtf.format(-days, 'day')
+    }
+    /* Au-delà d'une semaine, « il y a 43 jours » se compte sur les doigts sans
+     * rien apprendre : une date courte se situe d'elle-même. */
+    return new Date(time).toLocaleDateString(MODEL.lang || undefined, { day: 'numeric', month: 'short' })
+  }
+
+  /* La date au format que Jeedom écrit dans son cache. On la rend au modèle
+   * plutôt qu'au seul bouton : sans cela, le premier redessin de l'accueil
+   * rétablirait « il y a 3 j » sous un scénario lancé il y a dix secondes,
+   * parce que le modèle, lui, n'aurait pas bougé. */
+  function nowStamp() {
+    var now = new Date()
+    return now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()) + ' ' +
+      pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds())
+  }
+
+  /* Les boutons de scène du moment, par identifiant de scénario : le coeur
+   * annonce un scénario qui démarre ou qui finit, et il faut retrouver la
+   * bande qui le porte sans parcourir le document. */
+  var SCENES = {}
+
+  /* Le groupe et le dernier lancement sur la même ligne, séparés par le point
+   * médian qui sépare déjà le sous-titre des cartes et le résumé des pièces.
+   * Deux lignes sous le nom auraient fait d'un bouton une fiche. */
+  function sceneSub(node, time) {
+    var since = agoText(time)
+    node.textContent = [node.dataset.group, since].filter(function (part) { return part }).join(' · ')
+  }
+
   /* Les scénarios que l'utilisateur a déjà écrits. Sans eux, un dashboard
    * impose de refaire à la main, équipement par équipement, ce que Jeedom sait
    * faire d'un geste. */
@@ -3437,6 +3751,7 @@
     title.appendChild(el('span', 'jg-section-name', '{{Scènes}}'))
     node.appendChild(title)
     var bar = el('div', 'jg-scenes')
+    SCENES = {}
     scenes.forEach(function (scene) {
       var button = el('button', 'jg-scene')
       button.type = 'button'
@@ -3446,11 +3761,14 @@
       button.appendChild(mark)
       var text = el('span', 'jg-scene-text')
       text.appendChild(el('span', 'jg-scene-name', scene.name))
-      if (scene.group) {
-        text.appendChild(el('span', 'jg-scene-group', scene.group))
-      }
+      var sub = el('span', 'jg-scene-group', '')
+      sub.dataset.group = scene.group || ''
+      sceneSub(sub, stamp(scene.last))
+      text.appendChild(sub)
       button.appendChild(text)
       button.addEventListener('click', function () { launchScene(scene, button) })
+      button._jgScene = scene
+      SCENES[scene.id] = button
       bar.appendChild(button)
     })
     node.appendChild(bar)
@@ -3473,7 +3791,16 @@
         throw new Error('')
       }
       if (data.result && data.result.state) {
+        scene.state = data.result.state
         source.dataset.state = data.result.state
+      }
+      /* « il y a 3 j » juste après avoir appuyé, c'est un bouton qui n'a pas vu
+       * qu'on l'a touché : le modèle ne sera relu qu'au prochain quart d'heure,
+       * et sur une tablette murale, jamais autrement. */
+      scene.last = nowStamp()
+      var sub = source.querySelector('.jg-scene-group')
+      if (sub !== null) {
+        sceneSub(sub, stamp(scene.last))
       }
     }).catch(function () {
       source.classList.remove('jg-busy')
@@ -3716,9 +4043,11 @@
     card._watched = []
   }
 
-  /* Le ménage d'une vue entière, juste avant qu'elle ne soit remplacée. */
+  /* Le ménage d'une vue entière, juste avant qu'elle ne soit remplacée. Les
+   * tuiles vivantes de l'accueil s'y ajoutent aux cartes : elles s'abonnent au
+   * même registre, elles doivent s'en retirer de la même façon. */
   function forgetAll(node) {
-    node.querySelectorAll('.jg-card').forEach(forget)
+    node.querySelectorAll('.jg-card, .jg-follows').forEach(forget)
   }
 
   /* ---------------------------------------------------------------- ambiance */
@@ -4281,6 +4610,7 @@
   function teardown() {
     document.body.removeEventListener('cmd::update', onCmdUpdate)
     document.body.removeEventListener('eqLogic::update', onEqLogicUpdate)
+    document.body.removeEventListener('scenario::update', onScenarioUpdate)
     document.body.removeEventListener('changeTheme', onThemeChange)
     document.body.removeEventListener('checkThemechange', onThemeChange)
     document.body.removeEventListener('changeThemeEvent', onThemeChange)
@@ -4416,8 +4746,60 @@
       return
     }
     touched.forEach(function (card) { card.sync() })
-    if (states && state().view === 'home') {
-      refreshHome()
+    if (states) {
+      /* L'accueil se redessine — ce qui est en marche y est une section
+       * entière. Les autres vues restent en place et n'ont qu'un élément à
+       * relire : le bouton de rangée, qui n'est pas une carte et que personne
+       * ne synchronise pour lui. */
+      if (state().view === 'home') {
+        refreshHome()
+      } else {
+        syncOffActions()
+      }
+    }
+  }
+
+  /* Un scénario qui part d'ailleurs.
+   *
+   * L'état et le dernier lancement d'une scène venaient du modèle, et rien que
+   * du modèle : un scénario déclenché par un autre écran, par un capteur ou
+   * par sa programmation ne se voyait donc pas ici avant la relecture du quart
+   * d'heure. Sur un mur, « Bonne nuit » restait « il y a 2 h » alors qu'elle
+   * venait de tourner, et le sablier d'un scénario en cours n'apparaissait
+   * jamais.
+   *
+   * Le coeur l'annonce pourtant, sur le même transport que les valeurs :
+   * scenario::update est diffusé sur document.body avec l'état et le dernier
+   * lancement (core/js/jeedom.class.js, ligne 84 ; scenario.class.php, ligne
+   * 1110). Un scénario par événement, et non un tableau — ce nom-là n'est pas
+   * groupé comme cmd::update.
+   *
+   * Le modèle est corrigé en plus du bouton : le prochain redessin de
+   * l'accueil relit le modèle, et lui seul. Le mettre à jour, c'est faire en
+   * sorte que ce qui vient d'être appris survive au redessin. */
+  function onScenarioUpdate(event) {
+    var detail = event.detail
+    if (!detail || detail.scenario_id === undefined) {
+      return
+    }
+    var id = parseInt(detail.scenario_id, 10)
+    var button = SCENES[id]
+    /* Le coeur annonce tous les scénarios, y compris ceux que cet utilisateur
+     * n'a pas le droit de lancer et que le modèle n'a donc jamais reçus. */
+    if (button === undefined || button._jgScene === undefined) {
+      return
+    }
+    var scene = button._jgScene
+    if (detail.state !== undefined) {
+      scene.state = detail.state
+      button.dataset.state = detail.state
+    }
+    if (detail.lastLaunch !== undefined && detail.lastLaunch !== '') {
+      scene.last = detail.lastLaunch
+    }
+    var sub = button.querySelector('.jg-scene-group')
+    if (sub !== null) {
+      sceneSub(sub, stamp(scene.last))
     }
   }
 
@@ -4445,6 +4827,7 @@
 
   document.body.addEventListener('cmd::update', onCmdUpdate)
   document.body.addEventListener('eqLogic::update', onEqLogicUpdate)
+  document.body.addEventListener('scenario::update', onScenarioUpdate)
   document.body.addEventListener('changeTheme', onThemeChange)
   document.body.addEventListener('checkThemechange', onThemeChange)
   /* Le nom réellement émis par triggerThemechange() quand la page est dans sa

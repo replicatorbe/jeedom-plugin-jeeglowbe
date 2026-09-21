@@ -28,6 +28,7 @@ réelle n'a pas forcément un exemplaire de chaque carte, et qu'on veut quand
 même les voir.
 """
 
+import datetime
 import json
 import os
 import pathlib
@@ -128,6 +129,17 @@ DEMOS = [
               cmd(90214, 'Événement entrée 1', 'info', 'binary', 'BUTTON', 0),
               cmd(90215, 'Appui long 1', 'info', 'binary', 'BUTTON', 0),
               dict(cmd(90216, 'Puissance', 'info', 'numeric', 'POWER', 64.5, 'W'), history=True)]},
+    # Une station météo. L'installation d'essai n'en a aucune, et la carte
+    # « Dehors » de l'accueil — la plus grande vignette de la page — n'était
+    # donc jamais construite : son icône de ciel n'avait aucun essai.
+    {'id': 90015, 'name': 'Station météo', 'roomId': 9001, 'eqType': 'demo', 'category': '',
+     'order': 14, 'battery': None, 'card': 'sensor', 'domain': 'weather', 'roles': {},
+     'cmds': [cmd(90241, 'Température extérieure', 'info', 'numeric', 'WEATHER_TEMPERATURE', 12.4, '°C'),
+              cmd(90242, 'Humidité extérieure', 'info', 'numeric', 'WEATHER_HUMIDITY', 81, '%'),
+              # « Pluie » et non « Ensoleillé » : le soleil devient une lune
+              # passé vingt et une heures, et un essai qui échoue le soir est
+              # un essai qu'on finit par ne plus lancer.
+              cmd(90243, 'Ciel', 'info', 'string', 'WEATHER_CONDITION', 'Pluie modérée')]},
     # Le nom raccourci, comme en production : c'est ce que la recherche doit
     # savoir retrouver par son nom Jeedom, que l'affichage a jeté.
     {'id': 90005, 'name': 'Prise TV', 'realName': 'Shelly Plug S A4E57C — Prise TV',
@@ -159,6 +171,16 @@ def prepare(model):
                 entry['value'] = random.choice(TEXTES)
     model['admin'] = True
     model['objects'] = [{'id': 9001, 'name': 'Salon'}, {'id': 9002, 'name': 'Cuisine'}]
+    # Deux scénarios : un lancé il y a deux heures, un jamais lancé. Le second
+    # n'est pas un doublon — c'est le cas où la ligne doit rester vide plutôt
+    # que d'afficher une date de 1970.
+    recent = (datetime.datetime.now() - datetime.timedelta(hours=2)).strftime('%Y-%m-%d %H:%M:%S')
+    model['scenarios'] = [
+        {'id': 9101, 'name': 'Bonne nuit', 'icon': 'fas fa-moon', 'group': 'Soir',
+         'roomId': 0, 'state': 'stop', 'last': recent},
+        {'id': 9102, 'name': 'Jamais lancé', 'icon': 'fas fa-flask', 'group': '',
+         'roomId': 0, 'state': 'stop', 'last': ''},
+    ]
     # Une veille de 120 ms et une nuit permanente : le banc ne peut pas
     # attendre cinq minutes ni changer d'heure.
     model['kiosk'] = {'idle': 0.002, 'dim': 40, 'night': '00:00', 'day': '23:59', 'start': False}
@@ -233,6 +255,13 @@ def main():
       if (action === 'model') {
         MODEL_RELOADS++
         return new Promise(function () {})
+      }
+      if (action === 'scenario') {
+        return Promise.resolve({
+          json: function () {
+            return Promise.resolve({ state: 'ok', result: { id: 9101, state: 'in progress' } })
+          }
+        })
       }
       if (action === 'rename') {
         RENAMED = options.body.get('name')
@@ -338,6 +367,84 @@ def main():
     check('accueil : la bande dit pièce, état et mesure',
           document.querySelector('.jg-quick .jg-card-sub').textContent.split(' · ').length >= 2,
           document.querySelector('.jg-quick .jg-card-sub').textContent)
+    // --- les scènes disent depuis quand ------------------------------------
+    // Le dernier lancement voyageait dans le modèle depuis la première version
+    // et n'était affiché nulle part.
+    var scenes = document.querySelectorAll('.jg-scene')
+    check('scènes : une carte par scénario', scenes.length === 2, scenes.length + ' scènes')
+    check('scènes : groupe et dernier lancement sur une ligne',
+          scenes[0].querySelector('.jg-scene-group').textContent.indexOf(' · ') !== -1,
+          scenes[0].querySelector('.jg-scene-group').textContent)
+    check('scènes : deux heures se disent en heures',
+          scenes[0].querySelector('.jg-scene-group').textContent.indexOf('2') !== -1,
+          scenes[0].querySelector('.jg-scene-group').textContent)
+    check('scènes : un scénario jamais lancé ne dit rien',
+          scenes[1].querySelector('.jg-scene-group').textContent === '',
+          '[' + scenes[1].querySelector('.jg-scene-group').textContent + ']')
+    var scene = scenes[0]
+    var launchedSub = scene.querySelector('.jg-scene-group')
+    // Un scénario parti d'ailleurs : un autre écran, un capteur, sa
+    // programmation. Le coeur l'annonce sur document.body, un scénario par
+    // événement — et non groupés comme cmd::update.
+    var halfHour = new Date(Date.now() - 1800000)
+    var stampOf = function (d) {
+      var two = function (n) { return (n < 10 ? '0' : '') + n }
+      return d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate()) + ' ' +
+        two(d.getHours()) + ':' + two(d.getMinutes()) + ':' + two(d.getSeconds())
+    }
+    document.body.dispatchEvent(new CustomEvent('scenario::update', {
+      detail: { scenario_id: 9101, state: 'in progress', lastLaunch: stampOf(halfHour) }
+    }))
+    check('scènes : un scénario lancé ailleurs se voit tourner',
+          scene.dataset.state === 'in progress', scene.dataset.state)
+    check('scènes : et son dernier lancement suit',
+          launchedSub.textContent.indexOf('30') !== -1, launchedSub.textContent)
+    check('scènes : le modèle est corrigé, pas seulement le bouton',
+          jeeglowbeModel.scenarios[0].state === 'in progress',
+          jeeglowbeModel.scenarios[0].state)
+    document.body.dispatchEvent(new CustomEvent('scenario::update', {
+      detail: { scenario_id: 999999, state: 'in progress' }
+    }))
+    check('scènes : un scénario inconnu du modèle ne casse rien',
+          scene.dataset.state === 'in progress')
+
+    // --- le ciel, en icône --------------------------------------------------
+    // La carte « Dehors » portait un soleil voilé quel qu'ait été le temps.
+    var sky = document.querySelector('.jg-hero-card .jg-hero-mark')
+    check('accueil : l icône de la carte Dehors suit la condition météo',
+          sky !== null && sky.classList.contains('fa-cloud-rain'),
+          sky ? sky.className : 'aucune carte')
+
+    // --- l'accueil suit le temps réel, sans attendre un redessin -----------
+    // Les tuiles de l'accueil ne sont pas des cartes : elles n'avaient aucun
+    // abonnement, et n'affichaient que la maison du dernier dessin. Les trois
+    // mesures ci-dessous sont des commandes d'information et non des états :
+    // elles ne déclenchent donc aucun redessin de l'accueil, et ce qui change
+    // à l'écran ne peut venir que de l'abonnement.
+    var heroValue = document.querySelector('.jg-hero-card .jg-hero-value')
+    check('accueil : la carte Dehors porte la mesure', heroValue.textContent === '12.4 °C',
+          heroValue.textContent)
+    update(90241, 15.8)
+    check('accueil : la carte de synthèse suit la mesure sans redessin',
+          heroValue.textContent === '15.8 °C', heroValue.textContent)
+    var heroRest = document.querySelector('.jg-hero-card .jg-hero-rest span')
+    update(90242, 64)
+    check('accueil : ses mesures secondaires suivent aussi',
+          heroRest.textContent.indexOf('64') !== -1, heroRest.textContent)
+    update(90243, 'Brouillard')
+    check('accueil : son icône suit le changement de ciel',
+          sky.classList.contains('fa-smog'), sky.className)
+    var weatherCount = document.querySelector('.jg-launch[data-domain="weather"] .jg-launch-count')
+    check('accueil : la tuile de domaine suit sa mesure',
+          weatherCount.textContent === '15.8 °C', weatherCount.textContent)
+    var roomCount = document.querySelector('.jg-room-tile[data-room="9001"] .jg-domain-count')
+    update(90041, 25.9)
+    check('accueil : la tuile de pièce suit sa température',
+          roomCount.textContent.indexOf('25.9 °C') !== -1, roomCount.textContent)
+    // Rendue telle qu'on l'a trouvée : cette sonde est aussi la valeur
+    // principale de la carte capteur, relue plus bas dans le parcours.
+    update(90041, 21.4)
+
     check('rail : cinq vues plus le kiosque',
           document.querySelectorAll('.jg-rail-item').length === 6,
           document.querySelectorAll('.jg-rail-item').length + ' entrées')
@@ -609,6 +716,12 @@ def main():
     check('widget : un seul appel groupé par vue', FETCHES.length >= 1 &&
           FETCHES.every(function (url) { return url === 'core/ajax/cmd.ajax.php' }),
           FETCHES.length + ' appel(s) : ' + FETCHES.join(', '))
+
+    // L'appui sur une scène attend ici : il fait lui aussi un fetch, et le
+    // relevé ci-dessus ne doit compter que les widgets. Le bouton est détaché
+    // du document depuis le changement de vue — cela n'ôte rien à son
+    // écouteur, et c'est justement sa ligne à lui qu'on veut voir changer.
+    scene.click()
     check('widget : la commande ordinaire reste une ligne',
           card(90012).querySelectorAll('.jg-row').length >= 1)
 
@@ -709,6 +822,35 @@ def main():
           document.querySelectorAll('.jg-section').length + ' sections')
     check('vue Pièces : rail à jour',
           document.querySelector('.jg-rail-item.jg-rail-on').dataset.view === 'rooms')
+
+    // --- éteindre une rangée entière ---------------------------------------
+    // « Tout éteindre » n'existait que sur l'accueil. Il vit aussi sur la page
+    // d'une pièce et d'un domaine — mais pas sur l'aperçu, où la rangée est
+    // écrêtée et où le bouton en couperait plus qu'il n'en montre.
+    check('rangée : pas de bouton sur l aperçu des pièces',
+          document.querySelector('.jg-section-action') === null)
+    document.querySelector('.jg-tab[data-tab="9001"]').click()
+    var offBtn = document.querySelector('.jg-section-action')
+    check('rangée : un bouton sur la page de la pièce', offBtn !== null)
+    check('rangée : visible tant que deux choses tournent', offBtn.hidden === false,
+          'hidden=' + offBtn.hidden)
+    update(90011, 0)
+    update(90211, 0)
+    check('rangée : il s efface quand il ne reste qu une chose allumée',
+          offBtn.hidden === true, 'hidden=' + offBtn.hidden)
+    update(90011, 1)
+    check('rangée : il revient à la deuxième', offBtn.hidden === false, 'hidden=' + offBtn.hidden)
+    // La confirmation dit le nombre d'équipements visés : c'est elle qu'on lit,
+    // plutôt que d'attendre une rafale espacée de 120 ms. Répondre non laisse
+    // le reste du parcours intact — l'essai porte sur la liste que le bouton a
+    // constituée, pas sur turnAllOff, qui sert déjà l'accueil.
+    var asked = ''
+    var keepConfirm = window.confirm
+    window.confirm = function (message) { asked = message; return false }
+    offBtn.click()
+    window.confirm = keepConfirm
+    check('rangée : la rafale est confirmée, et ne vise que ce qui est allumé',
+          asked.indexOf('2') !== -1, asked)
 
     document.querySelector('.jg-rail-item[data-view="home"]').click()
     check('accueil : pas de sous-onglets', document.getElementById('jg-subtabs').hidden === true)
@@ -837,6 +979,8 @@ def main():
       // --- la tablette est revenue à l'accueil toute seule -------------------
       check('modèle : l annonce du coeur a provoqué une relecture', MODEL_RELOADS === 1,
             MODEL_RELOADS + ' relecture(s)')
+      check('scènes : le bouton se met à jour dès l appui',
+            launchedSub.textContent.indexOf('instant') !== -1, launchedSub.textContent)
       check('kiosque : retour à l accueil après inactivité',
             document.getElementById('jg-root').dataset.view === 'home',
             document.getElementById('jg-root').dataset.view)

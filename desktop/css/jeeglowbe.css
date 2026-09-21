@@ -1699,6 +1699,10 @@
 
 .jg-section-action:hover { background: var(--jg-state-hover); }
 .jg-section-action[disabled] { opacity: var(--jg-state-disabled); cursor: not-allowed; }
+/* Posé explicitement : le bouton de rangée se retire quand la rangée s'éteint,
+ * et il est enfant d'un titre en flex — où la feuille du navigateur n'est pas
+ * la seule à décider de ce qu'un élément masqué affiche. */
+.jg-section-action[hidden] { display: none; }
 
 /* Les scènes. Larges, tactiles, et nommées : ce sont les seuls boutons du
  * dashboard qui agissent sur toute la maison d'un coup. */
@@ -1742,7 +1746,16 @@
 
 .jg-scene-text { display: flex; flex-direction: column; min-width: 0; }
 .jg-scene-name { font-size: var(--jg-fs-base); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.jg-scene-group { font-size: var(--jg-fs-sm); color: var(--jg-ink-2); }
+/* Le groupe et le dernier lancement, sur une ligne qui ne pousse pas le bouton
+ * : « Nuit · il y a 2 h » tient, « Éclairage extérieur · 14 sept. » déborde, et
+ * c'est le nom de la scène qui compte. */
+.jg-scene-group {
+    font-size: var(--jg-fs-sm);
+    color: var(--jg-ink-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 
 /* Un scénario qui tourne le dit, parce qu'un scénario long — fermer douze
  * volets — ne donne sinon aucun signe entre l'appui et la fin. */

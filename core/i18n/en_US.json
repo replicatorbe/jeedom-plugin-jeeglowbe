@@ -170,7 +170,8 @@
         "Rétablir cet équipement": "Restore this device",
         "Efface toutes les décisions de jeeGlow sur cet équipement et ses éléments.": "Clears every jeeGlow decision on this device and its items.",
         "Le mode réglage n\\'a pas pu être ouvert.": "The settings mode could not be opened.",
-        "Le réglage d\\'affichage n\\'a pas pu être enregistré.": "The display setting could not be saved."
+        "Le réglage d\\'affichage n\\'a pas pu être enregistré.": "The display setting could not be saved.",
+        "à l\\'instant": "just now"
     },
     "plugins/jeeglowbe/plugin_info/configuration.php": {
         "401 - Accès non autorisé": "401 - Unauthorized access",

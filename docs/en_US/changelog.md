@@ -63,6 +63,29 @@ contents you can now set.
   tablets stutter.
 - Search also covers the room name.
 - Each control on a card takes a full-width row of its own.
+- Every scene states how long ago it last ran: "2 hr. ago", "yesterday", a date
+  beyond a week. The reading travelled in the model since the first version and
+  was displayed nowhere. It turns to "just now" on the tap, without waiting for
+  the model to be read again.
+- "Turn everything off" now heads the page of a domain and that of a room. It
+  existed only on "Right now" — yet stepping into "Lights" or "Living room" is
+  exactly when you want to cut everything in one gesture. Not on the overview,
+  where rows are clipped, nor in the Health view, where a low battery does not
+  switch off; and it removes itself as soon as a single thing is left running.
+- The "Outside" card's icon follows the actual weather. It was a veiled sun by
+  construction whatever the condition — and the condition was already read, and
+  written out in full at the bottom of that same card. A clear sky turns into a
+  moon at night, and an unrecognised condition keeps the original icon.
+- **The whole Home view now follows real time.** The "Outside" and "Inside"
+  cards, a domain tile's reading, a room tile's temperature are not cards: they
+  had no subscription and stayed at the value the page was drawn with. On a wall
+  tablet, never reloaded and never switching tabs, the screen showed the house
+  as it was hours ago — which takes away just about everything a connected
+  dashboard is for.
+- Scenes follow the announcement the core already makes: a scenario started from
+  another screen, by a sensor or by its own schedule shows its hourglass here,
+  and its line goes back to "just now". What is learned that way is written into
+  the model and not onto the button alone, or the first redraw would lose it.
 - Documentation: a room's address is `#view=rooms&tab=5`, not `#room=5`, and a
   card shows three pieces of information and four commands, not six and eight.
 
