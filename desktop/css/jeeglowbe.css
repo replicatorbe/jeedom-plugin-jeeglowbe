@@ -2588,14 +2588,30 @@
      * 3:1 contre une surface claire — l'ambre pleine y est à 1,96:1. Même
      * dérivation que --jg-tint-line, et pour la même raison. */
     --jg-on-line: color-mix(in srgb, var(--jg-on) 72%, #000000);
+    /* Le remplissage lui-même, et non la couleur pure.
+     *
+     * L'ambre pleine reste juste comme signal, elle était un cran trop vive
+     * comme surface : huit bandes côte à côte, c'est huit fois la même
+     * saturation. Vingt pour cent de blanc la calment sans rien lui retirer —
+     * l'écart avec une carte au repos passe de 1,95:1 à 1,70:1, et l'encre
+     * sombre y gagne même en lisibilité (10,1:1).
+     *
+     * Le dosage ne peut pas être le même de nuit. Mêler du blanc à l'ambre sur
+     * une page sombre l'éclaircit encore ; mêler la surface l'assombrit, et
+     * c'est le kaki qu'on a déjà connu. Douze pour cent de la surface suffisent
+     * à retirer l'excès sans éteindre la braise : 6,7:1 contre la page, 7,1:1
+     * pour l'encre posée dessus. */
+    --jg-on-fill: color-mix(in srgb, var(--jg-on) 80%, #ffffff);
 }
 
-/* De nuit, la surface est profonde : la couleur d'activité est son propre
- * trait, et l'assombrir la ferait disparaître. */
+/* De nuit : la surface est profonde, la couleur d'activité y est son propre
+ * trait et l'assombrir la ferait disparaître ; et le remplissage se calme avec
+ * la surface plutôt qu'avec du blanc, qui l'éclaircirait encore. */
 .jg-root[data-tone="dark"] .jg-card,
 .jg-root[data-tone="dark"] .jg-launch,
 .jg-root[data-tone="dark"] .jg-domain {
     --jg-on-line: var(--jg-on);
+    --jg-on-fill: color-mix(in srgb, var(--jg-on) 88%, var(--jg-surface));
 }
 
 .jg-root .jg-card[data-domain="cover"],
@@ -2635,7 +2651,7 @@
     --jg-state-press: rgba(0, 0, 0, 0.17);
     --jg-tint: var(--jg-on-ink);
     --jg-tint-line: var(--jg-on-ink);
-    background-color: var(--jg-on);
+    background-color: var(--jg-on-fill);
     border-color: var(--jg-on-edge);
     color: var(--jg-ink);
 }
@@ -2763,6 +2779,7 @@
     .jg-root .jg-domain {
         --jg-on-ink: #1d1407;
         --jg-on-edge: var(--jg-on);
+        --jg-on-fill: var(--jg-on);
     }
 }
 
