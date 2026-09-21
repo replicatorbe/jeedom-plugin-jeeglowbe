@@ -2184,12 +2184,9 @@
 
 /* La rangée des pièces : la première tuile est double, et la grille se cale sur
  * des colonnes assez larges pour que deux lignes de texte n'y flottent pas. */
-.jg-grid-rooms { grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); }
-.jg-grid-rooms .jg-room-tile[data-wide="1"] { grid-column: span 2; }
-
-@media (max-width: 700px) {
-    .jg-grid-rooms .jg-room-tile[data-wide="1"] { grid-column: span 1; }
-}
+/* La largeur des pièces vient désormais de la trame, en fin de feuille, comme
+ * celle de toutes les autres tuiles. La première n'est plus double : voir le
+ * commentaire de buildHome() dans jeeglowbe.js. */
 
 /* =============================================== le langage des tuiles
  *
@@ -2742,3 +2739,164 @@
         --jg-on-edge: var(--jg-on);
     }
 }
+
+/* ============================================================== la trame
+ *
+ * « Il manque une vraie conformité. » Mesuré sur un écran de 1600, colonne de
+ * contenu de 1460 pixels :
+ *
+ *   lanceur   195 de large, 88 de haut, 7 par rangée
+ *   pièces    230 — sauf la première, 476 — 127 de haut, 6 par rangée
+ *   bandes    279 de large, 67 de haut (et 61 pour la tuile « + n »), 5 par rangée
+ *   scènes    230 de large, 62 de haut, 6 par rangée
+ *   en-tête   599, puis 353, puis 476
+ *
+ * Cinq largeurs de colonne, quatre hauteurs, et pas une ligne verticale
+ * partagée : la deuxième colonne commençait à 333 dans le lanceur, à 614 dans
+ * les pièces, à 417 dans les bandes, à 368 dans les scènes. Chaque section
+ * avait été réglée pour elle-même, et l'oeil qui descend la page ne retrouvait
+ * jamais deux fois le même intervalle. C'est cela qu'on lit comme du désordre,
+ * bien avant de pouvoir le nommer.
+ *
+ * D'où une trame unique. Une colonne — celle qui servait déjà de largeur
+ * minimale aux cartes, et qui suit donc le kiosque, le téléviseur et le
+ * téléphone sans réglage supplémentaire — et tout s'y aligne : une tuile
+ * occupe une colonne, une bande deux, un widget deux. Deux hauteurs et pas une
+ * de plus : la tuile pleine et la bande.
+ * ======================================================================== */
+
+/* D'abord la boîte, faute de quoi aucune hauteur de cette feuille ne veut dire
+ * ce qu'elle dit.
+ *
+ * Le navigateur donne border-box aux boutons et content-box à tout le reste.
+ * Nos tuiles sont des boutons, nos cartes sont des éléments personnalisés :
+ * min-height: 68px donnait donc 68 pixels à une scène et 94 à une bande — 68
+ * de contenu, plus 24 de marge intérieure, plus 2 de filet. Et comme la marge
+ * intérieure varie d'un composant à l'autre (12 pour une bande, 16 pour une
+ * carte, 20 pour une tuile), deux hauteurs écrites identiques sortaient
+ * toujours différentes. Jeedom ne pose border-box que sur body, et il ne
+ * s'hérite pas. Une ligne, et les nombres redeviennent des nombres. */
+.jg-root,
+.jg-root *,
+.jg-root *::before,
+.jg-root *::after {
+    box-sizing: border-box;
+}
+
+.jg-root {
+    /* Combien de colonnes, et non quelle largeur minimale.
+     *
+     * auto-fill donnait un nombre de colonnes imprévisible — cinq sur cet
+     * écran — et un nombre IMPAIR fait perdre une colonne entière à chaque
+     * rangée de bandes, qui en occupent deux. Un compte pair et choisi règle
+     * les deux : tout se divise, rien ne reste. */
+    --jg-cols: 6;
+    --jg-tile-h: calc(7rem * var(--jg-scale));
+    --jg-band-h: calc(4.75rem * var(--jg-scale));
+    --jg-card-h: calc(9rem * var(--jg-scale));
+}
+
+@media (max-width: 1400px) { .jg-root { --jg-cols: 4; } }
+@media (max-width: 767px) { .jg-root { --jg-cols: 2; } }
+
+/* Le kiosque lit à deux mètres : moins de colonnes, plus larges. Le réglage
+ * l'emporte sur les requêtes de média ci-dessus, qui ne visent que .jg-root —
+ * sauf au téléphone, où deux colonnes restent deux colonnes. */
+.jg-root[data-kiosk="1"] { --jg-cols: 4; }
+@media (max-width: 767px) { .jg-root[data-kiosk="1"] { --jg-cols: 2; } }
+
+.jg-root .jg-grid,
+.jg-root .jg-grid-launch,
+.jg-root .jg-grid-rooms,
+.jg-root .jg-grid-quick,
+.jg-root .jg-scenes {
+    display: grid;
+    grid-template-columns: repeat(var(--jg-cols), minmax(0, 1fr));
+    gap: var(--jg-gap);
+    /* Et non « start ». Une rangée de cartes de hauteurs libres était le plus
+     * visible des désordres : trois rectangles de 190, 130 et 250 pixels côte
+     * à côte. Étirées, elles forment une rangée. Le vide qu'une carte courte
+     * gagne en bas coûte moins cher que la dentelure. */
+    align-items: stretch;
+}
+
+/* Une bande est une phrase — « Sèche-serviettes · Salle de bain · Allumée ·
+ * 420 W » — et une phrase ne tient pas dans une colonne. Elle en prend deux,
+ * ce qui la garde sur la trame. */
+.jg-root .jg-grid-quick > * { grid-column: span 2; }
+
+/* Un rendu de plugin — une grille de vignettes, un bulletin météo — de même. */
+.jg-root .jg-card[data-span="2"] { grid-column: span 2; }
+
+/* Les deux seules hauteurs de la page. */
+.jg-root .jg-launch,
+.jg-root .jg-grid-rooms .jg-domain { min-height: var(--jg-tile-h); }
+
+.jg-root .jg-grid-quick > *,
+.jg-root .jg-scene { min-height: var(--jg-band-h); }
+
+/* Le plancher d'une carte, à l'échelle comme le reste. Il valait 116 pixels de
+ * CONTENU, soit 150 à l'écran, et ne bougeait pas d'un pouce en kiosque. */
+.jg-root .jg-card { min-height: var(--jg-card-h); }
+.jg-root .jg-card.jg-quick { min-height: var(--jg-band-h); }
+
+/* La tuile de pièce n'a plus besoin d'une grande icône centrée pour se
+ * distinguer : l'aplat le fait. Elle rentre donc dans la hauteur commune. */
+.jg-root .jg-grid-rooms .jg-tile-art {
+    padding: 0;
+    font-size: calc(1.9rem * var(--jg-scale));
+}
+
+/* ------------------------------------------------------- l'en-tête aussi */
+
+/* Douze colonnes s'alignent exactement sur six dès que l'écart est le même :
+ * k colonnes de la trame valent 2k colonnes du bento, gouttières comprises.
+ * Les blocs prennent donc des multiples de deux, et l'en-tête se pose sur les
+ * mêmes lignes verticales que tout ce qui suit — ce que 5, 3 et 4 colonnes ne
+ * faisaient pas. */
+.jg-root .jg-bento-clock,
+.jg-root .jg-bento-side,
+.jg-root .jg-bento-cam {
+    grid-column: span 4;
+    grid-row: span 1;
+}
+
+.jg-root .jg-bento-side { flex-direction: row; }
+
+/* Sans caméra, les synthèses prennent la place plutôt que de laisser un trou,
+ * et restent sur la trame : deux cartes de deux colonnes, ou une de quatre. */
+.jg-root .jg-bento[data-cam="0"] .jg-bento-side { grid-column: span 8; }
+
+@media (max-width: 1400px) {
+    .jg-root .jg-bento-clock { grid-column: span 12; }
+    .jg-root .jg-bento-side,
+    .jg-root .jg-bento-cam,
+    .jg-root .jg-bento[data-cam="0"] .jg-bento-side { grid-column: span 6; }
+}
+
+@media (max-width: 1100px) {
+    .jg-root .jg-bento-side,
+    .jg-root .jg-bento-cam,
+    .jg-root .jg-bento[data-cam="0"] .jg-bento-side { grid-column: span 12; }
+}
+
+/* ------------------------------------------------------------ téléphone */
+
+/* La trame tient au téléphone, mais à deux colonnes : une bande y reprend la
+ * largeur entière, et une carte aussi. Ces règles étaient plus haut dans la
+ * feuille, où la trame les aurait emportées — une requête de média n'ajoute
+ * aucune spécificité. */
+/* Au téléphone, deux colonnes : les tuiles s'y rangent par deux, et ce qui
+ * s'écrit en une phrase — une bande, une carte — prend la largeur entière. */
+@media (max-width: 767px) {
+    .jg-root .jg-grid > *,
+    .jg-root .jg-grid-quick > * { grid-column: span 2; }
+    .jg-root .jg-grid-launch > *,
+    .jg-root .jg-grid-rooms > *,
+    .jg-root .jg-scenes > * { grid-column: span 1; }
+}
+
+/* En colonnes — l'Aperçu — la largeur vient de la colonne du tableau de bord
+ * et non de la trame : une carte y occupe toute sa colonne. */
+.jg-root .jg-sections[data-layout="columns"] .jg-grid { grid-template-columns: 1fr; }
+.jg-root .jg-sections[data-layout="columns"] .jg-card { grid-column: span 1; }

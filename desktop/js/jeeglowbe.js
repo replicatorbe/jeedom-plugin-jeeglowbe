@@ -2508,14 +2508,20 @@
       return b.lit - a.lit
     })
 
-    peopled.forEach(function (entry, rank) {
+    peopled.forEach(function (entry) {
       var room = entry.room
       var devices = entry.devices
       var lit = entry.lit
+      /* Toutes de la même taille.
+       *
+       * La première était double pour donner à l'oeil un point d'entrée, à une
+       * époque où huit rectangles gris alignés ne se distinguaient pas les uns
+       * des autres. Ce n'est plus le cas : les pièces où quelque chose tourne
+       * portent l'aplat, elles passent en tête, et le point d'entrée est là.
+       * Restait une tuile deux fois plus large que ses voisines pour la même
+       * hauteur — le seul rectangle de la page qui n'ait ni la proportion ni
+       * la trame des autres. */
       var tile = el('button', 'jg-domain jg-room-tile')
-      if (rank === 0 && peopled.length > 2) {
-        tile.dataset.wide = '1'
-      }
       tile.dataset.room = String(room.id)
       /* L'icône et la couleur que l'utilisateur a déjà choisies dans Jeedom.
        * Les ignorer pour coller la même porte ouverte sur le garage, le jardin
@@ -2754,7 +2760,12 @@
         }
       }
     }
-    return String(group.devices.length)
+    /* Et non le nombre seul. « Sécurité 2 » posé à côté de « Lumières 4 en
+     * marche » laisse deviner ce que compte le 2, et deux tuiles voisines qui
+     * ne disent pas la même sorte de chose se lisent deux fois. Le mot est
+     * celui des tuiles de pièce, qui comptent déjà des équipements. */
+    var count = group.devices.length
+    return count + ' ' + ((count > 1) ? '{{équipements}}' : '{{équipement}}')
   }
 
   var LAUNCH_MEASURES = {
