@@ -44,7 +44,12 @@
         "Tout": "All",
         "Détectée": "Detected",
         "Aucune": "None",
-        "Trop d'équipements pour un seul dashboard : la liste est tronquée.": "Too many devices for a single dashboard: the list is truncated."
+        "Trop d'équipements pour un seul dashboard : la liste est tronquée.": "Too many devices for a single dashboard: the list is truncated.",
+        "éléments": "items",
+        "élément": "item",
+        "champs": "fields",
+        "champ": "field",
+        "Afficher le détail": "Show details"
     },
     "plugins/jeeglowbe/plugin_info/configuration.php": {
         "401 - Accès non autorisé": "401 - Unauthorized access",

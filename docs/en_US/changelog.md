@@ -10,3 +10,6 @@ First release.
 - Real time value updates.
 - Room filter, search, full screen mode for wall tablets.
 - Light or dark theme, matched automatically to the Jeedom theme.
+- Commands returning a structure are no longer printed raw: the card shows the
+  most readable field, the detail unfolds on tap, and timestamps are rendered as
+  dates.

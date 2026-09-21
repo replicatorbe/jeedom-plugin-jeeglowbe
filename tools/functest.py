@@ -89,6 +89,19 @@ DEMOS = [
      'order': 7, 'battery': None, 'card': 'light',
      'roles': {'slider': 90081},
      'cmds': [cmd(90081, 'Intensite', 'action', 'slider', 'LIGHT_SLIDER', extra={'min': 0, 'max': 255})]},
+    {'id': 90009, 'name': 'Veille Jobpol', 'roomId': 9001, 'eqType': 'demo', 'category': '',
+     'order': 8, 'battery': None, 'card': 'sensor', 'roles': {},
+     'cmds': [cmd(90091, 'Veille', 'info', 'string', 'GENERIC_INFO',
+                  json.dumps({'offres': 1, 'erreurs': 0, 'verifie': '21/09 09:01',
+                              'unites': [{'l': 'PJF Mons-Tournai', 'e': 'RIEN', 's': 1},
+                                         {'l': 'PJF Namur', 'e': 'MUETTE', 's': 0}]},
+                             ensure_ascii=False)),
+              cmd(90092, 'Vu le', 'info', 'numeric', 'GENERIC_INFO', 1789913135)]},
+    {'id': 90010, 'name': 'Prochaine collecte', 'roomId': 9001, 'eqType': 'demo', 'category': '',
+     'order': 9, 'battery': None, 'card': 'sensor', 'roles': {},
+     'cmds': [cmd(90101, 'Collecte', 'info', 'string', 'GENERIC_INFO',
+                  json.dumps({'label': 'jeudi 24/09', 'days': 3, 'countdown': 'dans 3 jours',
+                              'fractions': ['Organique', 'PMC']}, ensure_ascii=False))]},
     {'id': 90005, 'name': 'Prise TV', 'roomId': 9001, 'eqType': 'demo', 'category': 'energy',
      'order': 4, 'battery': None, 'card': 'switch',
      'roles': {'state': 90051, 'on': 90052, 'off': 90053},
@@ -273,6 +286,39 @@ def main():
           sensor.querySelector('.jg-value').textContent)
     update(90044, 0)
     check('capteur : binaire relibellé', sensor.textContent.indexOf('Aucune') !== -1)
+
+    // --- valeur JSON (90009) ------------------------------------------------
+    var jsonCard = card(90009)
+    check('JSON : aucune accolade affichée', jsonCard.textContent.indexOf('{') === -1,
+          jsonCard.textContent.slice(0, 70))
+    check('horodatage : rendu en date, pas en nombre',
+          jsonCard.textContent.indexOf('1789913135') === -1, jsonCard.textContent.slice(0, 90))
+    var jsonNode = jsonCard.querySelector('.jg-row .jg-expand')
+    check('JSON : la valeur est dépliable', jsonNode !== null && jsonNode.getAttribute('role') === 'button')
+    check('JSON : résumé lisible', jsonNode !== null && /offres|verifie/.test(jsonNode.textContent),
+          jsonNode ? jsonNode.textContent : 'pas de valeur')
+    check('JSON : détail fermé au départ', jsonCard.querySelector('.jg-json') === null)
+    jsonNode.click()
+    var details = jsonCard.querySelector('.jg-json')
+    check('JSON : détail ouvert au clic', details !== null)
+    check('JSON : les champs sont listés', details !== null && details.textContent.indexOf('offres') !== -1 &&
+          details.textContent.indexOf('PJF Mons-Tournai') !== -1, details ? details.textContent.slice(0, 80) : '')
+    check('JSON : le tableau est compté', details !== null && details.textContent.indexOf('2 éléments') !== -1,
+          details ? details.textContent.slice(0, 120) : '')
+    jsonNode.click()
+    check('JSON : détail refermé', jsonCard.querySelector('.jg-json') === null)
+    update(90091, JSON.stringify({ offres: 4, erreurs: 0, verifie: '21/09 10:30' }))
+    check('JSON : le résumé suit la mise à jour', /4|10:30/.test(jsonCard.querySelector('.jg-row .jg-expand').textContent),
+          jsonCard.querySelector('.jg-row .jg-expand').textContent)
+
+    // --- structure seule (90010) --------------------------------------------
+    var alone = card(90010)
+    check('JSON seul : mis en avant comme texte',
+          alone.querySelector('.jg-value').classList.contains('jg-value-text'))
+    check('JSON seul : résumé et non structure', alone.querySelector('.jg-value').textContent.indexOf('{') === -1,
+          alone.querySelector('.jg-value').textContent)
+    alone.querySelector('.jg-value').click()
+    check('JSON seul : détail accessible', alone.querySelector('.jg-json') !== null)
 
     // --- carte générique ----------------------------------------------------
     var generic = document.querySelector('.jg-card[data-card-type="generic"]')

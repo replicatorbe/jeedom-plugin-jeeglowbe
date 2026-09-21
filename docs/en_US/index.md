@@ -55,6 +55,23 @@ up on a wall tablet on its own, without touching it.
 Only **visible** commands are shown, plus the ones a card needs. To remove a
 value from the dashboard, untick *Display* on the command.
 
+## Commands returning a structure
+
+Several plugins pack a whole state into a single text command: a next
+collection, the state of an inverter, a camera's last alert. On a dashboard the
+raw value is a brace followed by three hundred characters, and the information
+is lost inside its own syntax.
+
+jeeGlow recognises those values and shows the most readable field instead,
+underlined with dots. **Tapping it unfolds the detail**: one field per line,
+lists announced by their number of items, each one summarised in turn. Tapping
+again folds it back.
+
+Timestamps are rendered as dates — the time alone if it is today, day and time
+otherwise — rather than as a number of seconds. A numeric command without a
+unit whose value looks like a timestamp gets the same treatment: an energy
+counter carries a unit and stays a number.
+
 ## Kiosk mode
 
 The button in the top right corner switches to full screen: the Jeedom menu and
