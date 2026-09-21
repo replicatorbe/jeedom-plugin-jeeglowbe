@@ -317,8 +317,59 @@
     font-size: 12.5px;
 }
 
-.jg-row-name { color: var(--jg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.jg-row-value { font-weight: 600; white-space: nowrap; }
+.jg-row-name { color: var(--jg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; }
+
+/* Le résumé d'une structure est une phrase : il doit pouvoir être coupé plutôt
+ * que pousser le nom de la commande hors de la carte. */
+.jg-row-value {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    text-align: right;
+}
+
+/* Une valeur qui cache une structure : le pointillé annonce qu'il y a
+ * davantage à voir, sans le bruit d'un bouton de plus sur chaque ligne. */
+.jg-expand {
+    cursor: pointer;
+    border-bottom: 1px dotted currentColor;
+}
+
+.jg-expand:focus-visible {
+    outline: 2px solid var(--jg-accent);
+    outline-offset: 2px;
+}
+
+/* Un texte n'est pas une mesure : la taille d'un relevé de température rendrait
+ * une phrase illisible. */
+.jg-value-text {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.35;
+    letter-spacing: 0;
+    white-space: normal;
+}
+
+.jg-json {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: 2px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: var(--jg-surface-2);
+    font-size: 12px;
+}
+
+.jg-card[data-on="1"] .jg-json { background: rgba(255, 255, 255, 0.3); }
+
+.jg-json-row { display: flex; justify-content: space-between; gap: 10px; }
+.jg-json-key { color: var(--jg-muted); white-space: nowrap; }
+.jg-card[data-on="1"] .jg-json-key { color: var(--jg-on-text); opacity: 0.72; }
+.jg-json-value { text-align: right; word-break: break-word; }
+.jg-json-more { color: var(--jg-muted); text-align: center; }
 
 /* ----------------------------------------------------------- les commandes */
 
@@ -490,4 +541,19 @@
 .jg-tappable:focus-visible {
     outline: 2px solid var(--jg-accent);
     outline-offset: 2px;
+}
+
+/* Une valeur trop longue pour tenir à côté de son nom passe dessous : le nom
+ * reste lisible, la valeur respire, et plus rien ne finit en points de
+ * suspension. */
+.jg-row-stacked {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+}
+
+.jg-row-stacked .jg-row-value {
+    text-align: left;
+    white-space: normal;
+    max-width: 100%;
 }

@@ -106,6 +106,202 @@
     ENERGY_STATE: ['{{Allumée}}', '{{Éteinte}}']
   }
 
+  /* ------------------------------------------------------------------- JSON
+   *
+   * Beaucoup de plugins rangent une structure entière dans une commande info de
+   * type chaîne : une prochaine collecte, l'état d'un onduleur, la dernière
+   * alerte d'une caméra. Sur un dashboard, afficher la valeur telle quelle
+   * donne une accolade suivie de trois cents caractères, et l'information est
+   * perdue au milieu de sa propre syntaxe.
+   *
+   * On ne peut pas connaître ces structures — chaque plugin invente la sienne,
+   * avec des clés parfois réduites à une lettre. On peut en revanche décider
+   * quoi mettre en avant : la carte montre le champ le plus lisible, et le
+   * détail s'ouvre d'un appui.
+   */
+
+  function jsonOf(cmdId) {
+    var cmd = JG.CMDS[cmdId]
+    var value = JG.VALUES[cmdId]
+    if (cmd === undefined || typeof value !== 'string') {
+      return null
+    }
+    var text = value.trim()
+    if (text === '' || (text.charAt(0) !== '{' && text.charAt(0) !== '[')) {
+      return null
+    }
+    try {
+      var parsed = JSON.parse(text)
+    } catch (error) {
+      return null
+    }
+    return (parsed !== null && typeof parsed === 'object') ? parsed : null
+  }
+
+  /* Un entier de dix chiffres dans les bornes raisonnables est un horodatage :
+   * « 1789913135 » ne dit rien, « 20/09/2026 16:05 » dit tout. */
+  function isEpoch(value) {
+    return typeof value === 'number' && isFinite(value) && Math.floor(value) === value &&
+      value >= 1000000000 && value <= 4102444800
+  }
+
+  /* Une date sur une tuile se lit d'un coup d'oeil ou ne se lit pas.
+   * toLocaleString() rend « 9/20/2026, 4:05:35 PM » : la langue dépend du
+   * navigateur et non de Jeedom, les secondes n'intéressent personne, et deux
+   * lignes de date mangent la carte. On compose donc nous-mêmes, du plus court
+   * au plus complet : l'heure seule aujourd'hui, le jour et l'heure cette
+   * année, la date entière au-delà. */
+  function pad(number) {
+    return (number < 10 ? '0' : '') + number
+  }
+
+  function dateText(seconds) {
+    var date = new Date(seconds * 1000)
+    var now = new Date()
+    var time = pad(date.getHours()) + ':' + pad(date.getMinutes())
+    var day = pad(date.getDate()) + '/' + pad(date.getMonth() + 1)
+    if (date.toDateString() === now.toDateString()) {
+      return time
+    }
+    if (date.getFullYear() === now.getFullYear()) {
+      return day + ' ' + time
+    }
+    return day + '/' + date.getFullYear() + ' ' + time
+  }
+
+  function scalarText(value) {
+    if (value === true) {
+      return '{{Oui}}'
+    }
+    if (value === false) {
+      return '{{Non}}'
+    }
+    if (isEpoch(value)) {
+      return dateText(value)
+    }
+    return String(value)
+  }
+
+  /* Ce qui mérite d'être lu en premier. Une phrase vaut mieux qu'un mot, un mot
+   * mieux qu'un nombre, et un nombre mieux qu'une empreinte ou qu'un
+   * horodatage — que personne ne lit comme une information. */
+  function scoreScalar(value) {
+    if (value === null || value === undefined || typeof value === 'object') {
+      return -1
+    }
+    if (typeof value === 'boolean') {
+      return 1
+    }
+    if (typeof value === 'number') {
+      return isEpoch(value) ? 0 : 2
+    }
+    var text = String(value)
+    if (text === '') {
+      return -1
+    }
+    if (/^[0-9a-f._:-]{12,}$/i.test(text)) {
+      return 0
+    }
+    if (/[A-Za-zÀ-ÿ]/.test(text)) {
+      return /\s/.test(text) ? 4 : 3
+    }
+    return 1
+  }
+
+  /* Les clés qui ne disent rien de plus que leur valeur : les répéter devant
+   * elle n'ajoute que du bruit. Les clés d'une ou deux lettres sont dans le même
+   * cas, faute de vouloir dire quoi que ce soit pour un lecteur. */
+  var MUTE_KEYS = ['label', 'name', 'nom', 'text', 'texte', 'title', 'titre', 'value', 'valeur',
+    'summary', 'resume', 'message', 'description', 'desc', 'state', 'status', 'etat', 'info']
+
+  function labelled(key, value) {
+    var text = scalarText(value)
+    if (key.length <= 2 || MUTE_KEYS.indexOf(key.toLowerCase()) !== -1) {
+      return text
+    }
+    return key + ' ' + text
+  }
+
+  function jsonSummary(parsed) {
+    if (Array.isArray(parsed)) {
+      return parsed.length + ' ' + (parsed.length > 1 ? '{{éléments}}' : '{{élément}}')
+    }
+    var ranked = Object.keys(parsed).map(function (key) {
+      return { key: key, score: scoreScalar(parsed[key]) }
+    }).filter(function (entry) {
+      return entry.score > 0
+    }).sort(function (a, b) {
+      return b.score - a.score
+    })
+
+    if (ranked.length > 0) {
+      var summary = labelled(ranked[0].key, parsed[ranked[0].key])
+      /* Un second champ seulement s'il est lui aussi une phrase : « jeudi 24/09
+       * · dans 3 jours » vaut mieux qu'une date seule, alors que « NORD Ligne
+       * franchie · p 0 » ne vaut rien de plus que la première moitié. */
+      if (ranked.length > 1 && ranked[1].score >= 4 && summary.length < 34) {
+        summary += ' · ' + labelled(ranked[1].key, parsed[ranked[1].key])
+      }
+      return summary
+    }
+    var count = Object.keys(parsed).length
+    return count + ' ' + (count > 1 ? '{{champs}}' : '{{champ}}')
+  }
+
+  /* Le détail, à la demande : une ligne par champ, les structures imbriquées
+   * annoncées par leur taille et leurs éléments résumés à leur tour. Le JSON
+   * brut serait plus fidèle et illisible — c'est précisément ce qu'on répare. */
+  var DETAIL_MAX = 24
+
+  function jsonDetails(parsed) {
+    var box = el('div', 'jg-json')
+    var lines = 0
+
+    function line(name, text) {
+      if (lines >= DETAIL_MAX) {
+        return
+      }
+      lines++
+      var row = el('div', 'jg-json-row')
+      row.appendChild(el('span', 'jg-json-key', name))
+      row.appendChild(el('span', 'jg-json-value', text))
+      box.appendChild(row)
+    }
+
+    function walk(key, value) {
+      if (value === null || value === undefined) {
+        line(key, '—')
+        return
+      }
+      if (Array.isArray(value)) {
+        line(key, value.length + ' ' + (value.length > 1 ? '{{éléments}}' : '{{élément}}'))
+        value.forEach(function (item) {
+          if (item !== null && typeof item === 'object') {
+            line('', jsonSummary(item))
+          } else {
+            line('', scalarText(item))
+          }
+        })
+        return
+      }
+      if (typeof value === 'object') {
+        line(key, jsonSummary(value))
+        return
+      }
+      line(key, scalarText(value))
+    }
+
+    if (Array.isArray(parsed)) {
+      walk('', parsed)
+    } else {
+      Object.keys(parsed).forEach(function (key) { walk(key, parsed[key]) })
+    }
+    if (lines >= DETAIL_MAX) {
+      box.appendChild(el('div', 'jg-json-more', '…'))
+    }
+    return box
+  }
+
   function format(cmdId) {
     var cmd = JG.CMDS[cmdId]
     var value = JG.VALUES[cmdId]
@@ -119,10 +315,20 @@
       var labels = BINARY_LABELS[cmd.generic] || ['{{Oui}}', '{{Non}}']
       return isTrue(cmd, value) ? labels[0] : labels[1]
     }
+    var parsed = jsonOf(cmdId)
+    if (parsed !== null) {
+      return jsonSummary(parsed)
+    }
     if (cmd.subType === 'numeric') {
       var number = parseFloat(value)
       if (isNaN(number)) {
         return String(value)
+      }
+      /* Un horodatage Unix sans unité n'est pas une mesure : « 1789913135 »
+       * n'apprend rien à personne. L'absence d'unité est la garde qui évite de
+       * transformer un compteur d'énergie en date — un compteur porte un Wh. */
+      if (cmd.unit === '' && isEpoch(number)) {
+        return dateText(number)
       }
       var rounded = (Math.abs(number % 1) < 0.05) ? Math.round(number) : Math.round(number * 10) / 10
       return String(rounded) + (cmd.unit ? ' ' + cmd.unit : '')
@@ -303,6 +509,89 @@
         watch(cmd.id, this)
       }, this)
       this.appendChild(line)
+    }
+
+    /* Les lignes d'information, pour le capteur comme pour la carte générique.
+     * Une valeur qui cache une structure devient dépliable : la ligne montre le
+     * champ le plus lisible, l'appui montre le reste. */
+    infoRows(cmds) {
+      var list = el('div', 'jg-rows')
+      cmds.forEach(function (cmd) {
+        var row = el('div', 'jg-row')
+        row.appendChild(el('span', 'jg-row-name', cmd.name))
+        var value = el('span', 'jg-row-value', format(cmd.id))
+        row.appendChild(value)
+        /* Nom et valeur se disputent la largeur d'une carte : au-delà d'une
+         * trentaine de caractères, les deux finissent en points de suspension
+         * et la ligne ne dit plus rien. La valeur passe alors dessous, où elle
+         * a toute la place. */
+        if (value.textContent.length > 30) {
+          row.classList.add('jg-row-stacked')
+        }
+        list.appendChild(row)
+        var entry = { id: cmd.id, node: value, host: list }
+        this.makeExpandable(entry)
+        this._rows.push(entry)
+        watch(cmd.id, this)
+      }, this)
+      return list
+    }
+
+    /* Rend une valeur dépliable si, et seulement si, elle cache une structure.
+     * Le détail est reconstruit à chaque ouverture : la valeur a pu changer
+     * entre-temps, et un détail périmé serait pire que pas de détail. */
+    makeExpandable(entry) {
+      if (jsonOf(entry.id) === null) {
+        return
+      }
+      var node = entry.node
+      node.classList.add('jg-expand')
+      node.setAttribute('role', 'button')
+      node.setAttribute('tabindex', '0')
+      node.title = '{{Afficher le détail}}'
+      var toggle = function (event) {
+        /* La carte entière peut être une bascule : sans cela, déplier
+         * allumerait la lampe. */
+        event.stopPropagation()
+        event.preventDefault()
+        if (entry.details) {
+          entry.details.remove()
+          entry.details = null
+          return
+        }
+        var parsed = jsonOf(entry.id)
+        if (parsed === null) {
+          return
+        }
+        entry.details = jsonDetails(parsed)
+        entry.host.insertBefore(entry.details, node.parentNode.nextSibling)
+      }
+      node.addEventListener('click', toggle)
+      node.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+          toggle(event)
+        }
+      })
+    }
+
+    syncRows() {
+      ;(this._rows || []).forEach(function (entry) {
+        entry.node.textContent = format(entry.id)
+        if (entry.node.parentNode && entry.node.parentNode.classList.contains('jg-row')) {
+          entry.node.parentNode.classList.toggle('jg-row-stacked', entry.node.textContent.length > 30)
+        }
+        if (entry.details) {
+          var parsed = jsonOf(entry.id)
+          var fresh = (parsed === null) ? null : jsonDetails(parsed)
+          if (fresh === null) {
+            entry.details.remove()
+            entry.details = null
+          } else {
+            entry.details.replaceWith(fresh)
+            entry.details = fresh
+          }
+        }
+      })
     }
 
     syncMetrics() {
@@ -530,46 +819,49 @@
       if (infos.length === 0) {
         infos = this.device.cmds.filter(function (cmd) { return cmd.type === 'info' })
       }
-      this._primary = infos.length > 0 ? infos[0] : null
+      /* Une mesure passe avant une structure : montrer 21,4 °C en grand et
+       * reléguer la collecte en dessous est plus juste que l'inverse. */
+      var plain = infos.filter(function (cmd) { return jsonOf(cmd.id) === null })
+      this._primary = (plain.length > 0) ? plain[0] : (infos.length > 0 ? infos[0] : null)
       this.header()
 
       var body = el('div', 'jg-card-body')
       this._value = el('span', 'jg-value', this._primary ? format(this._primary.id) : '—')
       body.appendChild(this._value)
       this.appendChild(body)
+
+      this._rows = []
       if (this._primary) {
         this._subtitle.textContent = this._primary.name
         watch(this._primary.id, this)
+        /* La valeur principale est une ligne comme une autre pour la mise à
+         * jour : l'oublier ici la figerait à sa valeur de chargement. */
+        var entry = { id: this._primary.id, node: this._value, host: this }
+        if (jsonOf(this._primary.id) !== null) {
+          /* Un résumé de structure est une phrase, pas un nombre : la taille
+           * d'affichage d'une température le rendrait illisible. */
+          this._value.classList.add('jg-value-text')
+          this.makeExpandable(entry)
+        }
+        this._rows.push(entry)
       }
 
-      this._rows = []
-      var rest = infos.slice(1, 7)
+      var rest = infos.filter(function (cmd) {
+        return this._primary === null || cmd.id !== this._primary.id
+      }, this).slice(0, 6)
       if (rest.length > 0) {
-        var list = el('div', 'jg-rows')
-        rest.forEach(function (cmd) {
-          var row = el('div', 'jg-row')
-          row.appendChild(el('span', 'jg-row-name', cmd.name))
-          var value = el('span', 'jg-row-value', format(cmd.id))
-          row.appendChild(value)
-          list.appendChild(row)
-          this._rows.push({ id: cmd.id, node: value })
-          watch(cmd.id, this)
-        }, this)
-        this.appendChild(list)
+        this.appendChild(this.infoRows(rest))
       }
     }
 
     sync() {
       if (this._primary) {
-        this._value.textContent = format(this._primary.id)
         var cmd = JG.CMDS[this._primary.id]
         if (cmd && cmd.subType === 'binary') {
           this.dataset.on = isTrue(cmd, JG.VALUES[this._primary.id]) ? '1' : '0'
         }
       }
-      ;(this._rows || []).forEach(function (row) {
-        row.node.textContent = format(row.id)
-      })
+      this.syncRows()
     }
   }
 
@@ -582,17 +874,7 @@
       this._rows = []
       var infos = this.device.cmds.filter(function (cmd) { return cmd.type === 'info' && cmd.visible }).slice(0, 6)
       if (infos.length > 0) {
-        var list = el('div', 'jg-rows')
-        infos.forEach(function (cmd) {
-          var row = el('div', 'jg-row')
-          row.appendChild(el('span', 'jg-row-name', cmd.name))
-          var value = el('span', 'jg-row-value', format(cmd.id))
-          row.appendChild(value)
-          list.appendChild(row)
-          this._rows.push({ id: cmd.id, node: value })
-          watch(cmd.id, this)
-        }, this)
-        this.appendChild(list)
+        this.appendChild(this.infoRows(infos))
       }
 
       /* Les commandes « message » attendent un titre et un corps ; un bouton qui
@@ -663,9 +945,7 @@
     }
 
     sync() {
-      (this._rows || []).forEach(function (row) {
-        row.node.textContent = format(row.id)
-      })
+      this.syncRows()
     }
   }
 

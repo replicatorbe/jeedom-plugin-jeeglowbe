@@ -59,6 +59,23 @@ Seules les commandes **visibles** apparaissent, plus celles dont la carte a
 besoin. Pour retirer une information du dashboard, décochez *Afficher* sur la
 commande ; pour la faire apparaître, cochez-la.
 
+## Commandes qui renvoient une structure
+
+Plusieurs plugins rangent tout un état dans une seule commande texte : une
+prochaine collecte, l'état d'un onduleur, la dernière alerte d'une caméra. Sur
+un dashboard, la valeur brute donne une accolade suivie de trois cents
+caractères, et l'information se perd dans sa propre syntaxe.
+
+jeeGlow reconnaît ces valeurs et affiche à la place le champ le plus lisible,
+souligné en pointillés. **Un appui dessus déplie le détail** : un champ par
+ligne, les listes annoncées par leur nombre d'éléments, chacun résumé à son
+tour. Un second appui referme.
+
+Les horodatages y sont rendus en date — l'heure seule si c'est aujourd'hui, le
+jour et l'heure sinon — plutôt qu'en nombre de secondes. Une commande numérique
+sans unité dont la valeur ressemble à un horodatage bénéficie du même
+traitement : un compteur d'énergie, lui, porte une unité et reste un nombre.
+
 ## Mode kiosque
 
 Le bouton en haut à droite passe en plein écran : le menu et le pied de page de

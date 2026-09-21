@@ -10,3 +10,6 @@ Première version.
 - Mise à jour en temps réel des valeurs.
 - Filtre par pièce, recherche, mode plein écran pour tablette murale.
 - Thème clair ou sombre accordé automatiquement à celui de Jeedom.
+- Les commandes qui renvoient une structure ne sont plus affichées telles
+  quelles : la carte montre le champ le plus lisible, le détail se déplie d'un
+  appui, et les horodatages sont rendus en date.
