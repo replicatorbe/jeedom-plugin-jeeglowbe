@@ -120,6 +120,41 @@ class jeeglowbe extends eqLogic {
     /* Le raccourcissement des noms est un réglage, relu à chaque modèle. */
     private static $_shortNames = false;
 
+    /* La clé de configuration qui porte les dérogations d'affichage.
+     *
+     * Une dérogation n'est pas une liste de masqués : c'est ce que jeeGlow
+     * décide EN PLUS de ce que Jeedom prévoit, et rien d'autre. Une entrée
+     * absente — le cas de tout ce à quoi on n'a jamais touché — laisse le
+     * dernier mot à isVisible et à hideOnDashboard, exactement comme avant que
+     * ce réglage existe. C'est aussi ce qui rend le rétablissement possible :
+     * effacer l'entrée suffit, il n'y a pas d'état d'origine à deviner ni à
+     * conserver quelque part.
+     *
+     * Cinq portées, chacune une table à part :
+     *   cmd   un élément dans une carte          id de commande   -> hide|show
+     *   eq    la carte entière                   id d'équipement  -> hide|show
+     *   type  toutes les cartes d'un plugin      eqType_name      -> hide|show
+     *   room  toutes les cartes d'une pièce      id d'objet       -> hide|show
+     *   flat  le gabarit du plugin, refusé       id de commande   -> hide
+     *
+     * « flat » est le seul qui ne masque rien : la commande reste, c'est le
+     * widget écrit par son plugin qu'on écarte, et jeeGlow la dessine alors
+     * avec son propre rendu. Un aspirateur dont les dix-neuf commandes portent
+     * toutes un widget conçu pour le dashboard d'origine redevient ainsi une
+     * carte comme les autres, sans rien perdre. */
+    const OVERRIDE_KEY = 'overrides';
+
+    /* Les dérogations du modèle en cours de construction, rechargées à chaque
+     * appel de model() comme les alias, et pour la même raison : un réglage
+     * changé doit se voir dans le modèle relu juste après. Statique, donc
+     * jamais une colonne pour DB::save(). */
+    private static $_overrides = array();
+
+    /* Le mode édition : le modèle porte alors aussi ce qui est masqué, pour
+     * que l'administrateur puisse le rétablir. Faux partout ailleurs — un
+     * dashboard ordinaire ne doit pas transporter ce qu'il ne dessine pas. */
+    private static $_reveal = false;
+
     /* Un modèle complet coûte une lecture de cache par commande renvoyée. Au
      * delà de ce seuil on n'a plus affaire à un dashboard mais à un inventaire :
      * on tronque, et la page le dit. */
@@ -139,20 +174,60 @@ class jeeglowbe extends eqLogic {
      *
      * $_user est l'utilisateur de la session. Passé à null (appel en ligne de
      * commande, test), aucun filtre par équipement n'est appliqué.
+     *
+     * $_reveal est le mode édition : le modèle porte alors aussi ce que jeeGlow
+     * masque, marqué comme tel, pour qu'un administrateur puisse le rétablir.
+     * Sans lui, un masquage serait sans retour — ce qui disparaît du modèle
+     * disparaît aussi de toute interface capable de le faire revenir.
      */
-    public static function model($_user = null) {
+    public static function model($_user = null, $_reveal = false) {
         $started = microtime(true);
         self::$_aliases = self::aliases();
         self::$_shortNames = (config::byKey('shortNames', 'jeeglowbe', 1) == 1);
+        self::$_overrides = self::overrides();
+        /* Le contrôle est ici en plus d'être dans l'ajax : model() est aussi
+         * appelée par la page et par les outils, et une porte gardée à un seul
+         * endroit finit toujours par être contournée par le second appelant. */
+        self::$_reveal = ($_reveal === true && (!is_object($_user) || $_user->getProfils() == 'admin'));
         $rooms = array();
         $devices = array();
+        /* Le plafond ne compte QUE ce qui se dessine. En mode normal cela ne
+         * change rien — tout ce qui est dans le tableau se dessine — mais en
+         * mode édition les masqués auraient mangé les quatre cents places, et
+         * la troncature serait tombée sur la queue de liste : précisément les
+         * équipements masqués qu'on venait chercher pour les rétablir, et qui
+         * n'auraient plus eu aucune prise dans la page. */
+        $drawnCount = 0;
 
-        foreach (jeeObject::buildTree(null, true) as $object) {
-            /* Une pièce masquée du dashboard d'origine le reste ici : jeeGlow
-             * change la présentation, pas les intentions déjà exprimées. */
-            if ($object->getConfiguration('hideOnDashboard', 0) == 1) {
-                continue;
-            }
+        /*
+         * buildTree(null, false) et non (null, true) : le second argument est
+         * « seulement les visibles », et il descend jusqu'à rootObject() et
+         * getChild() qui ajoutent tous deux « AND isVisible = 1 »
+         * (core/class/jeeObject.class.php, ligne 1184). Le laisser à true
+         * rendait une dérogation « Toujours affiché » posée sur une pièce
+         * invisible silencieusement inopérante : l'objet n'arrivait jamais
+         * jusqu'ici. « Show » doit vouloir dire la même chose aux quatre
+         * portées, sans quoi il faut se souvenir de l'exception.
+         *
+         * Le coût est celui des objets invisibles hydratés — aucun sur
+         * l'installation d'essai, seize objets en tout — et buildTree filtre
+         * déjà les droits, que la boucle revérifie avec l'utilisateur reçu.
+         */
+        foreach (jeeObject::buildTree(null, false) as $object) {
+            /* Ce que Jeedom dit de la pièce : invisible, ou masquée du
+             * dashboard d'origine. La dérogation se pose par-dessus, dans les
+             * deux sens. */
+            $roomOvr = isset(self::$_overrides['room'][intval($object->getId())])
+                ? self::$_overrides['room'][intval($object->getId())] : '';
+            $roomShown = ($roomOvr === '')
+                ? ($object->getIsVisible() == 1 && $object->getConfiguration('hideOnDashboard', 0) != 1)
+                : ($roomOvr === 'show');
+            /* Pas de « continue » sur une pièce masquée : ses équipements sont
+             * parcourus quand même, parce qu'une dérogation posée sur l'un
+             * d'eux doit pouvoir l'en sortir — « toute la pièce sauf celui-là »
+             * est la même phrase que « tous les aspirateurs sauf celui-là », et
+             * elle doit se dire de la même façon. C'est une requête par pièce
+             * masquée, sur des pièces qu'on compte sur les doigts. */
             /* buildTree() a déjà écarté les objets interdits, mais en
              * s'appuyant sur la session. Le contrôle est refait avec
              * l'utilisateur reçu : ainsi le modèle est juste même appelé hors
@@ -161,16 +236,34 @@ class jeeglowbe extends eqLogic {
                 continue;
             }
             $ids = array();
-            foreach ($object->getEqLogic(true, true) as $eqLogic) {
+            /* getEqLogic(true, false) et non (true, true) : la visibilité n'est
+             * plus une affaire de requête depuis qu'une dérogation peut
+             * rétablir un équipement que Jeedom masque. Le tri descend donc
+             * d'un cran, de la clause SQL à deviceDecision(). Le surcoût est
+             * l'hydratation des équipements invisibles — deux sur soixante-sept
+             * sur l'installation d'essai ; le gain est qu'un équipement masqué
+             * dans Jeedom peut vivre ici, ce qui était impossible autrement. */
+            foreach ($object->getEqLogic(true, false) as $eqLogic) {
                 if (is_object($_user) && !$eqLogic->hasRight('r', $_user)) {
                     continue;
                 }
-                if (count($devices) >= self::MAX_DEVICES) {
+                $decision = self::deviceDecision($eqLogic, $roomShown);
+                if (!$decision['shown'] && !self::$_reveal) {
+                    continue;
+                }
+                /* Le budget est compté après le masquage : un équipement que
+                 * personne ne verra n'a pas à occuper une des quatre cents
+                 * places, ni à payer ses lectures de cache. Masquer, c'est donc
+                 * aussi faire de la place. */
+                if ($drawnCount >= self::MAX_DEVICES) {
                     break;
                 }
-                $device = self::deviceModel($eqLogic, intval($object->getId()), $_user);
+                $device = self::deviceModel($eqLogic, intval($object->getId()), $_user, $decision);
                 if ($device === null) {
                     continue;
+                }
+                if ($decision['shown']) {
+                    $drawnCount++;
                 }
                 $devices[$device['id']] = $device;
                 $ids[] = $device['id'];
@@ -189,7 +282,7 @@ class jeeglowbe extends eqLogic {
              * coeur y inscrit la profondeur à chaque enregistrement
              * (jeeObject::preSave, ligne 803), là où la méthode remonte la
              * chaîne des pères par autant de byId(). */
-            $rooms[] = array(
+            $room = array(
                 'id'      => intval($object->getId()),
                 'name'    => $object->getName(),
                 'icon'    => self::iconClass($object->getDisplay('icon', '')),
@@ -198,6 +291,19 @@ class jeeglowbe extends eqLogic {
                 'depth'   => intval($object->getConfiguration('parentNumber', 0)),
                 'devices' => $ids,
             );
+            if (self::$_reveal) {
+                $room['ovr'] = $roomOvr;
+                $room['drawn'] = $roomShown;
+                /* Ce que Jeedom dit de la pièce, dérogation mise à part. La
+                 * page en a besoin pour savoir si rétablir veut dire « efface
+                 * la décision » ou « affiche-la quand même » : sans ce
+                 * renseignement, elle ne pouvait qu'épingler la pièce sur
+                 * « toujours affichée », définitivement. C'est le pendant de
+                 * 'jeedom' sur les commandes. */
+                $room['jeedom'] = ($object->getIsVisible() == 1
+                    && $object->getConfiguration('hideOnDashboard', 0) != 1);
+            }
+            $rooms[] = $room;
         }
 
         /*
@@ -211,21 +317,34 @@ class jeeglowbe extends eqLogic {
             /* byObjectId(null) et non all() filtré à la main. Le coeur
              * reconnaît deux façons de n'avoir aucun objet — « object_id IS
              * NULL OR object_id = -1 » (core/class/eqLogic.class.php, ligne
-             * 116) — et les deux arguments suivants ajoutent « AND isEnable =
-             * 1 AND isVisible = 1 » à la même requête. C'est exactement le tri
-             * qu'on faisait ici, mais fait par la base : all() hydratait toute
-             * la table eqLogic, désactivés et invisibles compris, pour n'en
-             * garder que les orphelins. */
-            foreach (eqLogic::byObjectId(null, true, true) as $eqLogic) {
+             * 116) — et l'argument suivant ajoute « AND isEnable = 1 » à la
+             * même requête : all() hydratait toute la table eqLogic pour n'en
+             * garder que les orphelins.
+             *
+             * Le troisième argument, « seulement les visibles », est resté à
+             * false depuis qu'une dérogation peut rétablir un équipement que
+             * Jeedom masque : ce tri-là appartient désormais à
+             * deviceDecision(). Les désactivés, eux, restent écartés par la
+             * base, et aucune dérogation ne les ramène. */
+            foreach (eqLogic::byObjectId(null, true, false) as $eqLogic) {
                 if (is_object($_user) && !$eqLogic->hasRight('r', $_user)) {
                     continue;
                 }
-                if (count($devices) >= self::MAX_DEVICES) {
+                /* Aucune pièce, donc aucune pièce à masquer : la décision se
+                 * joue entre l'équipement, son type et Jeedom. */
+                $decision = self::deviceDecision($eqLogic, true);
+                if (!$decision['shown'] && !self::$_reveal) {
+                    continue;
+                }
+                if ($drawnCount >= self::MAX_DEVICES) {
                     break;
                 }
-                $device = self::deviceModel($eqLogic, 0, $_user);
+                $device = self::deviceModel($eqLogic, 0, $_user, $decision);
                 if ($device === null) {
                     continue;
+                }
+                if ($decision['shown']) {
+                    $drawnCount++;
                 }
                 $devices[$device['id']] = $device;
                 $orphans[] = $device['id'];
@@ -272,7 +391,7 @@ class jeeglowbe extends eqLogic {
         $return = array(
             'rooms'     => $rooms,
             'devices'   => $devices,
-            'truncated' => (count($devices) >= self::MAX_DEVICES),
+            'truncated' => ($drawnCount >= self::MAX_DEVICES),
             'title'     => trim(config::byKey('title', 'jeeglowbe', '')),
             /* Renommer touche à la configuration du plugin : réservé aux
              * administrateurs, comme toute écriture. */
@@ -288,6 +407,17 @@ class jeeglowbe extends eqLogic {
              * par Intl s'obtient en remplaçant le souligné. */
             'lang'      => str_replace('_', '-', config::byKey('language', 'core', 'fr_FR')),
         );
+
+        /* La table des dérogations ne part qu'à l'administrateur, et seulement
+         * en mode édition : c'est un réglage, pas une donnée du dashboard, et
+         * un compte tablette n'a rien à en faire. Elle porte aussi les types et
+         * les pièces, que les équipements reçus ne suffisent pas à déduire — un
+         * plugin entièrement masqué n'a plus un seul équipement dans le modèle,
+         * et sa ligne doit pourtant rester réglable. */
+        if (self::$_reveal) {
+            $return['reveal'] = true;
+            $return['overrides'] = self::$_overrides;
+        }
 
         /* Une installation sans scénario visible — ou un utilisateur qui n'a le
          * droit d'en lancer aucun — ne reçoit pas une liste vide à tester : la
@@ -457,13 +587,218 @@ class jeeglowbe extends eqLogic {
     }
 
     /*
+     * La table des dérogations, rangée par portée.
+     *
+     * Toujours les cinq clés, même vides : le reste du code n'a pas à vérifier
+     * leur existence à chaque lecture, et une table incomplète — écrite par une
+     * version antérieure du plugin, ou à la main dans la configuration — se
+     * comporte comme une table vide au lieu d'échouer.
+     */
+    public static function overrides() {
+        $raw = config::byKey(self::OVERRIDE_KEY, 'jeeglowbe', '');
+        $decoded = is_array($raw) ? $raw : json_decode((string) $raw, true);
+        $return = array('cmd' => array(), 'eq' => array(), 'type' => array(), 'room' => array(), 'flat' => array());
+        if (!is_array($decoded)) {
+            return $return;
+        }
+        foreach (array_keys($return) as $scope) {
+            if (!isset($decoded[$scope]) || !is_array($decoded[$scope])) {
+                continue;
+            }
+            /* Seules deux valeurs existent. Les autres — table écrite à la
+             * main, valeur d'une version ultérieure, faute de frappe — sont
+             * écartées ici plutôt que d'être interprétées différemment selon
+             * l'endroit : les lectures testent tantôt « === show », tantôt
+             * « !== hide », et une valeur parasite produisait une commande
+             * ni affichée ni masquée, qui gardait pourtant son rôle. Ce qui
+             * n'est pas une décision ne décide rien. */
+            foreach ($decoded[$scope] as $key => $state) {
+                if ($state === 'hide' || $state === 'show') {
+                    $return[$scope][$key] = $state;
+                }
+            }
+        }
+        return $return;
+    }
+
+    /*
+     * Pose ou retire une dérogation. Nommée « applyOverride » et non
+     * « setOverride » : le coeur appelle « set » + le nom de chaque clé reçue
+     * par un formulaire (utils::a2o), et une méthode qui commence par « set »
+     * sur une classe qu'il instancie par réflexion est un piège connu. Le
+     * préfixe coûte deux lettres et écarte la question.
+     *
+     * $_state vaut « hide », « show », ou « auto » qui EFFACE l'entrée. Cette
+     * troisième valeur est tout l'intérêt du mécanisme : rétablir n'est pas
+     * enregistrer « affiché », c'est cesser de décider — l'équipement repart
+     * alors sur ce que Jeedom en dit, aujourd'hui et après tout changement
+     * qu'on y fera plus tard.
+     */
+    public static function applyOverride($_scope, $_key, $_state) {
+        $overrides = self::overrides();
+        if (!isset($overrides[$_scope])) {
+            throw new Exception(__('Portée inconnue :', __FILE__) . ' ' . $_scope);
+        }
+        /* Le type est un nom de plugin, tout le reste un identifiant. Les
+         * ramener à la même forme ici évite qu'une clé « 236 » et une clé 236
+         * désignent deux entrées différentes selon le chemin d'écriture. */
+        /* Le type est un nom de plugin, borné comme les alias : la table des
+         * dérogations part dans une colonne de configuration, et une clé
+         * inventée par un appel forgé n'a pas à pouvoir la faire enfler. */
+        $key = ($_scope === 'type') ? mb_substr(trim((string) $_key), 0, 64) : strval(intval($_key));
+        if ($key === '' || ($_scope !== 'type' && intval($key) <= 0)) {
+            throw new Exception(__('Dérogation sans cible', __FILE__));
+        }
+        if ($_state === 'auto' || $_state === '') {
+            unset($overrides[$_scope][$key]);
+        } elseif ($_state === 'hide' || ($_state === 'show' && $_scope !== 'flat')) {
+            $overrides[$_scope][$key] = $_state;
+        } else {
+            throw new Exception(__('État de dérogation non géré :', __FILE__) . ' ' . $_state);
+        }
+        self::saveOverrides($overrides);
+        return $overrides;
+    }
+
+    /*
+     * Rétablit un équipement : sa propre dérogation, et celles de toutes ses
+     * commandes. C'est le bouton qu'il faut, et pas seulement une commodité :
+     * après avoir réglé une carte élément par élément, personne ne se souvient
+     * desquels il a touchés, et un rétablissement partiel laisse une carte dans
+     * un état que l'on n'a jamais choisi.
+     *
+     * La dérogation de type ou de pièce n'est pas effacée : elle ne porte pas
+     * sur cet équipement, et l'effacer masquerait ou révélerait au passage tous
+     * ses voisins.
+     */
+    public static function resetDevice($_id) {
+        $eqLogic = eqLogic::byId($_id);
+        if (!is_object($eqLogic)) {
+            throw new Exception(__('Équipement introuvable', __FILE__));
+        }
+        $overrides = self::overrides();
+        unset($overrides['eq'][intval($_id)]);
+        foreach ($eqLogic->getCmd() as $cmd) {
+            unset($overrides['cmd'][intval($cmd->getId())]);
+            unset($overrides['flat'][intval($cmd->getId())]);
+        }
+        self::saveOverrides($overrides);
+        return $overrides;
+    }
+
+    /* Tout rétablir : jeeGlow ne décide plus rien et réaffiche exactement ce
+     * que Jeedom prévoit. Un réglage dont on ne sait pas revenir est un réglage
+     * qu'on n'ose pas essayer. */
+    public static function resetAll() {
+        config::save(self::OVERRIDE_KEY, '', 'jeeglowbe');
+        return self::overrides();
+    }
+
+    /*
+     * L'écriture, et le ménage qui va avec.
+     *
+     * Une dérogation désigne quelque chose qui peut disparaître : un
+     * équipement supprimé, une commande qu'un plugin a reconstruite, une pièce
+     * effacée. La table décrirait alors une installation qui n'existe plus, et
+     * grossirait indéfiniment. Le tri se fait ici, à l'écriture — un geste
+     * d'administrateur, jamais dans le chemin d'affichage.
+     *
+     * Les types ne sont pas vérifiés : un plugin désinstallé puis réinstallé
+     * doit retrouver son réglage, et rien ne distingue « absent pour de bon »
+     * de « absent ce matin ».
+     */
+    private static function saveOverrides($_overrides) {
+        foreach (array_keys($_overrides['eq']) as $id) {
+            if (!is_object(eqLogic::byId($id))) {
+                unset($_overrides['eq'][$id]);
+            }
+        }
+        foreach (array('cmd', 'flat') as $scope) {
+            foreach (array_keys($_overrides[$scope]) as $id) {
+                if (!is_object(cmd::byId($id))) {
+                    unset($_overrides[$scope][$id]);
+                }
+            }
+        }
+        foreach (array_keys($_overrides['room']) as $id) {
+            if (!is_object(jeeObject::byId($id))) {
+                unset($_overrides['room'][$id]);
+            }
+        }
+        config::save(self::OVERRIDE_KEY, json_encode($_overrides, JSON_UNESCAPED_UNICODE), 'jeeglowbe');
+    }
+
+    /*
+     * Ce que jeeGlow décide d'un équipement, et pourquoi.
+     *
+     * La cascade va du plus précis au plus général : la dérogation posée sur
+     * l'équipement, puis celle posée sur son type — « tous les aspirateurs » —
+     * et à défaut la visibilité que Jeedom lui connaît. S'arrêter à la première
+     * réponse est ce qui permet de dire « tous les aspirateurs sauf celui-là » :
+     * le type masque, l'équipement rétablit.
+     *
+     * La pièce est le troisième cran, et non un veto posé après coup : un
+     * équipement explicitement affiché sort de sa pièce masquée, exactement
+     * comme il sort d'un plugin masqué. Sans cela le modèle se contredisait
+     * sur une même carte — un réglage sur « Toujours affiché » à côté d'une
+     * carte éteinte.
+     *
+     * « show » ne ressuscite jamais un équipement désactivé : les requêtes qui
+     * alimentent le modèle ne demandent que les actifs, et c'est voulu — un
+     * équipement désactivé n'a pas de valeur à montrer, seulement un nom.
+     */
+    private static function deviceDecision($_eqLogic, $_roomShown) {
+        $own = isset(self::$_overrides['eq'][intval($_eqLogic->getId())])
+            ? self::$_overrides['eq'][intval($_eqLogic->getId())] : '';
+        $state = $own;
+        $from = 'eq';
+        if ($state === '') {
+            $type = $_eqLogic->getEqType_name();
+            $state = isset(self::$_overrides['type'][$type]) ? self::$_overrides['type'][$type] : '';
+            $from = 'type';
+        }
+        if ($state === '' && !$_roomShown) {
+            $state = 'hide';
+            $from = 'room';
+        }
+        if ($state === '') {
+            $state = ($_eqLogic->getIsVisible() == 1) ? 'show' : 'hide';
+            $from = 'jeedom';
+        }
+        $shown = ($state === 'show');
+        return array(
+            'shown' => $shown,
+            'ovr'   => $own,
+            /* Ce qui a décidé le masquage, et donc ce qu'il faudra rétablir
+             * pour le défaire. Sans cela le mode édition montre une carte
+             * éteinte sans dire d'où vient l'extinction, et l'administrateur
+             * cherche la case à cocher là où elle n'est pas. */
+            'why'   => $shown ? '' : $from,
+        );
+    }
+
+    /* La dérogation posée sur une commande, ou '' quand jeeGlow n'a rien
+     * décidé. Pas de cascade ici : masquer la carte masque déjà tout ce
+     * qu'elle contient, il n'y a rien à hériter. */
+    private static function cmdState($_id) {
+        return isset(self::$_overrides['cmd'][intval($_id)]) ? self::$_overrides['cmd'][intval($_id)] : '';
+    }
+
+    /*
      * Un équipement, tel que la page le dessinera. Deux passes sur ses
      * commandes : la première ne lit que des métadonnées et sert à choisir la
      * carte, la seconde ne relit la valeur que des commandes réellement
      * envoyées. Sur une installation d'un millier de commandes, la différence
      * est celle entre un dashboard qui s'ouvre et un dashboard qui rame.
+     *
+     * $_decision vient de deviceDecision() : elle dit si l'équipement est
+     * affiché et, sinon, ce qui le masque. Absente — appel direct depuis un
+     * test ou un outil — l'équipement est traité comme affiché.
      */
-    private static function deviceModel($_eqLogic, $_roomId, $_user = null) {
+    private static function deviceModel($_eqLogic, $_roomId, $_user = null, $_decision = null) {
+        if (!is_array($_decision)) {
+            $_decision = array('shown' => true, 'ovr' => '', 'why' => '');
+        }
         /* Voir sans pouvoir agir est un droit à part entière dans Jeedom, et
          * core/ajax/cmd.ajax.php refuse l'exécution sans le droit « x ». Envoyer
          * quand même les boutons donnerait un dashboard qui répond par une
@@ -477,6 +812,8 @@ class jeeglowbe extends eqLogic {
          * une installation ordinaire. */
         $objects = array();
         foreach ($_eqLogic->getCmd() as $cmd) {
+            $state = self::cmdState($cmd->getId());
+            $jeedom = ($cmd->getIsVisible() == 1);
             $entry = array(
                 'id'      => intval($cmd->getId()),
                 'name'    => $cmd->getName(),
@@ -484,7 +821,15 @@ class jeeglowbe extends eqLogic {
                 'subType' => $cmd->getSubType(),
                 'unit'    => $cmd->getUnite(),
                 'generic' => $cmd->getGeneric_type(),
-                'visible' => ($cmd->getIsVisible() == 1),
+                /* La visibilité EFFECTIVE, dérogation comprise, et non celle
+                 * de Jeedom. Tout ce qui suit — le choix de la carte, le tri
+                 * des commandes envoyées, et jusqu'aux filtres de la page qui
+                 * lisent cmd.visible — obéit ainsi à la dérogation sans avoir à
+                 * la connaître. La visibilité que Jeedom connaît, elle, ne
+                 * repart qu'en mode édition, sous le nom 'jeedom'. */
+                'visible' => ($state === '') ? $jeedom : ($state === 'show'),
+                '_ovr'    => $state,
+                '_jeedom' => $jeedom,
                 'invert'  => ($cmd->getSubType() == 'binary' && $cmd->getDisplay('invertBinary') == 1),
                 /* Une commande historisée peut être tracée : c'est la seule
                  * condition, le coeur se charge du reste. */
@@ -510,14 +855,23 @@ class jeeglowbe extends eqLogic {
              * cents. Ils sont demandés après coup, en un seul appel groupé.
              */
             if (self::hasPluginWidget($cmd)) {
-                $entry['widget'] = true;
+                $entry['_hasWidget'] = true;
+                /* La dérogation « flat » ne masque rien : elle refuse le
+                 * gabarit du plugin, et la commande repart dessinée par
+                 * jeeGlow. C'est le seul réglage qui retire quelque chose de la
+                 * carte sans retirer l'information. */
+                if (!isset(self::$_overrides['flat'][$entry['id']])) {
+                    $entry['widget'] = true;
+                }
             }
             if ($entry['type'] == 'action' && !$canExecute) {
                 continue;
             }
             $meta[$entry['id']] = $entry;
             $objects[$entry['id']] = $cmd;
-            if ($entry['generic'] != '' && !isset($byGeneric[$entry['generic']])) {
+            /* Une commande masquée ne prend aucun rôle : voir plus bas pourquoi
+             * l'ordre compte ici. */
+            if ($state !== 'hide' && $entry['generic'] != '' && !isset($byGeneric[$entry['generic']])) {
                 $byGeneric[$entry['generic']] = $entry['id'];
             }
         }
@@ -525,7 +879,23 @@ class jeeglowbe extends eqLogic {
             return null;
         }
 
-        $classification = self::classify($meta, $byGeneric);
+        /*
+         * La classification ne voit que ce qui reste.
+         *
+         * L'ordre n'est pas indifférent : classer d'abord et masquer ensuite
+         * donnerait une carte lumière dont le rôle « état » désigne une
+         * commande absente du modèle, et la page dessinerait une carte vide
+         * sans que rien ne signale l'erreur. Masquer d'abord fait retomber la
+         * carte en générique — un aveu honnête, et le comportement qu'attend
+         * celui qui vient justement de masquer l'état.
+         */
+        $effective = array();
+        foreach ($meta as $id => $entry) {
+            if ($entry['_ovr'] !== 'hide') {
+                $effective[$id] = $entry;
+            }
+        }
+        $classification = self::classify($effective, $byGeneric);
 
         /* Ne sont envoyées que les commandes utiles : celles qui tiennent un
          * rôle dans la carte, et celles que l'utilisateur a rendues visibles. Le
@@ -533,11 +903,23 @@ class jeeglowbe extends eqLogic {
          * à faire sur un dashboard. */
         $keep = $classification['roles'];
         $cmds = array();
+        $drawn = 0;
         foreach ($meta as $id => $entry) {
-            if (!$entry['visible'] && !in_array($id, $keep)) {
+            /* Nommée « onCard » et non « shown » : plus bas, $shown désigne le
+             * nom affiché de l'équipement. Deux sens pour un nom dans une même
+             * fonction est le genre de détail qui se paie six mois plus tard. */
+            $onCard = ($entry['visible'] || in_array($id, $keep));
+            if (!$onCard && !self::$_reveal) {
                 continue;
             }
-            if ($entry['type'] == 'info') {
+            if ($onCard) {
+                $drawn++;
+            }
+            /* La valeur n'est lue que pour ce qui se dessine. C'est ce qui rend
+             * le mode édition tenable : il révèle les 661 commandes invisibles
+             * de l'installation d'essai, mais n'en lit pas le cache — il n'a
+             * besoin que de leur nom et de leur état pour proposer un réglage. */
+            if ($onCard && $entry['type'] == 'info') {
                 try {
                     $entry['value'] = $objects[$id]->execCmd();
                     /* La date sort de la lecture qu'on vient de faire :
@@ -555,13 +937,25 @@ class jeeglowbe extends eqLogic {
                     $entry['value'] = null;
                 }
             }
+            if (self::$_reveal) {
+                $entry['ovr'] = $entry['_ovr'];
+                $entry['jeedom'] = $entry['_jeedom'];
+                $entry['drawn'] = $onCard;
+                if (isset($entry['_hasWidget'])) {
+                    $entry['hasWidget'] = true;
+                    $entry['flat'] = !isset($entry['widget']);
+                }
+            }
+            unset($entry['_ovr'], $entry['_jeedom'], $entry['_hasWidget']);
             $cmds[] = $entry;
         }
 
         /* Un équipement dont toutes les commandes sont masquées et qui ne tient
          * aucun rôle n'a rien à montrer : une carte vide porterait son nom et
-         * un tiret. C'est du bruit, pas une information. */
-        if (count($cmds) == 0) {
+         * un tiret. C'est du bruit, pas une information. En mode édition il
+         * reste au contraire indispensable — c'est la seule prise par laquelle
+         * on peut le rétablir. */
+        if ($drawn == 0 && !self::$_reveal) {
             return null;
         }
 
@@ -598,7 +992,12 @@ class jeeglowbe extends eqLogic {
             'id'       => $id,
             'name'     => $shown,
             'realName' => ($shown !== $real) ? $real : '',
-            'domain'   => self::domainOf($meta),
+            /* $effective et non $meta : masquer toutes les commandes
+             * pilotables d'une prise fait retomber sa carte en capteur, et son
+             * domaine doit suivre — sans quoi une carte inerte continue
+             * d'apparaître sous le filtre « Prises » et d'y être comptée. Le
+             * domaine et la carte se déduisent du même ensemble. */
+            'domain'   => self::domainOf($effective),
             'roomId'   => $_roomId,
             'eqType'   => $_eqLogic->getEqType_name(),
             'category' => self::categoryOf($_eqLogic),
@@ -617,6 +1016,16 @@ class jeeglowbe extends eqLogic {
         $health = self::healthOf($status);
         if ($health !== null) {
             $device['status'] = $health;
+        }
+
+        if (self::$_reveal) {
+            $device['ovr'] = $_decision['ovr'];
+            $device['drawn'] = ($_decision['shown'] && $drawn > 0);
+            /* Un équipement affiché dont plus aucune commande ne se dessine
+             * n'est masqué par personne : ce sont ses éléments qui le sont, un
+             * par un. Le dire évite de chercher une dérogation d'équipement qui
+             * n'existe pas. */
+            $device['why'] = $_decision['shown'] ? ($drawn > 0 ? '' : 'cmd') : $_decision['why'];
         }
 
         return $device;

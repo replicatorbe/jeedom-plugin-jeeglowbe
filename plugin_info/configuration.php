@@ -2,6 +2,18 @@
 if (!isConnect('admin')) {
 	throw new Exception('{{401 - Accès non autorisé}}');
 }
+
+/* Le compte des décisions déjà prises. Un réglage qui vit ailleurs — dans le
+ * dashboard, carte par carte — doit au moins dire ici combien il pèse : sans
+ * ce nombre, « tout rétablir » propose d'annuler on ne sait quoi. */
+/* class_exists : la page de configuration ne doit jamais tomber en erreur
+ * fatale. Un plugin dont la classe ne se charge pas laisserait sinon une
+ * fenêtre blanche, sans même le moyen de le désactiver. */
+$jgOverrides = class_exists('jeeglowbe') ? jeeglowbe::overrides() : array();
+$jgCount = 0;
+foreach ($jgOverrides as $jgScope) {
+	$jgCount += count($jgScope);
+}
 ?>
 <form class="form-horizontal">
 	<fieldset>
@@ -48,6 +60,21 @@ if (!isConnect('admin')) {
 		</div>
 	</fieldset>
 	<fieldset>
+		<legend><i class="fas fa-eye-slash"></i> {{Ce que jeeGlow affiche}}</legend>
+		<div class="form-group">
+			<label class="col-md-4 control-label">{{Décisions en cours}}</label>
+			<div class="col-md-3">
+				<span class="label label-info" style="font-size:14px;"><?php echo $jgCount; ?></span>
+				<a class="btn btn-warning btn-sm" id="bt_jeeglowbeResetAll" style="margin-left:8px;<?php echo ($jgCount == 0) ? 'display:none;' : ''; ?>">
+					<i class="fas fa-undo"></i> {{Tout rétablir}}
+				</a>
+			</div>
+			<div class="col-md-5">
+				<span class="help-block" style="margin:0;">{{jeeGlow peut masquer une carte, un élément d'une carte, tout un plugin ou toute une pièce — sans rien changer au dashboard d'origine, qui continue d'afficher ce que Jeedom lui donne. Ces décisions se prennent dans le dashboard lui-même, par le bouton de réglage en haut à droite. Ce qui n'a jamais été décidé suit Jeedom, aujourd'hui et plus tard. « Tout rétablir » efface les décisions, toutes, et jeeGlow réaffiche exactement ce que Jeedom prévoit.}}</span>
+			</div>
+		</div>
+	</fieldset>
+	<fieldset>
 		<legend><i class="fas fa-tablet-alt"></i> {{Mode kiosque}}</legend>
 		<div class="form-group">
 			<label class="col-md-4 control-label">{{Démarrer en kiosque}}</label>
@@ -78,3 +105,34 @@ if (!isConnect('admin')) {
 		</div>
 	</fieldset>
 </form>
+
+<script>
+/* Le rétablissement général. Une confirmation d'abord : le geste est bref, ce
+ * qu'il défait peut représenter une demi-heure de réglages. */
+document.getElementById('bt_jeeglowbeResetAll').addEventListener('click', function () {
+	var bouton = this
+	if (!window.confirm('{{Effacer toutes les décisions d\'affichage de jeeGlow ? Le dashboard réaffichera ce que Jeedom prévoit.}}')) {
+		return
+	}
+	var form = new FormData()
+	form.append('action', 'resetAll')
+	fetch('plugins/jeeglowbe/core/ajax/jeeglowbe.ajax.php', {
+		method: 'POST', body: form, credentials: 'same-origin'
+	}).then(function (reponse) {
+		return reponse.json()
+	}).then(function (data) {
+		if (!data || data.state !== 'ok') {
+			throw new Error('')
+		}
+		bouton.style.display = 'none'
+		bouton.parentNode.querySelector('.label').textContent = '0'
+		if (typeof jeedomUtils !== 'undefined' && jeedomUtils.showAlert) {
+			jeedomUtils.showAlert({ message: '{{jeeGlow réaffiche ce que Jeedom prévoit.}}', level: 'success' })
+		}
+	}).catch(function () {
+		if (typeof jeedomUtils !== 'undefined' && jeedomUtils.showAlert) {
+			jeedomUtils.showAlert({ message: '{{Le rétablissement a échoué.}}', level: 'danger' })
+		}
+	})
+})
+</script>

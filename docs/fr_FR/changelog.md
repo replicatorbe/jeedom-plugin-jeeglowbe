@@ -2,7 +2,8 @@
 
 ## 0.2
 
-Refonte de l'accueil, de la navigation et des cartes.
+Refonte de l'accueil, de la navigation et des cartes, et un dashboard dont on
+règle ce qu'il montre.
 
 - L'Accueil devient la vue d'arrivée. C'est celle qui est faite pour le coup
   d'œil, et c'était la seule qu'on ne voyait jamais sans un clic.
@@ -16,6 +17,24 @@ Refonte de l'accueil, de la navigation et des cartes.
 - Les pièces prennent l'icône et la couleur choisies dans Jeedom, et résument ce
   qui s'y passe. Les domaines deviennent une rangée de raccourcis.
 - Les scénarios que vous avez le droit de lancer apparaissent en scènes.
+- jeeGlow peut désormais **masquer ce qu'il affiche**, sans rien changer au
+  dashboard d'origine : un élément dans une carte, une carte entière, tout un
+  plugin ou toute une pièce. Un bouton de réglage dans la barre du haut, réservé
+  aux administrateurs, pose ces décisions sur le dashboard lui-même.
+- Trois états et non une case à cocher : « Comme Jeedom », « Toujours affiché »
+  et « Masqué ». Rétablir efface la décision au lieu d'en enregistrer une autre,
+  et ce qui est rétabli suit Jeedom de nouveau, y compris si la visibilité y
+  change plus tard.
+- Le widget écrit par un plugin peut être refusé commande par commande, sans
+  masquer la commande : jeeGlow la redessine alors à sa façon. Un aspirateur
+  dont toutes les commandes portent un rendu conçu pour le dashboard d'origine
+  redevient une carte comme les autres.
+- Le tri a lieu sur le serveur : ce qui est masqué ne parvient plus à la page,
+  ne compte plus dans la limite de quatre cents équipements, et n'est plus
+  signalé dans la vue Santé.
+- La configuration du plugin compte les décisions en cours et propose « Tout
+  rétablir » : un réglage dont on ne sait pas revenir est un réglage qu'on
+  n'ose pas essayer.
 - Trois nouvelles cartes, déduites comme les autres des types génériques du
   cœur : caméra, climat et multimédia. Elles retombaient jusqu'ici sur la carte
   générique, qui réduisait une caméra à trois lignes binaires.

@@ -34,7 +34,44 @@ try {
 
     if (init('action') == 'model') {
         $user = isset($_SESSION['user']) ? $_SESSION['user'] : null;
-        ajax::success(jeeglowbe::model($user));
+        /* Le mode édition demande un modèle qui porte aussi ce qui est masqué.
+         * Il n'est pas refusé aux autres, il leur est simplement sans effet :
+         * model() revérifie le profil, et un dashboard ordinaire qui enverrait
+         * reveal=1 recevrait le modèle ordinaire. */
+        ajax::success(jeeglowbe::model($user, init('reveal') == 1));
+    }
+
+    /*
+     * Les dérogations d'affichage. Écriture, donc administrateurs seulement,
+     * comme le renommage et le rangement.
+     *
+     * Une seule action pour les cinq portées : c'est la même décision, prise
+     * sur une cible plus ou moins large. Cinq actions auraient surtout donné
+     * cinq contrôles de droits à tenir à jour ensemble.
+     */
+    if (init('action') == 'override') {
+        if (!isConnect('admin')) {
+            throw new Exception(__('401 - Accès non autorisé', __FILE__));
+        }
+        ajax::success(jeeglowbe::applyOverride(init('scope'), init('key'), init('state')));
+    }
+
+    /* Rétablir un équipement : sa dérogation et celles de ses commandes. */
+    if (init('action') == 'resetDevice') {
+        if (!isConnect('admin')) {
+            throw new Exception(__('401 - Accès non autorisé', __FILE__));
+        }
+        ajax::success(jeeglowbe::resetDevice(init('id')));
+    }
+
+    /* Tout rétablir : jeeGlow ne décide plus rien. Appelé depuis la page de
+     * configuration, où l'on va justement quand on ne sait plus ce qu'on a
+     * masqué. */
+    if (init('action') == 'resetAll') {
+        if (!isConnect('admin')) {
+            throw new Exception(__('401 - Accès non autorisé', __FILE__));
+        }
+        ajax::success(jeeglowbe::resetAll());
     }
 
     /*

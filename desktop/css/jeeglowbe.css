@@ -2977,3 +2977,261 @@
  * Les règles sont posées à leur place, avec les tuiles et le lanceur ; cette
  * note dit pourquoi, en un seul endroit.
  * ======================================================================== */
+
+/* ========================================================================
+ * Le mode édition
+ *
+ * Il ne doit rien changer à ce qu'il sert à régler. Les cartes gardent leur
+ * forme, leur contenu et leurs valeurs ; ce qui s'ajoute se pose PAR-DESSUS,
+ * en position absolue, et ce qui est masqué s'estompe sans disparaître. Un
+ * réglage qui déforme ce qu'on est en train de juger ne se règle pas.
+ *
+ * Tout part des jetons : l'ambiance sombre suit d'elle-même, sans une seule
+ * règle en double.
+ * ======================================================================== */
+
+.jg-edit-btn.jg-on {
+    background: var(--jg-accent);
+    border-color: var(--jg-accent);
+    color: #ffffff;
+}
+
+/* Masqué, et non absent : l'estompage dit « jeeGlow ne montrera pas cela » tout
+ * en laissant lire de quoi il s'agit.
+ *
+ * L'estompage porte sur le CONTENU et non sur la carte, pour deux raisons.
+ * L'opacité crée un groupe : posée sur la carte, elle emportait le marqueur,
+ * son fond et son anneau de focus — le seul geste capable de faire revenir la
+ * carte était dessiné plus faiblement que la carte qu'il ressuscite. Et le
+ * contour reste plein : le pointillé dit déjà « état inconnu » plus haut dans
+ * ce fichier, et deux sens pour un même trait n'en font aucun. Ce qui dit
+ * « masqué », c'est l'oeil barré du marqueur, qui l'écrit en toutes lettres. */
+.jg-root[data-edit="1"] .jg-card[data-drawn="0"] {
+    border-color: var(--jg-line);
+}
+
+.jg-root[data-edit="1"] .jg-card[data-drawn="0"] > *:not(.jg-edit-mark) {
+    opacity: 0.5;
+}
+
+/* Le coin haut-droit d'une carte porte déjà la pastille de pile et les
+ * alertes : sur les cartes où les deux coexistent, le marqueur les recouvrait
+ * systématiquement — et le mode édition est justement le moment où l'on
+ * regarde les cartes une par une. L'en-tête leur réserve donc la place du
+ * marqueur, et les deux tiennent côte à côte. */
+.jg-root[data-edit="1"] .jg-card .jg-card-head {
+    padding-right: calc(var(--jg-tap-sm) * 2 + var(--jg-space-2));
+}
+
+.jg-edit-mark {
+    position: absolute;
+    top: var(--jg-space-2);
+    right: var(--jg-space-2);
+    z-index: 2;
+    display: flex;
+    gap: var(--jg-space-1);
+    /* Un fond plein sous les boutons : le coin haut-droit d'une carte est déjà
+     * occupé par la pastille de pile ou l'alerte, et les quatre pixels qui
+     * séparent deux boutons laissaient passer un éclat de ce qu'ils
+     * recouvrent. Le marqueur ne masque rien d'important — il n'est là que le
+     * temps du réglage, et la pastille revient en le quittant. */
+    background: var(--jg-surface);
+    border-radius: var(--jg-radius-pill);
+}
+
+.jg-edit-eye {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--jg-tap-sm);
+    height: var(--jg-tap-sm);
+    border-radius: var(--jg-radius-pill);
+    border: 1px solid var(--jg-border);
+    background: var(--jg-surface);
+    box-shadow: var(--jg-elev-1);
+    color: var(--jg-ink);
+    font-size: var(--jg-fs-sm);
+    cursor: pointer;
+    transition: background-color var(--jg-dur) var(--jg-ease);
+}
+
+.jg-edit-eye:hover,
+.jg-edit-flat:hover { background-image: linear-gradient(var(--jg-state-hover), var(--jg-state-hover)); }
+.jg-edit-eye:active,
+.jg-edit-flat:active { background-image: linear-gradient(var(--jg-state-press), var(--jg-state-press)); }
+
+/* L'oeil d'un groupe vit dans un titre de section, pas sur une carte : ni
+ * ombre ni surface, il n'est pas posé sur un autre plan. */
+.jg-edit-group {
+    margin-left: auto;
+    box-shadow: none;
+    background: var(--jg-surface-2);
+}
+
+/* ------------------------------------------------ le bloc du panneau */
+
+/* Le bloc ouvre le panneau, il ne le termine pas : son filet est donc en bas.
+ * Voir openPanel() pour le pourquoi de cet ordre. */
+.jg-edit-panel {
+    margin-bottom: var(--jg-space-5);
+    padding-bottom: var(--jg-space-4);
+    border-bottom: 1px solid var(--jg-border);
+}
+
+/* En mode édition, toute la carte mène à ses réglages : le curseur doit le
+ * dire, y compris sur une carte qui ne pilote rien. */
+.jg-root[data-edit="1"] .jg-card { cursor: pointer; }
+
+.jg-edit-title {
+    margin: 0 0 var(--jg-space-2);
+    font-size: var(--jg-fs-base);
+    font-weight: 700;
+    color: var(--jg-ink);
+}
+
+.jg-edit-hint {
+    margin: 0 0 var(--jg-space-4);
+    font-size: var(--jg-fs-sm);
+    line-height: 1.45;
+    color: var(--jg-ink-2);
+}
+
+.jg-edit-row {
+    display: flex;
+    align-items: center;
+    gap: var(--jg-space-3);
+    padding: var(--jg-space-2) 0;
+    border-bottom: 1px solid var(--jg-border);
+}
+
+.jg-edit-row:last-child { border-bottom: 0; }
+
+/* La carte entière se règle au-dessus de ses éléments, et se lit comme un
+ * titre : c'est la décision la plus large, elle passe en premier. */
+.jg-edit-device {
+    margin-bottom: var(--jg-space-3);
+    padding: var(--jg-space-3);
+    border: 1px solid var(--jg-border);
+    border-radius: var(--jg-radius-md);
+    background: var(--jg-surface-2);
+}
+
+.jg-edit-device .jg-edit-name { font-weight: 700; }
+
+.jg-edit-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--jg-space-2);
+    font-size: var(--jg-fs-md);
+    color: var(--jg-ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.jg-edit-row[data-drawn="0"] .jg-edit-name { color: var(--jg-ink-2); }
+
+/* « rôle » : cet élément donne sa forme à la carte. Un avertissement, pas une
+ * interdiction — on peut le masquer, la carte se simplifiera. */
+.jg-edit-role {
+    flex: 0 0 auto;
+    padding: 1px var(--jg-space-2);
+    border-radius: var(--jg-radius-pill);
+    background: var(--jg-surface-2);
+    font-size: var(--jg-fs-xs);
+    font-weight: 600;
+    color: var(--jg-ink-2);
+}
+
+.jg-edit-tools {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--jg-space-2);
+}
+
+/* Une largeur en em, et non en pixels : la police suit --jg-scale, et un
+ * gabarit figé tronquait « Comme Jeedom · masqué » et « Comme Jeedom ·
+ * affiché » au même endroit en mode kiosque — les rendant indiscernables,
+ * alors que ce suffixe n'existe que pour les distinguer. Fixe plutôt que
+ * automatique, aussi : vingt-cinq contrôles calés à droite dont la largeur
+ * dépend du libellé donnent une colonne en dents de scie. */
+.jg-edit-state {
+    width: 15em;
+    max-width: 100%;
+    padding: var(--jg-space-1) var(--jg-space-2);
+    border: 1px solid var(--jg-line);
+    border-radius: var(--jg-radius-sm);
+    background: var(--jg-surface);
+    color: var(--jg-ink);
+    font-size: var(--jg-fs-sm);
+    cursor: pointer;
+}
+
+.jg-edit-flat {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--jg-tap-sm);
+    height: var(--jg-tap-sm);
+    border-radius: var(--jg-radius-sm);
+    border: 1px solid var(--jg-border);
+    background: var(--jg-surface-2);
+    color: var(--jg-ink-2);
+    font-size: var(--jg-fs-sm);
+    cursor: pointer;
+}
+
+/* Allumé : le widget du plugin est refusé, jeeGlow dessine à sa place. */
+.jg-edit-flat.jg-on {
+    border-color: var(--jg-accent);
+    color: var(--jg-accent);
+}
+
+.jg-edit-reason {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--jg-space-2);
+    margin-bottom: var(--jg-space-3);
+    padding: var(--jg-space-2) var(--jg-space-3);
+    border-radius: var(--jg-radius-sm);
+    background: var(--jg-surface-2);
+    font-size: var(--jg-fs-sm);
+    color: var(--jg-ink-2);
+}
+
+.jg-edit-link {
+    border: 0;
+    background: none;
+    padding: 0;
+    font-size: var(--jg-fs-sm);
+    font-weight: 600;
+    color: var(--jg-accent);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.jg-edit-link:hover { text-decoration-thickness: 2px; }
+.jg-edit-link:active { opacity: 0.7; }
+
+.jg-edit-reset {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--jg-space-2);
+    width: 100%;
+    min-height: var(--jg-tap);
+    margin-top: var(--jg-space-4);
+    border: 1px solid var(--jg-line);
+    border-radius: var(--jg-radius-md);
+    background: var(--jg-surface);
+    color: var(--jg-ink);
+    font-size: var(--jg-fs-md);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.jg-edit-reset:hover { background-image: linear-gradient(var(--jg-state-hover), var(--jg-state-hover)); }

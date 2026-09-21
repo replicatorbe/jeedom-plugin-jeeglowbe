@@ -372,6 +372,108 @@ configuration de jeeGlow. Effacez-le pour revenir au nom d'origine.
 
 Renommer écrit dans la configuration du plugin : réservé aux administrateurs.
 
+## Masquer ce qu'on ne veut pas voir
+
+Une installation qui a vécu porte des équipements qui n'ont rien à faire sur un
+mur : la passerelle qui ne sert qu'à ses propres capteurs, le plugin d'essai
+qu'on n'a jamais désinstallé, les quatre sondes d'un onduleur. Les masquer dans
+Jeedom les masquerait partout, y compris là où ils servent. jeeGlow décide donc
+pour lui seul : **le dashboard d'origine n'est pas touché** et continue
+d'afficher tout ce que Jeedom lui donne.
+
+Chaque chose réglable a trois positions, et non une case à cocher :
+
+- **Comme Jeedom**, l'état par défaut, celui de tout ce à quoi on n'a jamais
+  touché. Ce n'est pas « affiché » : c'est l'absence de décision. jeeGlow suit
+  alors la visibilité que Jeedom connaît, aujourd'hui et après tout changement
+  qu'on y fera plus tard.
+- **Toujours affiché** : jeeGlow le montre même si Jeedom le masque.
+- **Masqué** : jeeGlow ne le montre pas, quoi que Jeedom en dise.
+
+Rétablir, c'est donc revenir à « Comme Jeedom » et non enregistrer « affiché » :
+cesser de décider plutôt que décider l'inverse. Il n'y a ainsi aucun état
+d'origine à deviner, et ce qui est rétabli suit Jeedom de nouveau, y compris si
+la visibilité y change des mois après.
+
+Cinq portées, de la plus précise à la plus large : un **élément** dans une
+carte, une **carte** entière, **tout un plugin** — tous les aspirateurs, toutes
+les sondes d'un même type — et **toute une pièce**. La cinquième ne masque rien :
+elle **refuse le widget écrit par le plugin** pour une commande, que jeeGlow
+redessine alors à sa façon. Un aspirateur dont les dix-neuf commandes portent
+chacune un rendu conçu pour le dashboard d'origine redevient ainsi une carte
+comme les autres, sans rien perdre au passage.
+
+Les décisions se lisent du plus précis au plus général : l'équipement d'abord,
+son plugin ensuite, Jeedom en dernier. C'est ce qui permet de dire « tous les
+aspirateurs sauf celui-là » : le plugin masque, l'équipement rattrape. La pièce,
+elle, tranche avant tout le monde — un équipement rangé dans une pièce masquée
+ne se rattrape pas équipement par équipement, c'est la pièce qu'on rétablit.
+
+**Le mode réglage.** Un bouton en forme de curseurs apparaît dans la barre du
+haut, pour les administrateurs seulement. Il fait relire au serveur un modèle
+qui porte aussi ce qui est masqué, sans quoi un masquage serait sans retour : ce
+qui disparaît du dashboard disparaît aussi de l'interface capable de le faire
+revenir. Y entrer depuis l'Accueil bascule vers les Fonctions — l'Accueil dit
+l'état de la maison, il ne montre pas des cartes à régler.
+
+Dans ce mode, **une carte ne pilote plus : elle se règle**. Un appui n'allume
+plus la lampe, il ouvre les réglages de la carte — et c'est par là que passe le
+masquage élément par élément. Sans cela, la seule porte vers les éléments était
+la petite pastille d'icône dans un coin, et une carte de lumière s'allumait
+quand on croyait l'ouvrir. Chaque carte porte par ailleurs un œil en haut à
+droite, et une flèche de retour dès qu'une décision a été prise sur elle. Les cartes masquées restent
+dessinées, estompées et en pointillé : on ne règle bien que ce qu'on voit. La
+vue Système donne un œil par plugin, la vue Pièces un œil par pièce. Les
+domaines et les résultats de recherche n'en ont pas : ils se recoupent, et
+masquer « Lumières » ne voudrait rien dire pour une lampe qui est aussi une
+prise.
+
+L'Accueil et la vue Santé, eux, ne montrent jamais ce qui est masqué, même dans
+ce mode : on n'y règle rien, et ils doivent dire ce que le dashboard dira. Une
+tuile de domaine, une pièce, une mesure de l'accueil ou une pile faible ne
+comptent donc jamais un équipement masqué. Révéler sert à régler, pas à changer
+les comptes.
+
+Le panneau de détail d'un équipement s'ouvre alors sur un bloc **Affichage dans
+jeeGlow** — en tête, avant les valeurs : on ouvre ce panneau pour régler, pas
+pour lire. Il contient : le réglage de la carte entière, la raison du masquage quand il vient
+d'ailleurs — le plugin, la pièce, Jeedom — avec le bouton qui le défait là où il
+a été décidé, puis la liste de **tous** ses éléments, y compris ceux que Jeedom
+masque, chacun avec ses trois positions et le bouton qui refuse le widget du
+plugin. Un bouton **Rétablir cet équipement** efface d'un geste les décisions
+prises sur lui et sur ses éléments : après avoir réglé une carte élément par
+élément, personne ne se souvient desquels il a touchés, et un rétablissement
+partiel laisse une carte dans un état que l'on n'a jamais choisi.
+
+Certains éléments portent une étiquette **rôle** : ce sont ceux qui donnent sa
+forme à la carte, l'état d'une lampe ou la consigne d'un thermostat. Rien
+n'interdit de les masquer, mais la carte retombe alors en carte générique. C'est
+un aveu honnête plutôt qu'une carte lumière dont l'état aurait disparu.
+
+**Ce que le masquage a de radical.** Le tri a lieu sur le serveur, avant que la
+page ne reçoive quoi que ce soit. Un équipement masqué disparaît donc de toutes
+les vues, **la vue Santé comprise : il n'est plus signalé du tout**, ni pour une
+pile faible, ni parce qu'il ne répond plus. Masquer une passerelle bavarde est
+un bon calcul ; masquer un capteur sur pile en est un moins bon. Une pièce dont
+tous les équipements sont masqués disparaît de la navigation, et ce qui est
+masqué ne compte plus dans la limite de quatre cents équipements : masquer,
+c'est aussi faire de la place.
+
+Dans l'autre sens, **Toujours affiché** fait venir dans jeeGlow une commande ou
+un équipement que Jeedom masque — la mesure technique qu'on veut lire ici sans
+l'exposer partout ailleurs. Cela ne ressuscite jamais un équipement
+**désactivé** : un équipement désactivé n'a aucune valeur à montrer, seulement
+un nom.
+
+La configuration du plugin affiche le **nombre de décisions en cours** et un
+bouton **Tout rétablir** qui les efface toutes, après confirmation : jeeGlow
+réaffiche alors exactement ce que Jeedom prévoit. Un réglage dont on ne sait pas
+revenir est un réglage qu'on n'ose pas essayer.
+
+Ces décisions vivent dans la configuration de jeeGlow et sont réservées aux
+administrateurs. Le serveur revérifie ce droit à chaque appel : un bouton absent
+n'est pas une porte fermée.
+
 ## Ranger une pièce sans quitter le dashboard
 
 Le panneau de détail propose un sélecteur de **pièce** aux administrateurs. La
@@ -484,9 +586,11 @@ une liste filtrée n'est pas une porte fermée.
 
 - Il ne modifie **aucun** équipement, aucune commande, aucun réglage de Jeedom.
   Les seules écritures possibles, réservées aux administrateurs, sont le nom
-  d'affichage — qui vit dans la configuration de jeeGlow — et la pièce d'un
-  équipement.
-- Il respecte ce que vous avez déjà décidé : un objet masqué du dashboard reste
-  masqué, un équipement désactivé ou invisible n'apparaît pas.
+  d'affichage et les décisions d'affichage — qui vivent dans la configuration de
+  jeeGlow — et la pièce d'un équipement.
+- Il part de ce que vous avez déjà décidé : un objet masqué du dashboard reste
+  masqué et un équipement invisible n'apparaît pas, tant que vous n'en décidez
+  pas autrement dans jeeGlow lui-même. Un équipement désactivé, lui, n'apparaît
+  jamais.
 - Il ne réutilise pas les widgets natifs : les cartes sont les siennes. Un widget
   personnalisé installé sur une commande ne se retrouve donc pas ici.

@@ -345,6 +345,104 @@ other plugins rely on it. The chosen name lives in jeeGlow's configuration.
 Clear it to go back to the original name. Renaming writes to the plugin
 configuration, so it is reserved for administrators.
 
+## Hiding what you do not want to see
+
+An installation that has been running for a while carries devices that have no
+business on a wall: the gateway that only serves its own sensors, the trial
+plugin nobody ever uninstalled, an inverter's four probes. Hiding them in
+Jeedom would hide them everywhere, including where they are useful. So jeeGlow
+decides for itself alone: **the original dashboard is left untouched** and goes
+on showing everything Jeedom gives it.
+
+Everything you can set has three positions, rather than a checkbox:
+
+- **Same as Jeedom**, the default, and the state of everything you never
+  touched. It does not mean "shown": it means no decision was taken. jeeGlow
+  follows the visibility Jeedom knows, today and after any change you make there
+  later.
+- **Always shown**: jeeGlow shows it even when Jeedom hides it.
+- **Hidden**: jeeGlow does not show it, whatever Jeedom says.
+
+Restoring therefore means going back to "Same as Jeedom", not recording
+"shown": it stops deciding rather than deciding the opposite. There is no
+original state to guess at, and what you restore follows Jeedom again, including
+if the visibility changes there months later.
+
+Five scopes, from the narrowest to the widest: an **item** inside a card, a
+whole **card**, **a whole plugin** — every vacuum cleaner, every probe of the
+same type — and **a whole room**. The fifth one hides nothing: it **refuses the
+widget the plugin wrote** for a command, and jeeGlow draws it its own way
+instead. A vacuum cleaner whose nineteen commands each carry a rendering meant
+for the original dashboard becomes a card like any other, losing nothing on the
+way.
+
+Decisions are read from the narrowest to the widest: the device first, then its
+plugin, then Jeedom. That is what lets you say "every vacuum cleaner except that
+one": the plugin hides, the device catches it back. The room, though, settles
+things before anyone else — a device filed in a hidden room is not recovered
+device by device, it is the room you restore.
+
+**Settings mode.** A sliders button appears in the top bar, for administrators
+only. It makes the server read back a model that also carries what is hidden,
+without which hiding would be a one way street: what disappears from the
+dashboard also disappears from the interface able to bring it back. Entering it
+from Home switches to Functions — Home states how the house is doing, it does
+not show cards to be set.
+
+In that mode, **a card no longer controls anything: it is set**. A tap no longer
+switches the lamp on, it opens the card's settings — and that is the way to
+per-element hiding. Without it, the only door to the elements was the small icon
+badge in a corner, and a light card switched on when you meant to open it. Every
+card also carries an eye at its top right, and an undo arrow as soon as a
+decision has been taken on it. Hidden cards are still drawn, faded and
+dotted: you only set properly what you can see. The System view gives one eye
+per plugin, the Rooms view one eye per room. Domains and search results get
+none: they overlap, and hiding "Lights" would mean nothing for a lamp that is
+also a socket.
+
+Home and the Health view never show what is hidden, not even in this mode: you
+set nothing there, and they must say what the dashboard will say. A domain tile,
+a room, a home measurement or a low battery therefore never counts a hidden
+device. Revealing is for setting, not for changing the counts.
+
+A device's detail panel then opens on a **Display in jeeGlow** block — at the
+top, before the values: you open this panel to set things, not to read them. It
+holds: the setting
+for the whole card, the reason it is hidden when that comes from elsewhere — the
+plugin, the room, Jeedom — with the button that undoes it where it was decided,
+then the list of **all** its items, including the ones Jeedom hides, each with
+its three positions and the button refusing the plugin's widget. A **Restore
+this device** button clears in one go the decisions taken on it and on its
+items: after setting a card item by item, nobody remembers which ones they
+touched, and a partial restore leaves a card in a state nobody ever chose.
+
+Some items carry a **role** label: they are the ones giving the card its shape,
+a lamp's state or a thermostat's setpoint. Nothing forbids hiding them, but the
+card then falls back to the generic card. That is an honest admission, rather
+than a light card whose state has gone missing.
+
+**How radical hiding is.** The sorting happens on the server, before the page
+receives anything at all. A hidden device therefore disappears from every view,
+**the Health view included: it is no longer flagged at all**, neither for a low
+battery nor for having stopped answering. Hiding a chatty gateway is a good
+trade; hiding a battery powered sensor is a poorer one. A room whose devices are
+all hidden disappears from the navigation, and what is hidden no longer counts
+towards the four hundred device limit: hiding is also making room.
+
+The other way round, **Always shown** brings into jeeGlow a command or a device
+that Jeedom hides — the technical reading you want here without exposing it
+everywhere else. It never brings back a **disabled** device: a disabled device
+has no value to show, only a name.
+
+The plugin configuration shows the **number of decisions in force** and a
+**Restore everything** button that clears them all, after confirmation: jeeGlow
+then shows again exactly what Jeedom intends. A setting you cannot come back
+from is a setting nobody dares try.
+
+Those decisions live in jeeGlow's configuration and are reserved for
+administrators. The server checks that right again on every call: a missing
+button is not a closed door.
+
 ## Assigning a room without leaving the dashboard
 
 The detail panel offers a **room** selector to administrators. Half of an
@@ -445,9 +543,10 @@ not a closed door.
 ## What jeeGlow does not do
 
 - It modifies **no** device, command or Jeedom setting. The only writes it can
-  make, both reserved for administrators, are the display name — which lives in
-  jeeGlow's own configuration — and a device's room.
-- It honours what you already decided: an object hidden from the dashboard stays
-  hidden, a disabled or invisible device does not show up.
+  make, all reserved for administrators, are the display name and the display
+  decisions — which live in jeeGlow's own configuration — and a device's room.
+- It starts from what you already decided: an object hidden from the dashboard
+  stays hidden and an invisible device does not show up, as long as you do not
+  decide otherwise in jeeGlow itself. A disabled device never shows up at all.
 - It does not reuse the native widgets: the cards are its own. A custom widget
   set on a command is therefore not used here.

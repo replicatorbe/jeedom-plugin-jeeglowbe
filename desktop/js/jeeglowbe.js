@@ -86,6 +86,18 @@
       JG.ROOMS[room.id] = room
     })
     Object.keys(MODEL.devices || {}).forEach(function (key) {
+      /* En mode édition le modèle porte aussi ce qui ne se dessine pas, pour
+       * qu'on puisse le rétablir. Les cartes, elles, ne doivent rien en savoir :
+       * régler l'affichage ne doit pas changer l'affichage qu'on est en train
+       * de régler. On met donc de côté la liste complète — le panneau s'en
+       * sert — et cmds ne garde que ce qui se dessine, exactement comme hors
+       * mode édition. */
+      if (MODEL.reveal && MODEL.devices[key].all === undefined) {
+        MODEL.devices[key].all = MODEL.devices[key].cmds
+        MODEL.devices[key].cmds = MODEL.devices[key].cmds.filter(function (cmd) {
+          return cmd.drawn !== false
+        })
+      }
       MODEL.devices[key].cmds.forEach(function (cmd) {
         JG.OWNER[cmd.id] = MODEL.devices[key].id
         /* La commande garde le domaine de son équipement : c'est ce qui permet
@@ -2100,7 +2112,468 @@
     if (device.cmds.some(function (cmd) { return cmd.widget })) {
       card.dataset.span = '2'
     }
+    /* Le marqueur d'édition est posé AVANT l'insertion, donc avant
+     * connectedCallback : la carte ajoute ses propres enfants à la suite sans
+     * jamais vider ce qu'elle trouve, et le marqueur est de toute façon en
+     * position absolue. Aucune carte n'a ainsi à connaître le mode édition. */
+    if (editingHere()) {
+      if (device.drawn === false) {
+        card.dataset.drawn = '0'
+      }
+      card.appendChild(editMark(device))
+    }
     return card
+  }
+
+  /* -------------------------------------------------------- le mode édition
+   *
+   * Masquer côté serveur a une conséquence dont on ne se sort pas autrement :
+   * ce qui est masqué ne parvient plus à la page, donc plus à aucune interface
+   * capable de le rétablir. Le mode édition demande au serveur un modèle qui
+   * porte AUSSI ce qu'il masque, marqué comme tel. Il est réservé à
+   * l'administrateur, et le dashboard ordinaire ne transporte rien de tout
+   * cela.
+   *
+   * Les cartes ne changent pas d'aspect pour autant : une carte masquée se
+   * dessine estompée, avec le même contenu, et les commandes révélées ne
+   * rentrent pas dans les cartes — elles ne se règlent que dans le panneau.
+   * Régler l'affichage ne doit pas changer l'affichage qu'on règle.
+   */
+
+  var EDITING = false
+
+  /*
+   * Le mode édition s'applique-t-il ICI ?
+   *
+   * EDITING dit l'intention, MODEL.reveal dit que le serveur l'a honorée — et
+   * la vue dit si le geste a un sens. L'accueil n'en est pas : ses bandes et
+   * ses tuiles ne sont pas des cartes, il ne montre jamais ce qui est masqué,
+   * et il n'y porte donc aucun signe du mode. Y détourner l'appui donnait le
+   * pire des cas : on revient à l'accueil pour juger du résultat, on appuie sur
+   * « Plafonnier salon » pour l'éteindre, et un panneau de réglage s'ouvre sans
+   * que rien à l'écran ait annoncé ce changement de règle.
+   *
+   * La recherche, elle, s'affiche par-dessus n'importe quelle vue, l'accueil
+   * compris, et reste réglable : ce sont de vraies cartes, avec leur oeil.
+   */
+  function editingHere() {
+    if (!EDITING || !MODEL.reveal) {
+      return false
+    }
+    return (searchNode.value.trim() !== '' || state().view !== 'home')
+  }
+
+  /* L'équipement dont le panneau est ouvert en ce moment.
+   *
+   * Il sert à le rouvrir après une relecture du modèle : chaque réglage relit
+   * le modèle entier, et un modèle relu referme tout — sans cela, régler douze
+   * éléments d'un aspirateur demande de rouvrir le panneau douze fois. Il
+   * couvre du même coup la relecture qu'on n'a pas demandée, celle qui suit une
+   * annonce du coeur pendant qu'on règle. */
+  var PANEL_ON = 0
+
+  function editMark(device) {
+    var box = el('div', 'jg-edit-mark')
+    var hidden = (device.drawn === false)
+    var button = el('button', 'jg-edit-eye')
+    button.type = 'button'
+    /* Aucun élément affiché : l'oeil de la carte n'y peut rien, et poser une
+     * dérogation d'équipement ne ferait rien revenir. On mène alors là où la
+     * décision se prend, élément par élément. Le libellé ne dit pas « masqués
+     * un par un » : ils peuvent aussi bien être invisibles dans Jeedom depuis
+     * toujours, et l'affirmation serait fausse. */
+    if (device.why === 'cmd') {
+      button.appendChild(el('i', 'fas fa-list-ul'))
+      button.title = '{{Aucun élément affiché — ouvrir le détail}}'
+      button.setAttribute('aria-label', button.title)
+      button.addEventListener('click', function (event) {
+        event.stopPropagation()
+        event.preventDefault()
+        JG.openPanel(device.id)
+      })
+      box.appendChild(button)
+      /* Et la flèche de retour quand même, si une décision a été prise sur
+       * l'équipement : la retirer ici était gratuit. */
+      if (device.ovr) {
+        box.appendChild(undoButton(device))
+      }
+      return box
+    }
+    button.appendChild(el('i', hidden ? 'fas fa-eye-slash' : 'fas fa-eye'))
+    button.title = hidden ? '{{Afficher dans jeeGlow}}' : '{{Masquer dans jeeGlow}}'
+    /* Le titre suffit à nommer un bouton sans texte, mais la maison pose les
+     * deux depuis la pastille des cartes : un lecteur d'écran configuré pour
+     * ignorer les infobulles trouve alors quand même le nom. */
+    button.setAttribute('aria-label', button.title)
+    button.addEventListener('click', function (event) {
+      event.stopPropagation()
+      event.preventDefault()
+      sendOverride('eq', device.id, hidden ? 'show' : 'hide', button)
+    })
+    box.appendChild(button)
+    /* Le retour en arrière n'est proposé que s'il y a quelque chose à défaire :
+     * un bouton « rétablir » sur un équipement auquel personne n'a touché ne
+     * ferait que poser la question de ce qu'il rétablirait. */
+    if (device.ovr) {
+      box.appendChild(undoButton(device))
+    }
+    return box
+  }
+
+  function undoButton(device) {
+    var back = el('button', 'jg-edit-eye jg-edit-back')
+    back.type = 'button'
+    back.title = '{{Rendre la décision à Jeedom}}'
+    back.setAttribute('aria-label', back.title)
+    back.appendChild(el('i', 'fas fa-undo'))
+    back.addEventListener('click', function (event) {
+      event.stopPropagation()
+      event.preventDefault()
+      sendOverride('eq', device.id, 'auto', back)
+    })
+    return back
+  }
+
+  /* L'oeil d'un groupe : tout un plugin en vue Système, toute une pièce en vue
+   * Pièces. C'est le geste que réclame le cas courant — « je ne veux pas des
+   * aspirateurs » ne vise pas un équipement, mais une famille, et le prochain
+   * aspirateur acheté doit être masqué d'office. */
+  function groupEye(scope, key) {
+    var table = (MODEL.overrides && MODEL.overrides[scope]) ? MODEL.overrides[scope] : {}
+    var hidden = (table[key] === 'hide')
+    /* Ce que Jeedom dit de la cible, quand la question se pose. Un type n'est
+     * masqué que d'ici : « auto » suffit à le rétablir. Une pièce, elle, peut
+     * être masquée par Jeedom lui-même — invisible, ou retirée du dashboard
+     * d'origine — et « auto » la laisserait alors masquée.
+     *
+     * D'où la nuance, qui était l'erreur : rétablir posait « Toujours
+     * affiché » sans condition, épinglant DÉFINITIVEMENT une pièce que Jeedom
+     * affiche pourtant — elle ne suivrait plus jamais un masquage décidé
+     * là-bas. Et comme aucune pièce n'a de choix à trois positions ailleurs
+     * dans la page, plus rien ne pouvait lui rendre sa liberté. */
+    var jeedomShown = true
+    if (scope === 'room' && JG.ROOMS[key] !== undefined) {
+      /* L'oeil montre ce qui EST, et non ce que jeeGlow a écrit : sans cela il
+       * propose de masquer une pièce déjà invisible. */
+      if (JG.ROOMS[key].drawn === false) {
+        hidden = true
+      }
+      jeedomShown = (JG.ROOMS[key].jeedom !== false)
+    }
+    var backState = jeedomShown ? 'auto' : 'show'
+    var button = el('button', 'jg-edit-eye jg-edit-group')
+    button.type = 'button'
+    button.appendChild(el('i', hidden ? 'fas fa-eye-slash' : 'fas fa-eye'))
+    button.title = hidden ? '{{Rétablir ce groupe}}' : '{{Masquer tout ce groupe dans jeeGlow}}'
+    button.setAttribute('aria-label', button.title)
+    button.addEventListener('click', function (event) {
+      event.stopPropagation()
+      sendOverride(scope, key, hidden ? backState : 'hide', button)
+    })
+    return button
+  }
+
+  /* Le choix à trois positions, et non une case à cocher.
+   *
+   * « Comme Jeedom » n'est pas « affiché » : c'est l'absence de décision, et
+   * c'est ce qui permet de revenir en arrière sans avoir à deviner l'état
+   * d'origine — et de suivre Jeedom plus tard, si la visibilité y change. Une
+   * case à cocher ne sait pas dire ces trois choses. */
+  function stateSelect(scope, key, current, jeedomShown, label) {
+    var select = el('select', 'jg-edit-state')
+    /* Le contrôle le plus utilisé du mode, et le seul sans texte à côté : sans
+     * nom accessible, un lecteur d'écran annonce « Comme Jeedom · masqué,
+     * liste » sans jamais dire de quoi. */
+    select.setAttribute('aria-label', label)
+    select.title = label
+    var choices = [
+      { value: '', label: '{{Comme Jeedom}}' },
+      { value: 'show', label: '{{Toujours affiché}}' },
+      { value: 'hide', label: '{{Masqué}}' }
+    ]
+    choices.forEach(function (choice) {
+      var label = choice.label
+      if (choice.value === '' && jeedomShown !== null) {
+        label += jeedomShown ? ' · {{affiché}}' : ' · {{masqué}}'
+      }
+      var option = el('option', '', label)
+      option.value = choice.value
+      if (choice.value === (current || '')) {
+        option.selected = true
+      }
+      select.appendChild(option)
+    })
+    var previous = current || ''
+    select.addEventListener('change', function () {
+      sendOverride(scope, key, select.value === '' ? 'auto' : select.value, select, function () {
+        select.value = previous
+      })
+    })
+    return select
+  }
+
+  /* Les réglages d'un équipement, dans son panneau. Construits ici et non dans
+   * la carte de détail : le bloc d'enregistrement des cartes ne s'exécute qu'au
+   * premier chargement de la page, et tout ce qu'une carte lit dans la
+   * fermeture est celui de ce premier passage — le mode édition y serait
+   * éternellement éteint. Voir la note sur JG en tête de fichier. */
+  function editPanel(device) {
+    var box = el('div', 'jg-edit-panel')
+    box.appendChild(el('h3', 'jg-edit-title', '{{Affichage dans jeeGlow}}'))
+    box.appendChild(el('p', 'jg-edit-hint', '{{Ce qui se règle ici ne concerne que jeeGlow : le dashboard d\'origine continue d\'afficher tout ce que Jeedom lui donne. Un équipement masqué disparaît aussi de la vue Santé — il ne sera plus signalé.}}'))
+
+    var head = el('div', 'jg-edit-row jg-edit-device')
+    head.appendChild(el('span', 'jg-edit-name', '{{La carte entière}}'))
+    head.appendChild(stateSelect('eq', device.id, device.ovr, null, '{{La carte entière}}'))
+    box.appendChild(head)
+
+    /* D'où vient le masquage, et la prise pour le défaire là où il a été
+     * décidé. Sans cela, le mode édition montre une carte éteinte dont le
+     * réglage dit « comme Jeedom », et on cherche longtemps. */
+    if (device.why === 'type') {
+      box.appendChild(editReason('{{Masqué avec tout le plugin}} ' + device.eqType,
+        '{{Rétablir le plugin}}', 'type', device.eqType, 'auto'))
+    } else if (device.why === 'room') {
+      box.appendChild(editReason('{{Masqué avec sa pièce}} ' + roomName(device),
+        '{{Afficher la pièce}}', 'room', device.roomId, 'show'))
+    } else if (device.why === 'jeedom') {
+      box.appendChild(editReason('{{Masqué dans Jeedom}}', '', '', '', ''))
+    } else if (device.why === 'cmd') {
+      box.appendChild(editReason('{{Aucun de ses éléments n\'est affiché}}', '', '', '', ''))
+    }
+
+    var list = el('div', 'jg-edit-list')
+    var roles = []
+    Object.keys(device.roles || {}).forEach(function (key) { roles.push(device.roles[key]) })
+    ;(device.all || device.cmds).forEach(function (cmd) {
+      var row = el('div', 'jg-edit-row')
+      if (cmd.drawn === false) {
+        row.dataset.drawn = '0'
+      }
+      var name = el('span', 'jg-edit-name', cmd.name)
+      /* Une commande qui tient un rôle fait la carte : masquer l'état d'une
+       * lampe la fait retomber en carte générique. Le dire avant plutôt que de
+       * laisser découvrir le changement de forme après coup. */
+      if (roles.indexOf(cmd.id) !== -1) {
+        name.appendChild(el('span', 'jg-edit-role', '{{rôle}}'))
+        name.title = '{{Cet élément donne sa forme à la carte : le masquer la simplifiera.}}'
+      }
+      row.appendChild(name)
+      var tools = el('div', 'jg-edit-tools')
+      /* Le widget du plugin, refusé sans masquer la commande : elle reste, et
+       * jeeGlow la dessine à sa façon. */
+      if (cmd.hasWidget) {
+        var flat = el('button', 'jg-edit-flat')
+        flat.type = 'button'
+        flat.classList.toggle('jg-on', cmd.flat === true)
+        flat.title = cmd.flat ? '{{Rendre son widget au plugin}}' : '{{Refuser le widget du plugin et dessiner à la façon de jeeGlow}}'
+        flat.setAttribute('aria-label', flat.title)
+        flat.appendChild(el('i', 'fas fa-puzzle-piece'))
+        flat.addEventListener('click', function () {
+          sendOverride('flat', cmd.id, cmd.flat ? 'auto' : 'hide', flat)
+        })
+        tools.appendChild(flat)
+      }
+      tools.appendChild(stateSelect('cmd', cmd.id, cmd.ovr, cmd.jeedom, cmd.name))
+      row.appendChild(tools)
+      list.appendChild(row)
+    })
+    box.appendChild(list)
+
+    var reset = el('button', 'jg-edit-reset')
+    reset.type = 'button'
+    reset.appendChild(el('i', 'fas fa-undo'))
+    reset.appendChild(el('span', '', '{{Rétablir cet équipement}}'))
+    reset.title = '{{Efface toutes les décisions de jeeGlow sur cet équipement et ses éléments.}}'
+    reset.addEventListener('click', function () {
+      var form = new FormData()
+      form.append('action', 'resetDevice')
+      form.append('id', device.id)
+      sendForm(form, reset)
+    })
+    box.appendChild(reset)
+    return box
+  }
+
+  function editReason(text, action, scope, key, state) {
+    var row = el('div', 'jg-edit-reason')
+    row.appendChild(el('span', '', text))
+    if (action !== '') {
+      var button = el('button', 'jg-edit-link', action)
+      button.type = 'button'
+      button.addEventListener('click', function () {
+        sendOverride(scope, key, state, button)
+      })
+      row.appendChild(button)
+    }
+    return row
+  }
+
+  /* Une dérogation posée ou retirée, puis le modèle relu en entier — comme
+   * pour le rangement dans une pièce, et pour la même raison : une carte peut
+   * changer de forme, une pièce apparaître ou disparaître de la navigation, et
+   * recoudre tout cela à la main dans le modèle en mémoire serait un nid à
+   * incohérences. */
+  function sendOverride(scope, key, state, source, revert) {
+    var form = new FormData()
+    form.append('action', 'override')
+    form.append('scope', scope)
+    form.append('key', key)
+    form.append('state', state)
+    sendForm(form, source, revert)
+  }
+
+  /* $revert remet le contrôle dans l'état d'avant quand le serveur refuse.
+   * Les yeux et le bouton de gabarit n'en ont pas besoin : ils ne changent
+   * d'aspect qu'après relecture du modèle. Un <select>, lui, affiche déjà la
+   * valeur choisie — sans cela il annonce « Masqué » alors que rien n'est
+   * enregistré, et rien ne vient jamais le démentir. */
+  function sendForm(form, source, revert) {
+    if (source) {
+      source.disabled = true
+    }
+    fetch('plugins/jeeglowbe/core/ajax/jeeglowbe.ajax.php', {
+      method: 'POST', body: form, credentials: 'same-origin'
+    }).then(function (response) {
+      return response.json()
+    }).then(function (data) {
+      if (source) {
+        source.disabled = false
+      }
+      if (!data || data.state !== 'ok') {
+        editFailed()
+        if (revert) {
+          revert()
+        }
+        return
+      }
+      reloadModel(true)
+    }).catch(function () {
+      if (source) {
+        source.disabled = false
+      }
+      editFailed()
+      if (revert) {
+        revert()
+      }
+    })
+  }
+
+  function editFailed(message) {
+    if (typeof jeedomUtils !== 'undefined' && jeedomUtils.showAlert) {
+      jeedomUtils.showAlert({
+        message: message || '{{Le réglage d\'affichage n\'a pas pu être enregistré.}}',
+        level: 'danger'
+      })
+    }
+  }
+
+  /*
+   * En mode édition, une carte ne pilote plus : elle se règle.
+   *
+   * C'est le défaut qui rendait le réglage élément par élément introuvable.
+   * Une carte pilotable donne toute sa surface à la bascule — c'est voulu, et
+   * c'est ce qui fait qu'on éteint une lampe du bout du doigt — et seule la
+   * pastille d'icône ouvre le détail. En mode édition, cela signifiait qu'un
+   * appui sur une carte ALLUMAIT la lampe au lieu d'ouvrir ses réglages, et
+   * que la seule porte vers les éléments était une cible de trente-six pixels
+   * dans un coin. On ne la trouvait pas.
+   *
+   * L'interception est posée en phase de CAPTURE, sur le conteneur des
+   * sections : elle passe donc avant les écouteurs des cartes, qui n'ont pas
+   * à connaître le mode édition — et qui ne le pourraient pas, puisqu'ils
+   * vivent dans la fermeture du premier chargement de la page. Le marqueur
+   * d'édition est épargné, c'est lui qui masque et rétablit. Le panneau, lui,
+   * n'est pas intercepté : ce qu'on y fait est explicite.
+   *
+   * « change » autant que « click » : sans lui, un curseur de variateur
+   * continuerait d'envoyer sa valeur pendant qu'on range le dashboard.
+   */
+  function editIntercept(event) {
+    if (!editingHere()) {
+      return
+    }
+    var node = event.target
+    if (node === null || node.closest === undefined || node.closest('.jg-edit-mark') !== null) {
+      return
+    }
+    var card = node.closest('.jg-card[data-device-id]')
+    if (card === null) {
+      return
+    }
+    if (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ') {
+      return
+    }
+    event.stopPropagation()
+    event.preventDefault()
+    openPanel(card.dataset.deviceId)
+  }
+
+  function setEditing(on) {
+    var before = EDITING
+    EDITING = on
+    /* Le bouton s'allume tout de suite, et non au retour du modèle : sur une
+     * grosse installation, c'est plusieurs secondes d'un bouton qui ne réagit
+     * pas — exactement le symptôme d'un bouton en panne. Il dit l'intention ;
+     * la racine, elle, ne portera data-edit qu'une fois le modèle arrivé, car
+     * elle dit ce qui est appliqué. */
+    syncEdit()
+    /* L'accueil ne montre pas des équipements mais l'état de la maison : ses
+     * bandes et ses tuiles ne sont pas des cartes, et rien ne s'y règle. Entrer
+     * en mode édition depuis l'accueil ne changerait donc rien à l'écran. On
+     * mène où il y a quelque chose à faire — en changeant d'adresse SANS
+     * dessiner, puisque le modèle qui arrive va le faire, et qu'un premier
+     * rendu sans marqueurs serait construit pour rien. */
+    if (on && state().view === 'home') {
+      window.location.hash = 'view=functions&tab=all'
+      drawn = signature()
+    }
+    /* Le modèle ne contient pas la même chose selon le mode : il faut le
+     * relire, et pas seulement redessiner ce qu'on a déjà. */
+    reloadModel(true, function () {
+      /* Sans cela, l'intention survivait à l'échec : le mode restait demandé,
+       * rien ne l'appliquait, et la première annonce du coeur venue rallumait
+       * le mode édition tout seul, des minutes plus tard, sur un écran que
+       * personne ne regardait plus. */
+      EDITING = before
+      syncEdit()
+      renderView()
+      editFailed('{{Le mode réglage n\'a pas pu être ouvert.}}')
+    })
+  }
+
+  var editButton = null
+
+  function syncEdit() {
+    ROOT.dataset.edit = (EDITING && MODEL.reveal) ? '1' : '0'
+    var tools = ROOT.querySelector('.jg-topbar-tools')
+    if (tools === null) {
+      return
+    }
+    if (!MODEL.admin) {
+      if (editButton !== null) {
+        editButton.remove()
+        editButton = null
+      }
+      EDITING = false
+      return
+    }
+    if (editButton === null) {
+      editButton = el('button', 'jg-icon-btn jg-edit-btn')
+      editButton.type = 'button'
+      editButton.appendChild(el('i', 'fas fa-sliders-h'))
+      editButton.addEventListener('click', function () { setEditing(!EDITING) })
+      /* Le repère est cherché DANS cette barre, et non dans le document :
+       * Jeedom change de page en ajax, et si l'ancien dashboard est encore
+       * attaché au moment où le nouveau se dessine, getElementById rend le
+       * bouton de l'ancien — qui n'est enfant de rien ici. insertBefore lève
+       * alors une exception au milieu de render(), et le dashboard reste
+       * vide. Un querySelector de portée règle la question, et un repère
+       * absent fait simplement un ajout en fin de barre. */
+      tools.insertBefore(editButton, tools.querySelector('#jg-fullscreen'))
+    }
+    editButton.classList.toggle('jg-on', EDITING)
+    editButton.title = EDITING ? '{{Quitter le réglage de l\'affichage}}' : '{{Régler ce que jeeGlow affiche}}'
   }
 
   /* ------------------------------------------------------------- la structure
@@ -2183,6 +2656,23 @@
   function allDevices() {
     return Object.keys(MODEL.devices || {}).map(function (key) {
       return MODEL.devices[key]
+    })
+  }
+
+  /*
+   * Ce que le dashboard montrera vraiment.
+   *
+   * En mode édition, le modèle porte aussi ce que jeeGlow masque : c'est
+   * indispensable là où une carte porte son oeil et se rétablit — Fonctions,
+   * Pièces, Système, recherche. Partout ailleurs, ce serait un mensonge. Un
+   * équipement masqué n'a pas à compter dans une tuile de domaine, à peupler
+   * « en ce moment », ni à fournir la température de l'accueil : l'accueil ne
+   * règle rien, il dit l'état de la maison, et il doit dire celui que la
+   * maison verra. Révéler sert à régler, pas à changer les comptes.
+   */
+  function drawnOnly(devices) {
+    return devices.filter(function (device) {
+      return device !== undefined && device.drawn !== false
     })
   }
 
@@ -2283,6 +2773,16 @@
     var found = { mute: [], weak: [], alert: [], stale: [] }
     var now = Date.now()
     allDevices().forEach(function (device) {
+      /* Ce qui est masqué n'est plus signalé — c'est le sens même du geste, et
+       * c'est dit en toutes lettres dans le panneau de réglage. Le filtre est
+       * ici plutôt que dans la vue Santé parce que ce même relevé alimente la
+       * pastille du rail : un équipement masqué ne doit pas non plus y faire
+       * compter une alerte. En mode édition, la vue Santé continue donc de dire
+       * ce que le dashboard dira — révéler sert à régler, pas à changer les
+       * comptes. */
+      if (device.drawn === false) {
+        return
+      }
       var status = device.status || {}
       if (status.timeout) {
         found.mute.push(device)
@@ -2453,6 +2953,14 @@
     }
     title.appendChild(el('span', 'jg-section-name', group.name))
     title.appendChild(el('span', 'jg-section-count', String(group.devices.length)))
+    /* Un plugin en vue Système, une pièce en vue Pièces : ce sont les deux
+     * seules vues dont les groupes correspondent à une portée réglable. Les
+     * domaines et les résultats de recherche n'en sont pas — ils se recoupent,
+     * et masquer « Lumières » ne veut rien dire pour une lampe qui est aussi
+     * une prise. « Non classé » non plus : ce n'est pas une pièce. */
+    if (editingHere() && (view === 'system' || view === 'rooms') && group.key !== '0') {
+      title.appendChild(groupEye(view === 'system' ? 'type' : 'room', group.key))
+    }
     node.appendChild(title)
     var grid = el('div', 'jg-grid')
     var shown = (limit && group.devices.length > limit) ? group.devices.slice(0, limit) : group.devices
@@ -2475,7 +2983,12 @@
    * répond à la question qu'on se pose en entrant dans une pièce, et c'est
    * précisément celle qu'aucun dashboard d'origine ne propose. */
   function buildHome() {
-    var groups = domainGroups()
+    var groups = domainGroups().map(function (group) {
+      group.devices = drawnOnly(group.devices)
+      return group
+    }).filter(function (group) {
+      return group.devices.length > 0
+    })
 
     buildHero()
     buildAlertBar()
@@ -2523,7 +3036,7 @@
      * double en tête donne ce point de départ, et l'ordre donne le sens. */
     var rooms = el('div', 'jg-grid jg-grid-rooms')
     var peopled = (MODEL.rooms || []).map(function (room) {
-      var devices = devicesOf(room.devices)
+      var devices = drawnOnly(devicesOf(room.devices))
       return { room: room, devices: devices, lit: devices.filter(isLit).length }
     }).filter(function (entry) {
       return entry.devices.length > 0
@@ -2635,7 +3148,7 @@
    * première. Une vignette qui montre un jardin au repos vaut mieux que rien,
    * mais une qui montre ce qui bouge vaut mieux que tout. */
   function firstCamera() {
-    var cams = allDevices().filter(function (device) {
+    var cams = drawnOnly(allDevices()).filter(function (device) {
       return cardType(device) === 'camera'
     })
     if (cams.length === 0) {
@@ -2724,6 +3237,14 @@
    * température de personne. */
   function pickMeasure(entry) {
     var ids = Object.keys(JG.CMDS).filter(function (id) {
+      /* L'équipement d'abord : une mesure venue d'une carte masquée porterait
+       * son nom en légende — « Salon · Étage » sous un thermomètre dont la
+       * carte n'existe nulle part, et un appui qui ouvre le détail d'un
+       * équipement que l'on croyait masqué. */
+      var owner = MODEL.devices[JG.OWNER[id]]
+      if (owner !== undefined && owner.drawn === false) {
+        return false
+      }
       return JG.CMDS[id].generic === entry.generic && JG.VALUES[id] !== null &&
         JG.VALUES[id] !== undefined && JG.VALUES[id] !== ''
     })
@@ -2851,7 +3372,7 @@
   var RUNNING_LIMIT = 8
 
   function buildRunning() {
-    var lit = allDevices().filter(isLit)
+    var lit = drawnOnly(allDevices()).filter(isLit)
     if (lit.length === 0) {
       return
     }
@@ -3042,26 +3563,43 @@
    * une tuile de rester une tuile : sans lui, un aspirateur à douze commandes
    * produit une carte haute d'un écran, et le dashboard redevient une liste. */
 
-  function openPanel(deviceId) {
+  function openPanel(deviceId, quiet) {
     var device = MODEL.devices[deviceId]
     if (device === undefined) {
       return
     }
     closePanel()
+    /* Retenu pour le mode édition : régler une carte se fait dans ce panneau,
+     * et cela dure — or le coeur peut annoncer une mise à jour à tout moment,
+     * et une relecture de modèle referme tout. Le panneau se rouvrirait alors
+     * de lui-même sur l'équipement qu'on était en train de régler. */
+    PANEL_ON = device.id
     panelTitle.textContent = device.name
     renameButton.hidden = !MODEL.admin
     renameButton.onclick = function () { startRename(device) }
     var detail = document.createElement('jg-card-detail')
     detail.device = device
+    /* Les réglages AVANT le détail : on ouvre ce panneau en mode édition pour
+     * régler, pas pour lire des valeurs. Sous un aspirateur de dix-neuf lignes
+     * dont plusieurs portent un widget de plugin, un bloc en fin de panneau
+     * demande de faire défiler un écran entier avant de savoir qu'il existe. */
+    /* Le panneau se règle depuis n'importe quelle vue, accueil compris : on y
+     * arrive par un geste explicite, et il porte son propre titre. */
+    if (EDITING && MODEL.reveal) {
+      panelBody.appendChild(editPanel(device))
+    }
     panelBody.appendChild(detail)
     panelNode.hidden = false
     backdropNode.hidden = false
     ROOT.dataset.panel = '1'
-    document.getElementById('jg-panel-close').focus()
+    if (!quiet) {
+      document.getElementById('jg-panel-close').focus()
+    }
     loadWidgets()
   }
 
   function closePanel() {
+    PANEL_ON = 0
     Array.prototype.forEach.call(panelBody.children, forget)
     panelBody.textContent = ''
     panelNode.hidden = true
@@ -3466,6 +4004,8 @@
   var loadedAt = Date.now()
 
   function render(model) {
+    /* Relevé AVANT que closePanel() ne l'efface. */
+    var staying = PANEL_ON
     MODEL = model
     JG.MODEL = model
     indexModel()
@@ -3481,36 +4021,77 @@
      * réglage garderait sinon l'ancienne jusqu'au prochain passage par le menu
      * de Jeedom — c'est-à-dire indéfiniment, puisqu'on n'y touche jamais. */
     syncTone()
+    syncEdit()
     buildRail()
     renderView()
+    /* Le panneau se rouvre sur l'équipement qu'on était en train de régler.
+     * Après la réouverture seulement : openPanel() lit le modèle fraîchement
+     * indexé, et l'équipement peut avoir changé de forme — voire avoir disparu,
+     * si on vient de quitter le mode édition. */
+    /* En mode édition, un panneau ouvert se rouvre : après un réglage, comme
+     * après une annonce du coeur reçue pendant qu'on règle. Hors mode édition,
+     * il se referme comme avant — on ne le garde pas ouvert des heures.
+     *
+     * « quiet » : la réouverture ne reprend pas le focus. Sans cela, régler
+     * douze éléments au clavier demande douze fois de retraverser la liste
+     * depuis le bouton de fermeture. */
+    if (EDITING && MODEL.reveal && staying !== 0 && MODEL.devices[staying] !== undefined) {
+      openPanel(staying, true)
+    }
   }
 
   function refreshModel() {
     reloadModel(false)
   }
 
-  function reloadModel(force) {
+  /* Le numéro de la dernière demande de modèle.
+   *
+   * Deux réglages rapprochés lancent deux relectures, et rien ne garantit
+   * qu'elles reviennent dans l'ordre : si la première revient en dernier, la
+   * page se redessine dans l'état d'AVANT le second réglage. La dérogation est
+   * pourtant bien enregistrée — l'écran dit le contraire de la base, et le
+   * premier réflexe est de recliquer. Une réponse dépassée est donc jetée. */
+  var modelTicket = 0
+
+  function reloadModel(force, onFail) {
     if (!document.body.contains(ROOT)) {
       return
     }
     if (!force && (document.hidden || Date.now() - loadedAt < REFRESH_AFTER)) {
       return
     }
+    var ticket = ++modelTicket
     var form = new FormData()
     form.append('action', 'model')
+    /* Le mode édition ne tient pas dans la page : chaque relecture doit le
+     * redemander, sans quoi le premier rafraîchissement automatique ramènerait
+     * un modèle ordinaire et ferait disparaître ce qu'on était en train de
+     * régler. */
+    form.append('reveal', EDITING ? 1 : 0)
     fetch('plugins/jeeglowbe/core/ajax/jeeglowbe.ajax.php', {
       method: 'POST', body: form, credentials: 'same-origin'
     }).then(function (response) {
       return response.json()
     }).then(function (data) {
+      if (ticket !== modelTicket) {
+        return
+      }
       if (!data || data.state !== 'ok' || !data.result) {
+        if (onFail) {
+          onFail()
+        }
         return
       }
       loadedAt = Date.now()
       render(data.result)
     }).catch(function () {
       /* Réseau coupé, session expirée : on garde à l'écran ce qu'on avait
-       * plutôt que de vider le dashboard. */
+       * plutôt que de vider le dashboard. Mais celui qui ATTENDAIT ce modèle
+       * — l'entrée en mode édition — doit l'apprendre, sans quoi la page
+       * garde une intention que rien n'applique. */
+      if (ticket === modelTicket && onFail) {
+        onFail()
+      }
     })
   }
 
@@ -3584,7 +4165,12 @@
     sectionsNode.parentNode.insertBefore(warning, sectionsNode)
   }
 
+  ;['click', 'keydown', 'change'].forEach(function (name) {
+    sectionsNode.addEventListener(name, editIntercept, true)
+  })
+
   indexModel()
+  syncEdit()
   buildRail()
   renderView()
   syncTone()

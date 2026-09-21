@@ -2,7 +2,8 @@
 
 ## 0.2
 
-The home view, the navigation and the cards rebuilt.
+The home view, the navigation and the cards rebuilt, and a dashboard whose
+contents you can now set.
 
 - Home becomes the landing view. It is the one built for a glance, and it was
   the only one you never saw without a click.
@@ -16,6 +17,24 @@ The home view, the navigation and the cards rebuilt.
 - Rooms take the icon and the colour chosen in Jeedom, and sum up what is going
   on inside them. Domains become a row of shortcuts.
 - The scenarios you are allowed to run appear as scenes.
+- jeeGlow can now **hide what it shows**, without changing anything in the
+  original dashboard: an item inside a card, a whole card, a whole plugin or a
+  whole room. A settings button in the top bar, reserved for administrators,
+  takes those decisions on the dashboard itself.
+- Three states rather than a checkbox: "Same as Jeedom", "Always shown" and
+  "Hidden". Restoring clears the decision instead of recording another one, and
+  what is restored follows Jeedom again, including if the visibility changes
+  there later.
+- A plugin's own widget can be refused command by command, without hiding the
+  command: jeeGlow then draws it its own way. A vacuum cleaner whose every
+  command carries a rendering meant for the original dashboard becomes a card
+  like any other.
+- The sorting happens on the server: what is hidden no longer reaches the page,
+  no longer counts towards the four hundred device limit, and is no longer
+  flagged in the Health view.
+- The plugin configuration counts the decisions in force and offers "Restore
+  everything": a setting you cannot come back from is a setting nobody dares
+  try.
 - Three new cards, derived from the core's generic types like the others:
   camera, climate and media. They used to fall back to the generic card, which
   reduced a camera to three binary lines.
