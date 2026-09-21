@@ -26,19 +26,28 @@
 
   var MODEL = (typeof jeeglowbeModel !== 'undefined' && jeeglowbeModel) ? jeeglowbeModel : { rooms: [], devices: {} }
 
-  /* Index plats, construits une fois : les cartes n'ont jamais à parcourir le
-   * modèle, elles interrogent un identifiant. */
-  var CMDS = {}
-  var VALUES = {}
-  var WATCH = {}
-  var CARDS = []
+  /* Index plats : les cartes n'ont jamais à parcourir le modèle, elles
+   * interrogent un identifiant.
+   *
+   * Ils vivent sur window et non dans cette fermeture, pour une raison précise :
+   * Jeedom charge ses pages en ajax et RÉ-EXÉCUTE ce fichier à chaque retour sur
+   * le dashboard. Les classes de cartes, elles, ne peuvent être enregistrées
+   * qu'une fois dans le registre des éléments personnalisés — celles du second
+   * passage seraient refusées. Les cartes construites plus tard sont donc
+   * toujours des instances des classes du premier passage, et liraient un index
+   * périmé s'il était capturé dans la fermeture. Un objet unique, réalimenté à
+   * chaque chargement, règle les deux problèmes d'un coup. */
+  var JG = window.jeeglowbeRuntime || (window.jeeglowbeRuntime = {})
+  JG.CMDS = {}
+  JG.VALUES = {}
+  JG.WATCH = {}
 
   Object.keys(MODEL.devices || {}).forEach(function (key) {
     var device = MODEL.devices[key]
     device.cmds.forEach(function (cmd) {
-      CMDS[cmd.id] = cmd
+      JG.CMDS[cmd.id] = cmd
       if (cmd.type === 'info') {
-        VALUES[cmd.id] = cmd.value
+        JG.VALUES[cmd.id] = cmd.value
       }
     })
   })
@@ -94,8 +103,8 @@
   }
 
   function format(cmdId) {
-    var cmd = CMDS[cmdId]
-    var value = VALUES[cmdId]
+    var cmd = JG.CMDS[cmdId]
+    var value = JG.VALUES[cmdId]
     if (cmd === undefined) {
       return '—'
     }
@@ -183,6 +192,11 @@
 
   /* --------------------------------------------------------------- les cartes */
 
+  /* Un seul enregistrement pour toute la session : voir la note sur JG plus
+   * haut. Le registre des éléments personnalisés refuse un second define, et
+   * l'exception laisserait le dashboard vide au retour sur la page. */
+  if (customElements.get('jg-card-generic') === undefined) {
+
   class JgCard extends HTMLElement {
     connectedCallback() {
       if (this._ready) {
@@ -205,7 +219,7 @@
 
     value(name) {
       var id = this.role(name)
-      return (id === undefined) ? null : VALUES[id]
+      return (id === undefined) ? null : JG.VALUES[id]
     }
 
     on() {
@@ -213,11 +227,11 @@
       if (id === undefined) {
         return false
       }
-      var cmd = CMDS[id]
+      var cmd = JG.CMDS[id]
       if (cmd && cmd.subType === 'numeric') {
-        return parseFloat(VALUES[id]) > 0
+        return parseFloat(JG.VALUES[id]) > 0
       }
-      return isTrue(cmd, VALUES[id])
+      return isTrue(cmd, JG.VALUES[id])
     }
 
     header(subtitle) {
@@ -275,7 +289,7 @@
       if (id === undefined) {
         return null
       }
-      var cmd = CMDS[id]
+      var cmd = JG.CMDS[id]
       var wrap = el('div', 'jg-slider')
       var input = document.createElement('input')
       input.type = 'range'
@@ -283,10 +297,12 @@
       input.max = (cmd && cmd.max !== undefined) ? cmd.max : 100
       input.step = 1
       var bubble = el('span', 'jg-slider-value', '')
-      /* On n'envoie qu'au relâchement : un slider envoie une centaine de
-       * valeurs pendant le glissement, et la plupart des équipements y
-       * répondent par un embouteillage. */
-      input.addEventListener('input', function () { bubble.textContent = input.value + ' %' })
+      /* Le pourcentage n'est pas garanti : un variateur peut aller de 0 à 255,
+       * et afficher « 180 % » serait faux. L'unité déclarée sur la commande
+       * l'emporte, et le signe n'apparaît que sur une échelle de 0 à 100. */
+      var suffix = (cmd && cmd.unit) ? ' ' + cmd.unit : ((input.max == 100) ? ' %' : '')
+      this._suffix = suffix
+      input.addEventListener('input', function () { bubble.textContent = input.value + suffix })
       input.addEventListener('change', function () { onChange(parseInt(input.value, 10), input) })
       wrap.appendChild(input)
       wrap.appendChild(bubble)
@@ -343,11 +359,28 @@
         }
         this.appendChild(pair)
       } else {
+        /* Une carte qui se comporte en bouton doit en être un pour le clavier
+         * et pour les lecteurs d'écran : un div cliquable n'est atteignable ni
+         * par tabulation, ni par la touche Entrée. */
         this.classList.add('jg-tappable')
+        this.setAttribute('role', 'button')
+        this.setAttribute('tabindex', '0')
         this.addEventListener('click', function (event) {
           if (event.target.closest('input, button, select')) {
             return
           }
+          this.toggle()
+        }.bind(this))
+        this.addEventListener('keydown', function (event) {
+          if (event.key !== 'Enter' && event.key !== ' ') {
+            return
+          }
+          if (event.target.closest('input, button, select')) {
+            return
+          }
+          /* Espace fait défiler la page par défaut : sur une carte, c'est le
+           * geste d'activation. */
+          event.preventDefault()
           this.toggle()
         }.bind(this))
       }
@@ -382,9 +415,9 @@
       }
       this._state.textContent = text
       if (this.role('slider') !== undefined) {
-        this.syncSlider(VALUES[this.role('slider')])
-      } else if (stateId !== undefined && CMDS[stateId] && CMDS[stateId].subType === 'numeric') {
-        this.syncSlider(VALUES[stateId])
+        this.syncSlider(JG.VALUES[this.role('slider')])
+      } else if (stateId !== undefined && JG.CMDS[stateId] && JG.CMDS[stateId].subType === 'numeric') {
+        this.syncSlider(JG.VALUES[stateId])
       }
       this.syncMetrics()
     }
@@ -434,15 +467,15 @@
     sync() {
       var stateId = this.role('state')
       if (stateId !== undefined) {
-        var cmd = CMDS[stateId]
+        var cmd = JG.CMDS[stateId]
         if (cmd && cmd.subType === 'numeric') {
-          var percent = parseFloat(VALUES[stateId])
+          var percent = parseFloat(JG.VALUES[stateId])
           this._state.textContent = isNaN(percent) ? '—' : Math.round(percent) + ' %'
           this.dataset.on = (percent > 0) ? '1' : '0'
           this.syncSlider(percent)
         } else {
           this._state.textContent = format(stateId)
-          this.dataset.on = isTrue(cmd, VALUES[stateId]) ? '1' : '0'
+          this.dataset.on = isTrue(cmd, JG.VALUES[stateId]) ? '1' : '0'
         }
       }
       this.syncMetrics()
@@ -490,9 +523,9 @@
     sync() {
       if (this._primary) {
         this._value.textContent = format(this._primary.id)
-        var cmd = CMDS[this._primary.id]
+        var cmd = JG.CMDS[this._primary.id]
         if (cmd && cmd.subType === 'binary') {
-          this.dataset.on = isTrue(cmd, VALUES[this._primary.id]) ? '1' : '0'
+          this.dataset.on = isTrue(cmd, JG.VALUES[this._primary.id]) ? '1' : '0'
         }
       }
       ;(this._rows || []).forEach(function (row) {
@@ -523,7 +556,12 @@
         this.appendChild(list)
       }
 
-      var actions = this.device.cmds.filter(function (cmd) { return cmd.type === 'action' && cmd.visible }).slice(0, 8)
+      /* Les commandes « message » attendent un titre et un corps ; un bouton qui
+       * les enverrait vides ne rendrait service à personne, et l'échec est
+       * silencieux côté équipement. Elles attendront leur propre carte. */
+      var actions = this.device.cmds.filter(function (cmd) {
+        return cmd.type === 'action' && cmd.visible && cmd.subType !== 'message'
+      }).slice(0, 8)
       if (actions.length > 0) {
         var bar = el('div', 'jg-actions jg-actions-wrap')
         actions.forEach(function (cmd) {
@@ -582,12 +620,14 @@
   customElements.define('jg-card-sensor', JgSensor)
   customElements.define('jg-card-generic', JgGeneric)
 
+  }
+
   function watch(cmdId, card) {
-    if (!WATCH[cmdId]) {
-      WATCH[cmdId] = []
+    if (!JG.WATCH[cmdId]) {
+      JG.WATCH[cmdId] = []
     }
-    if (WATCH[cmdId].indexOf(card) === -1) {
-      WATCH[cmdId].push(card)
+    if (JG.WATCH[cmdId].indexOf(card) === -1) {
+      JG.WATCH[cmdId].push(card)
     }
   }
 
@@ -600,7 +640,6 @@
     card.device = device
     card.dataset.deviceId = device.id
     card.dataset.search = (device.name + ' ' + device.eqType).toLowerCase()
-    CARDS.push(card)
     return card
   }
 
@@ -613,6 +652,15 @@
   var brandNode = ROOT.querySelector('.jg-brand-name')
 
   brandNode.textContent = MODEL.title ? MODEL.title : 'jeeGlow'
+
+  /* Le modèle s'arrête à un plafond d'équipements. Le taire donnerait un
+   * dashboard incomplet sans que personne ne sache pourquoi. */
+  if (MODEL.truncated) {
+    var warning = el('div', 'jg-warning')
+    warning.appendChild(el('i', 'fas fa-exclamation-triangle'))
+    warning.appendChild(el('span', null, '{{Trop d\'équipements pour un seul dashboard : la liste est tronquée.}}'))
+    ROOT.insertBefore(warning, sectionsNode)
+  }
 
   var sections = {}
 
@@ -759,17 +807,18 @@
     if (!document.body.contains(ROOT)) {
       document.body.removeEventListener('cmd::update', onCmdUpdate)
       document.body.removeEventListener('changeTheme', onThemeChange)
+      document.body.removeEventListener('checkThemechange', onThemeChange)
       return
     }
     var updates = Array.isArray(event.detail) ? event.detail : [event.detail]
     var touched = []
     updates.forEach(function (update) {
       var id = parseInt(update.cmd_id, 10)
-      if (CMDS[id] === undefined) {
+      if (JG.CMDS[id] === undefined) {
         return
       }
-      VALUES[id] = update.value
-      ;(WATCH[id] || []).forEach(function (card) {
+      JG.VALUES[id] = update.value
+      ;(JG.WATCH[id] || []).forEach(function (card) {
         if (touched.indexOf(card) === -1) {
           touched.push(card)
         }

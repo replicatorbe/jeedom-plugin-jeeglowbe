@@ -104,6 +104,13 @@ class jeeglowbe extends eqLogic {
             if ($object->getConfiguration('hideOnDashboard', 0) == 1) {
                 continue;
             }
+            /* buildTree() a déjà écarté les objets interdits, mais en
+             * s'appuyant sur la session. Le contrôle est refait avec
+             * l'utilisateur reçu : ainsi le modèle est juste même appelé hors
+             * d'une session — depuis un test, une tâche, un autre plugin. */
+            if (is_object($_user) && !$object->hasRight('r', $_user)) {
+                continue;
+            }
             $ids = array();
             foreach ($object->getEqLogic(true, true) as $eqLogic) {
                 if (is_object($_user) && !$eqLogic->hasRight('r', $_user)) {
@@ -251,6 +258,13 @@ class jeeglowbe extends eqLogic {
                 }
             }
             $cmds[] = $entry;
+        }
+
+        /* Un équipement dont toutes les commandes sont masquées et qui ne tient
+         * aucun rôle n'a rien à montrer : une carte vide porterait son nom et
+         * un tiret. C'est du bruit, pas une information. */
+        if (count($cmds) == 0) {
+            return null;
         }
 
         $battery = '';

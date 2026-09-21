@@ -431,3 +431,24 @@
 @media (max-width: 380px) {
     .jg-grid { grid-template-columns: 1fr; }
 }
+
+/* ------------------------------------------------------------------- avis */
+
+.jg-warning {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: rgba(240, 173, 78, 0.16);
+    color: var(--jg-text);
+    font-size: 13px;
+}
+
+/* Le focus clavier doit se voir : une carte qui s'active à la touche Entrée
+ * sans anneau de focus est une promesse invisible. */
+.jg-tappable:focus-visible {
+    outline: 2px solid var(--jg-accent);
+    outline-offset: 2px;
+}
