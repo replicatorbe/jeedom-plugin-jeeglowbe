@@ -82,6 +82,9 @@ sendVarToJS('jeeglowbeModel', jeeglowbe::model($jeeglowbeUser));
 	<aside class="jg-panel" id="jg-panel" hidden aria-label="{{Détail de l'équipement}}">
 		<div class="jg-panel-head">
 			<span class="jg-panel-title"></span>
+			<button type="button" class="jg-icon-btn jg-panel-rename" id="jg-panel-rename" title="{{Renommer dans jeeGlow}}" hidden>
+				<i class="fas fa-pen"></i>
+			</button>
 			<button type="button" class="jg-icon-btn" id="jg-panel-close" title="{{Fermer}}">
 				<i class="fas fa-times"></i>
 			</button>

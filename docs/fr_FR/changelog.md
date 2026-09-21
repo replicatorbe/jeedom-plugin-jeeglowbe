@@ -11,6 +11,10 @@ Première version.
 - Filtre par pièce, recherche, mode plein écran pour tablette murale.
 - Navigation par rail et sous-onglets : Accueil, Fonctions, Pièces, Système.
 - Rangement par domaine plutôt que par pièce, et panneau de détail par équipement.
+- Noms personnalisés par équipement, sans toucher à Jeedom.
+- Courbes d'historique dans le panneau de détail.
+- Mode kiosque retenu par l'appareil, retour à l'accueil après inactivité et
+  atténuation de nuit.
 - Thème clair ou sombre accordé automatiquement à celui de Jeedom.
 - Les commandes qui renvoient une structure ne sont plus affichées telles
   quelles : la carte montre le champ le plus lisible, le détail se déplie d'un

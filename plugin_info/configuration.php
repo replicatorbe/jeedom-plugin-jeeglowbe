@@ -25,4 +25,25 @@ if (!isConnect('admin')) {
 			</div>
 		</div>
 	</fieldset>
+	<fieldset>
+		<legend><i class="fas fa-tablet-alt"></i> {{Mode kiosque}}</legend>
+		<div class="form-group">
+			<label class="col-md-4 control-label">{{Retour à l'accueil après}}</label>
+			<div class="col-md-2">
+				<input type="number" min="0" max="240" class="configKey form-control" data-l1key="kioskIdle" placeholder="0">
+			</div>
+			<div class="col-md-5">
+				<span class="help-block" style="margin:0;">{{Minutes d'inactivité au bout desquelles une tablette revient à l'accueil. 0 pour ne jamais revenir. Ne s'applique qu'en mode kiosque.}}</span>
+			</div>
+		</div>
+		<div class="form-group">
+			<label class="col-md-4 control-label">{{Atténuation de nuit}}</label>
+			<div class="col-md-2">
+				<input type="number" min="0" max="70" class="configKey form-control" data-l1key="kioskDim" placeholder="0">
+			</div>
+			<div class="col-md-5">
+				<span class="help-block" style="margin:0;">{{Pourcentage d'assombrissement de l'écran la nuit, de 0 à 70. Les heures de nuit sont celles que vous avez données à Jeedom pour changer de thème.}}</span>
+			</div>
+		</div>
+	</fieldset>
 </form>

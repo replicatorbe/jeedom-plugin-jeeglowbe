@@ -11,6 +11,10 @@ First release.
 - Room filter, search, full screen mode for wall tablets.
 - Rail and sub-tab navigation: Home, Functions, Rooms, System.
 - Arrangement by domain rather than by room, and a per-device detail panel.
+- Custom device names, without touching Jeedom.
+- History charts in the detail panel.
+- Kiosk mode remembered by the device, return home after inactivity and night
+  dimming.
 - Light or dark theme, matched automatically to the Jeedom theme.
 - Commands returning a structure are no longer printed raw: the card shows the
   most readable field, the detail unfolds on tap, and timestamps are rendered as

@@ -138,15 +138,52 @@ Une carte affiche au plus six informations et huit commandes. Au-delà, elle
 l'annonce : **« + 4 autres »**, d'un appui, dépliez le reste. Rien ne disparaît
 en silence.
 
+## Donner vos propres noms
+
+`Shelly 1 91E2EE — spotcuisinep` ne sera jamais beau sur un mur. Ouvrez le
+détail d'un équipement et cliquez sur le crayon : le nom que vous donnez
+s'affiche partout dans jeeGlow.
+
+**Le nom de l'équipement dans Jeedom n'est pas touché.** Vos scénarios, votre
+historique et les autres plugins s'appuient dessus ; le changer pour faire joli
+sur un dashboard casserait ce qui en dépend. Le nom choisi vit dans la
+configuration de jeeGlow. Effacez-le pour revenir au nom d'origine.
+
+Renommer écrit dans la configuration du plugin : réservé aux administrateurs.
+
+## Courbes
+
+Dans le panneau de détail, les commandes **historisées** sont tracées sur les
+dernières 24 heures, deux courbes au maximum. C'est le moteur de graphiques de
+Jeedom qui dessine : mêmes données, mêmes couleurs que partout ailleurs.
+
 ## Mode kiosque
 
-Le bouton en haut à droite passe en plein écran : le menu et le pied de page de
-Jeedom disparaissent, il ne reste que le dashboard. L'adresse suit, ce qui permet
-de la mettre en favori ou en page de démarrage sur une tablette :
+Le bouton en haut à droite passe en plein écran : **le menu et la barre du haut
+de Jeedom disparaissent**, ainsi que le pied de page. Il ne reste que le
+dashboard.
+
+Le mode est **retenu par l'appareil** : une tablette qui rouvre la page la
+retrouve en kiosque, sans paramètre dans l'adresse et sans intervention. Un
+ordinateur qui ouvre la même adresse, lui, garde son menu — le réglage est
+propre au navigateur. Le même bouton en sort, et Jeedom retrouve son menu.
+
+L'adresse fonctionne aussi, pour un favori ou une page de démarrage :
 
 ```
 index.php?v=d&m=jeeglowbe&p=jeeglowbe&fullscreen=1
 ```
+
+Deux réglages accompagnent ce mode, dans la configuration du plugin, et ne
+s'appliquent qu'à lui :
+
+- **Retour à l'accueil après** *n* minutes d'inactivité. La tablette laissée sur
+  une pièce revient d'elle-même à la vue d'ensemble. Un panneau de détail resté
+  ouvert suspend ce retour : on ne referme pas la page de quelqu'un qui lit.
+- **Atténuation de nuit** : un voile assombrit l'écran, de 0 à 70 %. Les heures
+  de nuit sont celles que vous avez déjà données à Jeedom pour changer de thème.
+  Une page web ne commande pas le rétroéclairage : c'est un voile, pas une
+  baisse de luminosité.
 
 Pour une tablette murale réellement verrouillée :
 

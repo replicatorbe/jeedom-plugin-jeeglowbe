@@ -37,6 +37,26 @@ try {
         ajax::success(jeeglowbe::model($user));
     }
 
+    /*
+     * Renommer écrit dans la configuration du plugin : réservé aux
+     * administrateurs. Le contrôle est ici, et non dans la page, parce qu'une
+     * porte ouverte côté serveur ne se referme pas en masquant un bouton.
+     */
+    if (init('action') == 'rename') {
+        if (!isConnect('admin')) {
+            throw new Exception(__('401 - Accès non autorisé', __FILE__));
+        }
+        $eqLogic = eqLogic::byId(init('id'));
+        if (!is_object($eqLogic)) {
+            throw new Exception(__('Équipement introuvable', __FILE__));
+        }
+        ajax::success(array(
+            'id' => intval($eqLogic->getId()),
+            'name' => jeeglowbe::rename($eqLogic->getId(), init('name')),
+            'realName' => $eqLogic->getName(),
+        ));
+    }
+
     throw new Exception(__('Aucune méthode correspondante à :', __FILE__) . ' ' . init('action'));
 } catch (Throwable $e) {
     /* Throwable et non Exception : en PHP 8 une erreur de type n'est pas une

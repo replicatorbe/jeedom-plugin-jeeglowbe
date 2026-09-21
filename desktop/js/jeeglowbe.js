@@ -38,6 +38,13 @@
    * périmé s'il était capturé dans la fermeture. Un objet unique, réalimenté à
    * chaque chargement, règle les deux problèmes d'un coup. */
   var JG = window.jeeglowbeRuntime || (window.jeeglowbeRuntime = {})
+
+  /* Le dashboard vivant du moment. Jeedom recharge ses pages en ajax : pendant
+   * un court instant, l'ancien dashboard est encore dans la mémoire tandis que
+   * le nouveau est déjà à l'écran. Sans ce repère, le ménage de l'ancien retire
+   * le plein écran que le nouveau vient de poser — une tablette en kiosque
+   * sortait du kiosque à chaque aller-retour dans le menu. */
+  JG.LIVE = ROOT
   JG.CMDS = {}
   JG.VALUES = {}
   JG.WATCH = {}
@@ -429,6 +436,23 @@
     return String(value) + (cmd.unit ? ' ' + cmd.unit : '')
   }
 
+  /* L'état d'une entrée physique n'est pas une mesure : « Événement entrée 1 :
+   * Non » et « Appui long 1 » occupaient les deux lignes d'une carte de prise,
+   * devant la puissance et la température. */
+  var NOISY = ['BUTTON', 'ONLINE', 'DONT']
+
+  /* Ce qui se mesure passe devant ce qui se raconte, et un nombre avec son
+   * unité devant un nombre nu. */
+  function metricRank(cmd) {
+    if (cmd.subType === 'numeric') {
+      return cmd.unit ? 3 : 2
+    }
+    if (cmd.subType === 'string') {
+      return 1
+    }
+    return 0
+  }
+
   var CARD_ICONS = { light: 'fas fa-lightbulb', switch: 'fas fa-plug', cover: 'fas fa-bars', sensor: 'fas fa-microchip', generic: 'fas fa-cube' }
   var GENERIC_ICONS = {
     TEMPERATURE: 'fas fa-thermometer-half', WEATHER_TEMPERATURE: 'fas fa-thermometer-half',
@@ -616,7 +640,19 @@
     metrics(limit) {
       var used = Object.keys(this.device.roles || {}).map(function (key) { return this.device.roles[key] }, this)
       var extras = this.device.cmds.filter(function (cmd) {
-        return cmd.type === 'info' && cmd.visible && used.indexOf(cmd.id) === -1
+        if (cmd.type !== 'info' || !cmd.visible || used.indexOf(cmd.id) !== -1) {
+          return false
+        }
+        if (NOISY.indexOf(cmd.generic) !== -1) {
+          return false
+        }
+        /* Une mesure sans valeur n'apprend rien : « Perte vidéo — » occupait la
+         * ligne d'une vraie mesure. Elle reste dans le panneau, qui montre tout,
+         * y compris ce qui n'a jamais rien dit. */
+        var value = JG.VALUES[cmd.id]
+        return value !== null && value !== undefined && value !== ''
+      }).sort(function (a, b) {
+        return metricRank(b) - metricRank(a)
       }).slice(0, limit || 3)
       if (extras.length === 0) {
         return
@@ -1197,9 +1233,47 @@
         actions.forEach(function (cmd) { bar.appendChild(this.actionNode(cmd)) }, this)
         this.appendChild(bar)
       }
+      this.charts(infos)
+
       var foot = el('div', 'jg-detail-foot')
-      foot.appendChild(el('span', null, this.device.eqType))
+      foot.appendChild(el('span', null, this.device.realName ? this.device.realName : this.device.eqType))
       this.appendChild(foot)
+    }
+
+    /* Une courbe pour les commandes historisées. Highstock est déjà chargé par
+     * la page et le coeur sait tracer : on lui donne un conteneur et un
+     * identifiant, rien de plus. Deux courbes au maximum — au-delà, le panneau
+     * devient une page d'analyse, qui existe déjà dans Jeedom. */
+    charts(infos) {
+      if (typeof jeedom === 'undefined' || !jeedom.history || !jeedom.history.drawChart) {
+        return
+      }
+      infos.filter(function (cmd) {
+        return cmd.history && cmd.subType === 'numeric'
+      }).slice(0, 2).forEach(function (cmd) {
+        var box = el('div', 'jg-chart')
+        box.id = 'jg-chart-' + cmd.id
+        var title = el('div', 'jg-chart-title', cmd.name)
+        this.appendChild(title)
+        this.appendChild(box)
+        /* Après insertion dans le document : Highcharts dessine dans un
+         * élément, pas dans une intention. */
+        setTimeout(function () {
+          try {
+            jeedom.history.drawChart({
+              cmd_id: cmd.id,
+              el: box.id,
+              dateRange: '1 day',
+              height: 170,
+              noError: true,
+              option: { displayAlert: false }
+            })
+          } catch (error) {
+            box.remove()
+            title.remove()
+          }
+        }, 0)
+      }, this)
     }
 
     sync() {
@@ -1269,6 +1343,7 @@
   var panelBody = document.getElementById('jg-panel-body')
   var panelTitle = ROOT.querySelector('.jg-panel-title')
   var backdropNode = document.getElementById('jg-panel-backdrop')
+  var renameButton = document.getElementById('jg-panel-rename')
 
   var VIEWS = [
     { key: 'home', name: '{{Accueil}}', icon: 'fas fa-home' },
@@ -1594,6 +1669,8 @@
     }
     closePanel()
     panelTitle.textContent = device.name
+    renameButton.hidden = !MODEL.admin
+    renameButton.onclick = function () { startRename(device) }
     var detail = document.createElement('jg-card-detail')
     detail.device = device
     panelBody.appendChild(detail)
@@ -1610,6 +1687,68 @@
     panelNode.hidden = true
     backdropNode.hidden = true
     ROOT.dataset.panel = '0'
+  }
+
+  /* Renommer dans jeeGlow, et nulle part ailleurs. Le nom d'un équipement
+   * Jeedom sert aux scénarios, à l'historique et aux autres plugins : le
+   * changer pour faire joli sur un dashboard casserait ce qui s'appuie dessus.
+   * Le nom choisi ici vit dans la configuration du plugin. */
+  function startRename(device) {
+    var input = document.createElement('input')
+    input.type = 'text'
+    input.className = 'jg-rename'
+    input.value = device.name
+    input.maxLength = 60
+    input.placeholder = device.realName ? device.realName : device.name
+    panelTitle.replaceWith(input)
+    input.focus()
+    input.select()
+
+    var done = false
+    function finish(save) {
+      if (done) {
+        return
+      }
+      done = true
+      var wanted = input.value.trim()
+      input.replaceWith(panelTitle)
+      if (!save || wanted === device.name) {
+        return
+      }
+      var form = new FormData()
+      form.append('action', 'rename')
+      form.append('id', device.id)
+      /* Vide : on efface l'alias et le nom de Jeedom revient. C'est la seule
+       * façon de faire marche arrière sans deviner le nom d'origine. */
+      form.append('name', wanted)
+      fetch('plugins/jeeglowbe/core/ajax/jeeglowbe.ajax.php', {
+        method: 'POST', body: form, credentials: 'same-origin'
+      }).then(function (response) {
+        return response.json()
+      }).then(function (data) {
+        if (!data || data.state !== 'ok' || !data.result) {
+          return
+        }
+        device.name = (data.result.name !== '') ? data.result.name : data.result.realName
+        device.realName = (data.result.name !== '') ? data.result.realName : ''
+        panelTitle.textContent = device.name
+        renderView()
+      }).catch(function () {
+        if (typeof jeedomUtils !== 'undefined' && jeedomUtils.showAlert) {
+          jeedomUtils.showAlert({ message: '{{Le nom n\'a pas pu être enregistré.}}', level: 'danger' })
+        }
+      })
+    }
+
+    input.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') {
+        finish(true)
+      }
+      if (event.key === 'Escape') {
+        finish(false)
+      }
+    })
+    input.addEventListener('blur', function () { finish(true) })
   }
 
   /* Une carte retirée du document doit cesser d'être rafraîchie : sans cela,
@@ -1645,12 +1784,38 @@
 
   /* -------------------------------------------------------------- plein écran */
 
+  /* Le kiosque est un état de l'appareil, pas de la session : une tablette
+   * murale doit rouvrir la page comme elle l'a laissée, et un ordinateur qui
+   * ouvre la même adresse ne doit pas hériter du réglage de la tablette. D'où
+   * le stockage local, propre au navigateur.
+   *
+   * localStorage peut lever — navigation privée, cookies bloqués — et n'est
+   * jamais indispensable : le paramètre d'adresse suffit. */
+  function remember(key, value) {
+    try {
+      window.localStorage.setItem('jeeglowbe.' + key, value)
+    } catch (error) {
+      /* Tant pis : le mode reste actif pour cette page. */
+    }
+  }
+
+  function remembered(key) {
+    try {
+      return window.localStorage.getItem('jeeglowbe.' + key)
+    } catch (error) {
+      return null
+    }
+  }
+
   function setFullscreen(on) {
     /* body.fullscreen est une règle du coeur (desktop.main.css) : header et
      * footer disparaissent. Rien à réécrire, et le jour où Jeedom change sa
      * mise en page, nous suivons sans rien faire. */
     document.body.classList.toggle('fullscreen', on)
     ROOT.dataset.kiosk = on ? '1' : '0'
+    remember('kiosk', on ? '1' : '0')
+    watchIdle()
+    syncDim()
     var icon = document.querySelector('#jg-fullscreen i')
     icon.className = on ? 'fas fa-compress' : 'fas fa-expand'
 
@@ -1663,6 +1828,66 @@
       url.searchParams.delete('fullscreen')
     }
     window.history.replaceState(null, '', url.toString())
+  }
+
+  /* ------------------------------------------------------------- veille kiosque
+   *
+   * Deux services rendus à une tablette murale, et à elle seule : revenir à
+   * l'accueil quand plus personne ne la regarde, et s'assombrir la nuit. Les
+   * deux sont sans objet sur un ordinateur, où l'on ferme la page. */
+
+  var idleTimer = null
+
+  function kioskOn() {
+    return ROOT.dataset.kiosk === '1'
+  }
+
+  function watchIdle() {
+    if (idleTimer !== null) {
+      clearTimeout(idleTimer)
+      idleTimer = null
+    }
+    var minutes = (MODEL.kiosk && MODEL.kiosk.idle) ? MODEL.kiosk.idle : 0
+    if (!kioskOn() || minutes <= 0) {
+      return
+    }
+    idleTimer = setTimeout(function () {
+      /* Le panneau ouvert compte comme une consultation en cours : on ne le
+       * referme pas dans le dos de quelqu'un qui lit. */
+      if (ROOT.dataset.panel === '1') {
+        watchIdle()
+        return
+      }
+      goTo('home', 'all')
+    }, minutes * 60000)
+  }
+
+  function minutesOf(text) {
+    var parts = /^(\d{1,2})[:h](\d{2})$/.exec(String(text || '').trim())
+    if (parts === null) {
+      return null
+    }
+    return parseInt(parts[1], 10) * 60 + parseInt(parts[2], 10)
+  }
+
+  /* Nuit : après l'heure de fin de journée ou avant celle du matin. L'intervalle
+   * traverse minuit, d'où la comparaison en deux morceaux. */
+  function isNight() {
+    var night = minutesOf(MODEL.kiosk && MODEL.kiosk.night)
+    var day = minutesOf(MODEL.kiosk && MODEL.kiosk.day)
+    if (night === null || day === null) {
+      return false
+    }
+    var now = new Date()
+    var minutes = now.getHours() * 60 + now.getMinutes()
+    return (night > day) ? (minutes >= night || minutes < day) : (minutes >= night && minutes < day)
+  }
+
+  function syncDim() {
+    var dim = (MODEL.kiosk && MODEL.kiosk.dim) ? MODEL.kiosk.dim : 0
+    var active = kioskOn() && dim > 0 && isNight()
+    ROOT.style.setProperty('--jg-dim', active ? (dim / 100) : 0)
+    ROOT.dataset.dim = active ? '1' : '0'
   }
 
   /* ----------------------------------------------------------- les widgets */
@@ -1806,10 +2031,17 @@
     }
   })
   document.addEventListener('visibilitychange', refreshModel)
+  /* Toute marque d'attention repousse le retour à l'accueil. */
+  ;['pointerdown', 'keydown', 'wheel'].forEach(function (name) {
+    ROOT.addEventListener(name, watchIdle, { passive: true })
+  })
+  /* L'atténuation se décide à la minute, pas au chargement : une tablette
+   * allumée à 19 h doit s'assombrir à 20 h sans qu'on y touche. */
+  var dimTimer = setInterval(syncDim, 60000)
   document.getElementById('jg-fullscreen').addEventListener('click', function () {
     setFullscreen(!document.body.classList.contains('fullscreen'))
   })
-  if (urlVar('fullscreen') === '1') {
+  if (urlVar('fullscreen') === '1' || remembered('kiosk') === '1') {
     setFullscreen(true)
   }
 
@@ -1826,7 +2058,17 @@
     document.body.removeEventListener('checkThemechange', onThemeChange)
     document.removeEventListener('visibilitychange', refreshModel)
     window.removeEventListener('hashchange', onHashChange)
-    document.body.classList.remove('fullscreen')
+    /* Seul le dashboard encore en place rend son menu à Jeedom. Si un autre
+     * l'a remplacé, c'est lui qui décide. */
+    if (JG.LIVE === ROOT) {
+      document.body.classList.remove('fullscreen')
+      JG.LIVE = null
+    }
+    if (idleTimer !== null) {
+      clearTimeout(idleTimer)
+      idleTimer = null
+    }
+    clearInterval(dimTimer)
     if (observer !== null) {
       observer.disconnect()
       observer = null
