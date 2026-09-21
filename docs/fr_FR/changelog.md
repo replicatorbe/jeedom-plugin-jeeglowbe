@@ -9,6 +9,8 @@ Première version.
   carte générique de repli pour tout le reste.
 - Mise à jour en temps réel des valeurs.
 - Filtre par pièce, recherche, mode plein écran pour tablette murale.
+- Navigation par rail et sous-onglets : Accueil, Fonctions, Pièces, Système.
+- Rangement par domaine plutôt que par pièce, et panneau de détail par équipement.
 - Thème clair ou sombre accordé automatiquement à celui de Jeedom.
 - Les commandes qui renvoient une structure ne sont plus affichées telles
   quelles : la carte montre le champ le plus lisible, le détail se déplie d'un

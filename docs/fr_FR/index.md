@@ -6,6 +6,41 @@ jeeGlow relit vos objets, vos équipements et vos commandes, et en dessine une
 présentation moderne, utilisable aussi bien sur un écran d'ordinateur que sur
 une tablette murale ou un téléphone.
 
+## Comment le dashboard est organisé
+
+Un **rail** à gauche donne les vues, et des **sous-onglets** en haut découpent
+la vue courante. Sur téléphone, le rail devient une barre en bas.
+
+| Vue | Ce qu'elle montre |
+|---|---|
+| **Accueil** | L'état de la maison : quelques mesures en pastilles, puis une tuile par domaine avec ce qui est en marche |
+| **Fonctions** | Le rangement par défaut : Lumières, Prises, Volets, Chauffage, Sécurité, Caméras, Multimédia, Appareils, Météo, Énergie, Capteurs, Information |
+| **Pièces** | Vos objets Jeedom, plus « Non classé » |
+| **Système** | Vos équipements par plugin — la vue du dépannage |
+
+Le rangement par défaut est **la fonction, pas la pièce**, pour une raison
+tenace : sur une installation ordinaire, la moitié des équipements
+n'appartiennent à aucun objet. Un dashboard rangé par pièce y est vide de moitié
+le premier jour. Les pièces restent une vue à part entière, qui devient la bonne
+à mesure que vous rangez.
+
+Le domaine d'un équipement est déduit des familles de types génériques du cœur.
+Un équipement dont aucune commande n'est typée se range dans « Information ».
+
+L'adresse porte la vue et l'onglet — `#view=functions&tab=light` — donc une
+tablette peut démarrer exactement où vous voulez.
+
+## Le panneau de détail
+
+Une carte ne montre que l'essentiel : son état, ses commandes principales, et
+jusqu'à trois mesures. **Un appui sur l'en-tête de la carte ouvre le détail**,
+en panneau latéral sur ordinateur, en feuille par le bas sur tablette et
+téléphone : toutes les informations, toutes les commandes, le widget du plugin.
+
+Le corps de la carte, lui, agit : un appui allume, éteint, monte ou descend.
+Deux gestes distincts, sans appui long — sur une tablette murale, un appui long
+est une loterie.
+
 ## Ouvrir le dashboard
 
 Menu **Plugins → Autre → jeeGlow**, ou directement :

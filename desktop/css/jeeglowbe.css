@@ -119,9 +119,66 @@
 
 .jg-icon-btn:hover { background: var(--jg-border); }
 
-/* ------------------------------------------------------------------ pastilles */
+/* --------------------------------------------------------------- ossature */
 
-.jg-rooms {
+/* Un rail de vues, une colonne de contenu, un panneau qui s'ouvre par-dessus.
+ * Tant que tout tenait sur une page unique, jeeGlow reproduisait l'architecture
+ * du dashboard d'origine — une grille plate d'équipements — et aucune couleur
+ * n'y changeait rien. */
+.jg-root {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    --jg-rail-top: 64px;
+}
+
+.jg-root[data-kiosk="1"] { --jg-rail-top: 10px; }
+
+.jg-rail {
+    flex: 0 0 88px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px;
+    position: sticky;
+    /* Sous l'en-tête de Jeedom, qui est fixe : collé plus haut, le rail
+     * disparaîtrait derrière lui. En kiosque il n'y a plus d'en-tête. */
+    top: var(--jg-rail-top);
+}
+
+.jg-rail-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    padding: 12px 4px;
+    border: 0;
+    border-radius: 16px;
+    background: transparent;
+    color: var(--jg-muted);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.jg-rail-item i { font-size: 18px; }
+.jg-rail-item:hover { background: var(--jg-surface-2); color: var(--jg-text); }
+
+.jg-rail-on {
+    background: var(--jg-surface);
+    color: var(--jg-accent);
+    box-shadow: var(--jg-shadow);
+}
+
+.jg-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* --------------------------------------------------------- sous-onglets */
+
+.jg-subtabs {
     display: flex;
     gap: 8px;
     overflow-x: auto;
@@ -129,14 +186,10 @@
     scrollbar-width: none;
 }
 
-.jg-rooms::-webkit-scrollbar { display: none; }
+.jg-subtabs::-webkit-scrollbar { display: none; }
+.jg-subtabs[hidden] { display: none; }
 
-/* display:flex ci-dessus bat l'attribut hidden, que le navigateur n'applique
- * qu'avec display:none dans sa feuille par défaut : sans cette règle, une
- * installation à pièce unique garde une bande vide sous le titre. */
-.jg-rooms[hidden] { display: none; }
-
-.jg-chip {
+.jg-tab {
     flex: 0 0 auto;
     border: 1px solid var(--jg-border);
     background: var(--jg-surface);
@@ -150,11 +203,66 @@
     transition: all 0.15s ease;
 }
 
-.jg-chip-on {
+.jg-tab-on {
     background: var(--jg-text);
     border-color: var(--jg-text);
     color: var(--jg-surface);
 }
+
+/* ------------------------------------------------------------------ accueil */
+
+.jg-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.jg-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 18px 9px 14px;
+    border: 1px solid var(--jg-border);
+    border-radius: 999px;
+    background: var(--jg-surface);
+    box-shadow: var(--jg-shadow);
+}
+
+.jg-badge i { color: var(--jg-accent); font-size: 15px; }
+.jg-badge-text { display: flex; flex-direction: column; line-height: 1.2; }
+.jg-badge-value { font-size: 15px; font-weight: 700; }
+.jg-badge-name { font-size: 11px; color: var(--jg-muted); }
+
+.jg-grid-domains { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+
+.jg-domain {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 18px 16px;
+    min-height: 118px;
+    border: 1px solid var(--jg-border);
+    border-radius: var(--jg-radius);
+    background: var(--jg-surface);
+    box-shadow: var(--jg-shadow);
+    color: var(--jg-text);
+    text-align: left;
+    cursor: pointer;
+    transition: transform 0.12s ease;
+}
+
+.jg-domain:hover { transform: translateY(-1px); }
+.jg-domain-icon { font-size: 20px; color: var(--jg-muted); }
+.jg-domain-name { font-size: 15px; font-weight: 600; }
+.jg-domain-count { font-size: 12px; color: var(--jg-muted); }
+
+/* Un domaine dont quelque chose tourne se signale : c'est la question qu'on se
+ * pose en arrivant sur l'accueil. */
+.jg-domain-on { background: var(--jg-on-bg); color: var(--jg-on-text); border-color: transparent; }
+.jg-domain-on .jg-domain-icon,
+.jg-domain-on .jg-domain-count { color: inherit; opacity: 0.8; }
 
 /* -------------------------------------------------------------------- grille */
 
@@ -627,4 +735,111 @@
 .jg-widget-ready .cmdName {
     font-size: 12px;
     color: var(--jg-muted);
+}
+
+/* --------------------------------------------------------- panneau de détail */
+
+/* La carte montre l'essentiel, le panneau montre tout. 1300 : au-dessus des
+ * boîtes du coeur (1020-1200), en dessous de l'agrandissement d'image d'un
+ * widget de plugin (1400-1500), qui s'ouvre depuis ce panneau. */
+.jg-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1300;
+    display: flex;
+    flex-direction: column;
+    width: 430px;
+    max-width: 92vw;
+    background: var(--jg-surface);
+    box-shadow: -10px 0 40px rgba(10, 14, 20, 0.22);
+}
+
+.jg-panel[hidden] { display: none; }
+
+.jg-panel-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1290;
+    background: rgba(10, 12, 16, 0.42);
+}
+
+.jg-panel-backdrop[hidden] { display: none; }
+
+.jg-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--jg-border);
+}
+
+.jg-panel-title { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jg-panel-body { flex: 1 1 auto; overflow-y: auto; padding: 16px 18px 24px; }
+
+.jg-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+}
+
+.jg-detail .jg-actions-wrap .jg-btn { flex: 1 1 calc(50% - 4px); }
+.jg-detail-foot { font-size: 11px; color: var(--jg-muted); }
+
+/* L'en-tête d'une carte ouvre le détail ; le corps agit. */
+.jg-head-open { cursor: pointer; border-radius: 12px; }
+.jg-head-open:hover .jg-card-name { text-decoration: underline; }
+.jg-head-open:focus-visible { outline: 2px solid var(--jg-accent); outline-offset: 2px; }
+
+/* Un widget de plugin ne tient pas dans une colonne. */
+.jg-card[data-span="2"] { grid-column: span 2; }
+
+/* ------------------------------------------------- tablette et téléphone */
+
+@media (max-width: 1100px) {
+    .jg-rail { flex-basis: 72px; }
+    .jg-rail-label { display: none; }
+    .jg-rail-item { padding: 14px 4px; }
+    .jg-rail-item i { font-size: 20px; }
+}
+
+@media (max-width: 767px) {
+    /* Le rail descend en barre basse : même liste, même place dans le
+     * document, déplacée par la seule CSS. Le pouce y arrive, pas en haut. */
+    .jg-root { display: block; padding-bottom: 78px; }
+    .jg-rail {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        top: auto;
+        flex-direction: row;
+        justify-content: space-around;
+        background: var(--jg-surface);
+        border-top: 1px solid var(--jg-border);
+        padding: 4px 2px calc(4px + env(safe-area-inset-bottom));
+        z-index: 40;
+    }
+    .jg-rail-item { flex: 1; padding: 8px 2px; border-radius: 12px; }
+    .jg-rail-label { display: block; font-size: 10px; }
+    .jg-card[data-span="2"] { grid-column: span 1; }
+    .jg-panel {
+        top: auto;
+        left: 0;
+        width: auto;
+        max-width: none;
+        height: 84vh;
+        border-radius: 20px 20px 0 0;
+    }
+}
+
+@media (max-width: 600px) {
+    .jg-grid-domains { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+    .jg-domain { min-height: 100px; padding: 14px 12px; }
 }

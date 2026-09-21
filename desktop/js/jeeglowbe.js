@@ -48,6 +48,10 @@
     JG.WATCH = {}
     Object.keys(MODEL.devices || {}).forEach(function (key) {
       MODEL.devices[key].cmds.forEach(function (cmd) {
+        /* La commande garde le domaine de son équipement : c'est ce qui permet
+         * de préférer le thermomètre du salon à la sonde interne d'une prise
+         * quand on cherche « la » température de la maison. */
+        cmd.domain = MODEL.devices[key].domain
         JG.CMDS[cmd.id] = cmd
         if (cmd.type === 'info') {
           JG.VALUES[cmd.id] = cmd.value
@@ -294,8 +298,8 @@
 
   /* Ce qu'une carte montre d'emblée. Au-delà, elle cesse d'être une tuile ;
    * le reste est à un appui. */
-  var ROW_LIMIT = 6
-  var ACTION_LIMIT = 8
+  var ROW_LIMIT = 3
+  var ACTION_LIMIT = 4
 
   function jsonDetails(parsed) {
     var box = el('div', 'jg-json')
@@ -445,6 +449,17 @@
   var WEAK_ICONS = ['BATTERY', 'BATTERY_CHARGING', 'ONLINE']
 
   function deviceIcon(device) {
+    /* Le domaine décide de l'icône dès qu'il dit quelque chose : une caméra
+     * porte une caméra, même si sa première commande typée est une présence —
+     * c'était un bonhomme qui marche. Les capteurs et les équipements
+     * d'information, eux, n'ont pas de domaine parlant : leur icône vient de ce
+     * qu'ils mesurent. */
+    if (device.domain !== undefined && device.domain !== 'info' && device.domain !== 'sensor') {
+      var icon = domainOf(device.domain).icon
+      if (icon) {
+        return icon
+      }
+    }
     if (device.card === 'sensor' || device.card === 'generic') {
       var fallback = null
       for (var i = 0; i < device.cmds.length; i++) {
@@ -558,6 +573,26 @@
 
     header(subtitle) {
       var head = el('div', 'jg-card-head')
+      /* L'en-tête ouvre le détail, le corps agit. Deux gestes distincts sur une
+       * même carte, sans appui long : sur une tablette murale, un appui long
+       * est une loterie. */
+      if (this.tagName !== 'JG-CARD-DETAIL') {
+        head.classList.add('jg-head-open')
+        head.setAttribute('role', 'button')
+        head.setAttribute('tabindex', '0')
+        head.title = '{{Voir le détail}}'
+        var open = function (event) {
+          event.stopPropagation()
+          event.preventDefault()
+          openPanel(this.device.id)
+        }.bind(this)
+        head.addEventListener('click', open)
+        head.addEventListener('keydown', function (event) {
+          if (event.key === 'Enter' || event.key === ' ') {
+            open(event)
+          }
+        })
+      }
       var icon = el('i', deviceIcon(this.device) + ' jg-card-icon')
       head.appendChild(icon)
       var titles = el('div', 'jg-card-titles')
@@ -638,19 +673,32 @@
       }, this)
     }
 
-    /* Les premières lignes tout de suite, les suivantes à la demande. */
+    /* L'essentiel sur la carte, le reste dans le panneau. Une carte qui
+     * déroulait ses douze lignes redevenait une ligne de tableau Jeedom. */
     appendRows(cmds) {
       if (cmds.length === 0) {
         return
       }
-      var list = this.infoRows(cmds.slice(0, ROW_LIMIT))
-      this.appendChild(list)
-      var hidden = cmds.slice(ROW_LIMIT)
-      if (hidden.length > 0) {
-        this.appendChild(this.moreButton(hidden.length, function () {
-          this.fillRows(list, hidden)
-        }.bind(this)))
+      /* Une image et un widget ne comptent pas dans le quota de lignes : ils
+       * sont ce qu'il y a de plus parlant sur une carte, et les reléguer au
+       * panneau derrière trois nombres serait exactement l'inverse de ce qu'on
+       * cherche. */
+      var rich = cmds.filter(function (cmd) { return cmd.widget || imageUrl(cmd.id) !== null })
+      var plain = cmds.filter(function (cmd) { return !(cmd.widget || imageUrl(cmd.id) !== null) })
+      this.appendChild(this.infoRows(rich.concat(plain.slice(0, ROW_LIMIT))))
+      if (plain.length > ROW_LIMIT) {
+        this.appendChild(this.detailButton(plain.length - ROW_LIMIT))
       }
+    }
+
+    detailButton(count) {
+      var button = el('button', 'jg-more', '+ ' + count + ' · {{détail}}')
+      button.addEventListener('click', function (event) {
+        event.stopPropagation()
+        event.preventDefault()
+        openPanel(this.device.id)
+      }.bind(this))
+      return button
     }
 
     /* Le rendu que le plugin a écrit pour cette commande, quand il en a écrit
@@ -696,21 +744,6 @@
       this._rows.push(entry)
       watch(cmd.id, this)
       return figure
-    }
-
-    /* Les cartes ne montrent qu'une partie de ce qu'un équipement expose : au
-     * delà, elles deviennent des listes. Mais tronquer sans le dire fait
-     * disparaître des commandes — six boutons de nettoyage sur douze — sans que
-     * personne ne sache qu'il en manque. */
-    moreButton(count, reveal) {
-      var button = el('button', 'jg-more', '+ ' + count + ' {{autres}}')
-      button.addEventListener('click', function (event) {
-        event.stopPropagation()
-        event.preventDefault()
-        reveal()
-        button.remove()
-      })
-      return button
     }
 
     /* Rend une valeur dépliable si, et seulement si, elle cache une structure.
@@ -1088,11 +1121,8 @@
           bar.appendChild(this.actionNode(cmd))
         }, this)
         this.appendChild(bar)
-        var hidden = actions.slice(ACTION_LIMIT)
-        if (hidden.length > 0) {
-          this.appendChild(this.moreButton(hidden.length, function () {
-            hidden.forEach(function (cmd) { bar.appendChild(this.actionNode(cmd)) }, this)
-          }.bind(this)))
+        if (actions.length > ACTION_LIMIT) {
+          this.appendChild(this.detailButton(actions.length - ACTION_LIMIT))
         }
       }
     }
@@ -1149,6 +1179,38 @@
     }
   }
 
+  /* Le contenu du panneau. Même machinerie que les cartes — lignes, images,
+   * widgets, actions — mais sans plafond : c'est ici qu'on vient tout voir. */
+  class JgDetail extends JgCard {
+    build() {
+      this.classList.add('jg-detail')
+      var infos = this.device.cmds.filter(function (cmd) { return cmd.type === 'info' })
+      var actions = this.device.cmds.filter(function (cmd) {
+        return cmd.type === 'action' && cmd.subType !== 'message'
+      })
+      this._rows = []
+      if (infos.length > 0) {
+        this.appendChild(this.infoRows(infos))
+      }
+      if (actions.length > 0) {
+        var bar = el('div', 'jg-actions jg-actions-wrap')
+        actions.forEach(function (cmd) { bar.appendChild(this.actionNode(cmd)) }, this)
+        this.appendChild(bar)
+      }
+      var foot = el('div', 'jg-detail-foot')
+      foot.appendChild(el('span', null, this.device.eqType))
+      this.appendChild(foot)
+    }
+
+    sync() {
+      this.syncRows()
+    }
+  }
+
+  /* actionNode vit sur la carte générique : le panneau en a besoin aussi. */
+  JgDetail.prototype.actionNode = JgGeneric.prototype.actionNode
+
+  customElements.define('jg-card-detail', JgDetail)
   customElements.define('jg-card-light', class extends JgToggle {})
   customElements.define('jg-card-switch', class extends JgToggle {})
   customElements.define('jg-card-cover', JgCover)
@@ -1174,111 +1236,392 @@
     var card = document.createElement(tag)
     card.device = device
     card.dataset.deviceId = device.id
+    /* Un widget de plugin — une grille de vignettes, un bulletin météo — ne
+     * tient pas dans une colonne : il prend la largeur de deux. */
+    if (device.cmds.some(function (cmd) { return cmd.widget })) {
+      card.dataset.span = '2'
+    }
     card.dataset.search = (device.name + ' ' + device.eqType).toLowerCase()
     return card
   }
 
-  /* ------------------------------------------------------------- la structure */
+  /* ------------------------------------------------------------- la structure
+   *
+   * Un rail de vues à gauche, des sous-onglets en haut, et un panneau de détail
+   * qui s'ouvre sur la droite. Ce découpage n'est pas cosmétique : tant que tout
+   * tenait sur une page unique, jeeGlow reproduisait l'architecture du dashboard
+   * d'origine — une grille plate d'équipements groupés par objet — et aucune
+   * couleur n'y changeait rien.
+   *
+   * L'axe principal est le DOMAINE et non la pièce. Sur une installation
+   * ordinaire, la moitié des équipements n'appartient à aucun objet : un
+   * rangement par pièce y est vide de moitié le premier jour. Les pièces restent
+   * une vue à part entière, qui devient la bonne à mesure qu'on range.
+   */
 
   var sectionsNode = document.getElementById('jg-sections')
-  var roomsNode = document.getElementById('jg-rooms')
+  var railNode = document.getElementById('jg-rail')
+  var tabsNode = document.getElementById('jg-subtabs')
   var emptyNode = document.getElementById('jg-empty')
   var searchNode = document.getElementById('jg-search')
   var brandNode = ROOT.querySelector('.jg-brand-name')
+  var panelNode = document.getElementById('jg-panel')
+  var panelBody = document.getElementById('jg-panel-body')
+  var panelTitle = ROOT.querySelector('.jg-panel-title')
+  var backdropNode = document.getElementById('jg-panel-backdrop')
 
-  brandNode.textContent = MODEL.title ? MODEL.title : 'jeeGlow'
+  var VIEWS = [
+    { key: 'home', name: '{{Accueil}}', icon: 'fas fa-home' },
+    { key: 'functions', name: '{{Fonctions}}', icon: 'fas fa-th-large' },
+    { key: 'rooms', name: '{{Pièces}}', icon: 'fas fa-door-open' },
+    { key: 'system', name: '{{Système}}', icon: 'fas fa-cogs' }
+  ]
 
-  /* Le modèle s'arrête à un plafond d'équipements. Le taire donnerait un
-   * dashboard incomplet sans que personne ne sache pourquoi. */
-  if (MODEL.truncated) {
-    var warning = el('div', 'jg-warning')
-    warning.appendChild(el('i', 'fas fa-exclamation-triangle'))
-    warning.appendChild(el('span', null, '{{Trop d\'équipements pour un seul dashboard : la liste est tronquée.}}'))
-    ROOT.insertBefore(warning, sectionsNode)
+  /* L'ordre compte : c'est celui des sous-onglets et des sections. On commence
+   * par ce qu'on pilote, on finit par ce qu'on consulte. */
+  var DOMAINS = [
+    { key: 'light', name: '{{Lumières}}', icon: 'fas fa-lightbulb' },
+    { key: 'socket', name: '{{Prises}}', icon: 'fas fa-plug' },
+    { key: 'cover', name: '{{Volets}}', icon: 'fas fa-bars' },
+    { key: 'climate', name: '{{Chauffage}}', icon: 'fas fa-fire' },
+    { key: 'security', name: '{{Sécurité}}', icon: 'fas fa-shield-alt' },
+    { key: 'camera', name: '{{Caméras}}', icon: 'fas fa-video' },
+    { key: 'media', name: '{{Multimédia}}', icon: 'fas fa-music' },
+    { key: 'appliance', name: '{{Appareils}}', icon: 'fas fa-robot' },
+    { key: 'weather', name: '{{Météo}}', icon: 'fas fa-cloud-sun' },
+    { key: 'energy', name: '{{Énergie}}', icon: 'fas fa-bolt' },
+    { key: 'sensor', name: '{{Capteurs}}', icon: 'fas fa-microchip' },
+    { key: 'info', name: '{{Information}}', icon: 'fas fa-info-circle' }
+  ]
+
+  function domainOf(key) {
+    for (var i = 0; i < DOMAINS.length; i++) {
+      if (DOMAINS[i].key === key) {
+        return DOMAINS[i]
+      }
+    }
+    return { key: key, name: key, icon: 'fas fa-cube' }
   }
 
-  var sections = {}
-
-  function buildSections() {
-    (MODEL.rooms || []).forEach(function (room) {
-      if (!room.devices || room.devices.length === 0) {
-        return
-      }
-      var section = el('section', 'jg-section')
-      section.dataset.roomId = room.id
-      var title = el('h2', 'jg-section-title')
-      title.appendChild(el('span', 'jg-section-name', room.name))
-      title.appendChild(el('span', 'jg-section-count', String(room.devices.length)))
-      section.appendChild(title)
-      var grid = el('div', 'jg-grid')
-      room.devices.map(function (id) { return MODEL.devices[id] })
-        .sort(function (a, b) { return a.order - b.order })
-        .forEach(function (device) { grid.appendChild(makeCard(device)) })
-      section.appendChild(grid)
-      sectionsNode.appendChild(section)
-      sections[room.id] = section
+  function devicesOf(ids) {
+    return (ids || []).map(function (id) {
+      return MODEL.devices[id]
+    }).filter(function (device) {
+      return device !== undefined
+    }).sort(function (a, b) {
+      return a.order - b.order
     })
   }
 
-  /* Les pièces en pastilles plutôt qu'en menu : sur une tablette murale, on
-   * change de pièce au pouce, sans viser. Le choix se lit dans l'URL (#room=5)
-   * pour qu'une tablette puisse démarrer directement sur sa pièce. */
-  function buildRoomFilter() {
-    var chips = [{ id: 'all', name: '{{Tout}}' }].concat((MODEL.rooms || []).filter(function (room) {
-      return room.devices && room.devices.length > 0
-    }))
-    if (chips.length <= 2) {
-      roomsNode.hidden = true
+  function allDevices() {
+    return Object.keys(MODEL.devices || {}).map(function (key) {
+      return MODEL.devices[key]
+    })
+  }
+
+  /* --------------------------------------------------------- les regroupements */
+
+  function domainGroups() {
+    var groups = []
+    DOMAINS.forEach(function (domain) {
+      var devices = allDevices().filter(function (device) {
+        return device.domain === domain.key
+      })
+      if (devices.length > 0) {
+        groups.push({ key: domain.key, name: domain.name, icon: domain.icon, devices: devices })
+      }
+    })
+    return groups
+  }
+
+  function roomGroups() {
+    return (MODEL.rooms || []).map(function (room) {
+      return { key: String(room.id), name: room.name, icon: 'fas fa-door-open', devices: devicesOf(room.devices) }
+    }).filter(function (group) {
+      return group.devices.length > 0
+    })
+  }
+
+  function systemGroups() {
+    var byType = {}
+    allDevices().forEach(function (device) {
+      (byType[device.eqType] = byType[device.eqType] || []).push(device)
+    })
+    return Object.keys(byType).sort().map(function (type) {
+      return { key: type, name: type, icon: 'fas fa-puzzle-piece', devices: byType[type] }
+    })
+  }
+
+  function groupsFor(view) {
+    if (view === 'rooms') {
+      return roomGroups()
+    }
+    if (view === 'system') {
+      return systemGroups()
+    }
+    return domainGroups()
+  }
+
+  /* ------------------------------------------------------------ la navigation */
+
+  function state() {
+    var hash = window.location.hash
+    var view = /view=([a-z]+)/.exec(hash)
+    var tab = /tab=([^&]+)/.exec(hash)
+    return {
+      view: (view === null) ? 'functions' : view[1],
+      tab: (tab === null) ? 'all' : decodeURIComponent(tab[1])
+    }
+  }
+
+  /* L'adresse d'abord, le rendu tout de suite après, sans attendre hashchange :
+   * cet événement est asynchrone, et l'écran restait sur la vue précédente le
+   * temps d'un battement. L'écouteur hashchange reste utile pour les boutons
+   * précédent et suivant du navigateur, d'où la signature qui évite de dessiner
+   * deux fois la même chose. */
+  var drawn = null
+
+  function goTo(view, tab) {
+    window.location.hash = 'view=' + view + '&tab=' + encodeURIComponent(tab || 'all')
+    renderView()
+  }
+
+  function onHashChange() {
+    if (signature() !== drawn) {
+      renderView()
+    }
+  }
+
+  function signature() {
+    return window.location.hash + '\u0000' + searchNode.value
+  }
+
+  function buildRail() {
+    railNode.textContent = ''
+    var current = state().view
+    VIEWS.forEach(function (view) {
+      var button = el('button', 'jg-rail-item')
+      button.dataset.view = view.key
+      button.appendChild(el('i', view.icon))
+      button.appendChild(el('span', 'jg-rail-label', view.name))
+      button.classList.toggle('jg-rail-on', view.key === current)
+      button.addEventListener('click', function () { goTo(view.key, 'all') })
+      railNode.appendChild(button)
+    })
+  }
+
+  function buildTabs(groups) {
+    tabsNode.textContent = ''
+    var here = state()
+    if (here.view === 'home' || groups.length <= 1) {
+      tabsNode.hidden = true
       return
     }
-    chips.forEach(function (room) {
-      var chip = el('button', 'jg-chip', room.name)
-      chip.dataset.roomId = room.id
-      chip.addEventListener('click', function () {
-        window.location.hash = (room.id === 'all') ? '' : 'room=' + room.id
-        applyFilter()
-      })
-      roomsNode.appendChild(chip)
+    tabsNode.hidden = false
+    var entries = [{ key: 'all', name: '{{Tout}}' }].concat(groups)
+    entries.forEach(function (entry) {
+      var tab = el('button', 'jg-tab', entry.name)
+      tab.dataset.tab = entry.key
+      tab.classList.toggle('jg-tab-on', entry.key === here.tab)
+      tab.addEventListener('click', function () { goTo(here.view, entry.key) })
+      tabsNode.appendChild(tab)
     })
   }
 
-  function currentRoom() {
-    var found = /room=(\d+)/.exec(window.location.hash)
-    return found === null ? 'all' : found[1]
+  /* ------------------------------------------------------------- les sections */
+
+  function section(group) {
+    var node = el('section', 'jg-section')
+    node.dataset.groupKey = group.key
+    var title = el('h2', 'jg-section-title')
+    if (group.icon) {
+      title.appendChild(el('i', group.icon + ' jg-section-icon'))
+    }
+    title.appendChild(el('span', 'jg-section-name', group.name))
+    title.appendChild(el('span', 'jg-section-count', String(group.devices.length)))
+    node.appendChild(title)
+    var grid = el('div', 'jg-grid')
+    group.devices.forEach(function (device) {
+      grid.appendChild(makeCard(device))
+    })
+    node.appendChild(grid)
+    return node
   }
 
-  function applyFilter() {
-    var room = currentRoom()
-    var needle = searchNode.value.trim().toLowerCase()
-    var visible = 0
+  /* L'accueil ne montre pas des équipements mais l'état de la maison : ce qui
+   * est allumé, ce qui consomme, ce qu'il fait dehors. C'est la seule vue qui
+   * répond à la question qu'on se pose en entrant dans une pièce, et c'est
+   * précisément celle qu'aucun dashboard d'origine ne propose. */
+  function buildHome() {
+    var groups = domainGroups()
 
-    /* Pendant une recherche le filtre de pièce est suspendu : garder la
-     * pastille allumée ferait croire qu'il s'applique encore. */
-    roomsNode.querySelectorAll('.jg-chip').forEach(function (chip) {
-      chip.classList.toggle('jg-chip-on', needle === '' && chip.dataset.roomId === room)
+    var badges = el('div', 'jg-badges')
+    badgeValues().forEach(function (badge) {
+      var node = el('div', 'jg-badge')
+      node.appendChild(el('i', badge.icon))
+      var text = el('div', 'jg-badge-text')
+      text.appendChild(el('span', 'jg-badge-value', badge.value))
+      text.appendChild(el('span', 'jg-badge-name', badge.name))
+      node.appendChild(text)
+      badges.appendChild(node)
     })
+    if (badges.children.length > 0) {
+      sectionsNode.appendChild(badges)
+    }
 
-    Object.keys(sections).forEach(function (roomId) {
-      var section = sections[roomId]
-      var matching = 0
-      section.querySelectorAll('.jg-card').forEach(function (card) {
-        var hidden = (needle !== '' && card.dataset.search.indexOf(needle) === -1)
-        card.hidden = hidden
-        if (!hidden) {
-          matching++
-        }
+    var node = el('section', 'jg-section')
+    var title = el('h2', 'jg-section-title')
+    title.appendChild(el('span', 'jg-section-name', '{{La maison}}'))
+    node.appendChild(title)
+    var grid = el('div', 'jg-grid jg-grid-domains')
+    groups.forEach(function (group) {
+      var lit = group.devices.filter(isLit).length
+      var tile = el('button', 'jg-domain')
+      tile.dataset.domain = group.key
+      tile.appendChild(el('i', group.icon + ' jg-domain-icon'))
+      tile.appendChild(el('span', 'jg-domain-name', group.name))
+      tile.appendChild(el('span', 'jg-domain-count',
+        group.devices.length + ' ' + (group.devices.length > 1 ? '{{équipements}}' : '{{équipement}}') +
+        (lit > 0 ? ' · ' + lit + ' {{en marche}}' : '')))
+      tile.classList.toggle('jg-domain-on', lit > 0)
+      tile.addEventListener('click', function () { goTo('functions', group.key) })
+      grid.appendChild(tile)
+    })
+    node.appendChild(grid)
+    sectionsNode.appendChild(node)
+  }
+
+  /* Un équipement « en marche » : celui dont la commande d'état dit oui. Sans
+   * commande d'état, la question n'a pas de sens et la réponse est non. */
+  function isLit(device) {
+    var id = device.roles ? device.roles.state : undefined
+    if (id === undefined) {
+      return false
+    }
+    var cmd = JG.CMDS[id]
+    if (cmd && cmd.subType === 'numeric') {
+      return parseFloat(JG.VALUES[id]) > 0
+    }
+    return isTrue(cmd, JG.VALUES[id])
+  }
+
+  /* Les pastilles de l'accueil : la première valeur trouvée pour quelques types
+   * génériques qui intéressent tout le monde. Rien d'inventé — si l'installation
+   * ne mesure pas la consommation, la pastille n'apparaît pas. */
+  var BADGES = [
+    { generic: 'POWER', name: '{{Consommation}}', icon: 'fas fa-bolt' },
+    { generic: 'TEMPERATURE', name: '{{Température}}', icon: 'fas fa-thermometer-half' },
+    { generic: 'WEATHER_TEMPERATURE', name: '{{Dehors}}', icon: 'fas fa-cloud-sun' },
+    { generic: 'HUMIDITY', name: '{{Humidité}}', icon: 'fas fa-tint' }
+  ]
+
+  function badgeValues() {
+    var found = []
+    BADGES.forEach(function (badge) {
+      var ids = Object.keys(JG.CMDS).filter(function (id) {
+        return JG.CMDS[id].generic === badge.generic && JG.VALUES[id] !== null &&
+          JG.VALUES[id] !== undefined && JG.VALUES[id] !== ''
       })
-      /* Une recherche traverse les pièces : chercher « volet » depuis la
-       * cuisine et ne rien trouver alors que le volet existe au salon serait
-       * une fausse réponse. */
-      var wrongRoom = (room !== 'all' && roomId !== room && needle === '')
-      section.hidden = wrongRoom || matching === 0
-      if (!section.hidden) {
-        visible += matching
+      if (ids.length > 0) {
+        /* Un capteur dédié passe avant la sonde interne d'un autre appareil :
+         * « 33 °C » lu dans le boîtier d'une prise n'est la température de
+         * personne. */
+        var preferred = ids.filter(function (id) { return JG.CMDS[id].domain === 'sensor' })
+        found.push({ name: badge.name, icon: badge.icon, value: format((preferred[0] !== undefined) ? preferred[0] : ids[0]) })
       }
     })
+    return found
+  }
 
-    emptyNode.hidden = (visible > 0)
+  function renderView() {
+    drawn = signature()
+    var here = state()
+    var needle = searchNode.value.trim().toLowerCase()
+    sectionsNode.textContent = ''
+    ROOT.dataset.view = here.view
+
+    railNode.querySelectorAll('.jg-rail-item').forEach(function (item) {
+      item.classList.toggle('jg-rail-on', item.dataset.view === here.view)
+    })
+
+    /* Une recherche traverse tout : chercher « volet » depuis la vue Caméras et
+     * ne rien trouver alors que le volet existe serait une fausse réponse. */
+    if (needle !== '') {
+      tabsNode.hidden = true
+      var found = allDevices().filter(function (device) {
+        return (device.name + ' ' + device.eqType).toLowerCase().indexOf(needle) !== -1
+      })
+      emptyNode.hidden = (found.length > 0)
+      if (found.length > 0) {
+        sectionsNode.appendChild(section({ key: 'search', name: '{{Résultats}}', icon: 'fas fa-search', devices: found }))
+      }
+      loadWidgets()
+      return
+    }
+
+    if (here.view === 'home') {
+      tabsNode.hidden = true
+      emptyNode.hidden = true
+      buildHome()
+      return
+    }
+
+    var groups = groupsFor(here.view)
+    buildTabs(groups)
+    var shown = (here.tab === 'all') ? groups : groups.filter(function (group) {
+      return group.key === here.tab
+    })
+    if (shown.length === 0) {
+      shown = groups
+    }
+    shown.forEach(function (group) {
+      sectionsNode.appendChild(section(group))
+    })
+    emptyNode.hidden = (shown.length > 0)
+    loadWidgets()
+  }
+
+  /* ------------------------------------------------------- le panneau de détail
+   *
+   * La carte montre l'essentiel, le panneau montre tout. C'est lui qui permet à
+   * une tuile de rester une tuile : sans lui, un aspirateur à douze commandes
+   * produit une carte haute d'un écran, et le dashboard redevient une liste. */
+
+  function openPanel(deviceId) {
+    var device = MODEL.devices[deviceId]
+    if (device === undefined) {
+      return
+    }
+    closePanel()
+    panelTitle.textContent = device.name
+    var detail = document.createElement('jg-card-detail')
+    detail.device = device
+    panelBody.appendChild(detail)
+    panelNode.hidden = false
+    backdropNode.hidden = false
+    ROOT.dataset.panel = '1'
+    document.getElementById('jg-panel-close').focus()
+    loadWidgets()
+  }
+
+  function closePanel() {
+    Array.prototype.forEach.call(panelBody.children, forget)
+    panelBody.textContent = ''
+    panelNode.hidden = true
+    backdropNode.hidden = true
+    ROOT.dataset.panel = '0'
+  }
+
+  /* Une carte retirée du document doit cesser d'être rafraîchie : sans cela,
+   * chaque ouverture du panneau laisse derrière elle une carte fantôme que le
+   * temps réel continue de mettre à jour. */
+  function forget(card) {
+    Object.keys(JG.WATCH).forEach(function (cmdId) {
+      var index = JG.WATCH[cmdId].indexOf(card)
+      if (index !== -1) {
+        JG.WATCH[cmdId].splice(index, 1)
+      }
+    })
   }
 
   /* ---------------------------------------------------------------- ambiance */
@@ -1328,6 +1671,8 @@
    * page dessinée. Le coeur sait les produire : core/ajax/cmd.ajax.php, action
    * toHtml, accepte une liste d'identifiants — dix-neuf widgets en une requête
    * plutôt que dix-neuf. */
+  JG.WIDGETS = JG.WIDGETS || {}
+
   function loadWidgets() {
     var holders = Array.prototype.slice.call(ROOT.querySelectorAll('.jg-widget[data-pending="1"]'))
     if (holders.length === 0) {
@@ -1336,8 +1681,17 @@
     var ids = {}
     holders.forEach(function (holder) {
       holder.removeAttribute('data-pending')
+      /* Déjà reçu : changer de vue ne doit pas redemander au serveur les trois
+       * cents kilo-octets qu'on a en mémoire. */
+      if (JG.WIDGETS[holder.dataset.cmdId]) {
+        insertWidget(holder, JG.WIDGETS[holder.dataset.cmdId])
+        return
+      }
       ids[holder.dataset.cmdId] = { version: 'dashboard' }
     })
+    if (Object.keys(ids).length === 0) {
+      return
+    }
     var form = new FormData()
     form.append('action', 'toHtml')
     form.append('ids', JSON.stringify(ids))
@@ -1353,6 +1707,7 @@
           if (holder === null || !data.result[id] || !data.result[id].html) {
             return
           }
+          JG.WIDGETS[id] = data.result[id].html
           insertWidget(holder, data.result[id].html)
         })
       }).catch(function () {
@@ -1396,14 +1751,9 @@
     if (typeof jeedom !== 'undefined' && jeedom.cmd && jeedom.cmd.resetUpdateFunction) {
       jeedom.cmd.resetUpdateFunction()
     }
-    sections = {}
-    sectionsNode.textContent = ''
-    roomsNode.textContent = ''
-    roomsNode.hidden = false
-    buildSections()
-    buildRoomFilter()
-    applyFilter()
-    loadWidgets()
+    closePanel()
+    buildRail()
+    renderView()
   }
 
   function refreshModel() {
@@ -1430,15 +1780,31 @@
 
   /* ------------------------------------------------------------------ démarrage */
 
-  indexModel()
-  buildSections()
-  buildRoomFilter()
-  applyFilter()
-  syncTone()
-  loadWidgets()
+  brandNode.textContent = MODEL.title ? MODEL.title : 'jeeGlow'
 
-  searchNode.addEventListener('input', applyFilter)
-  window.addEventListener('hashchange', applyFilter)
+  /* Le modèle s'arrête à un plafond d'équipements. Le taire donnerait un
+   * dashboard incomplet sans que personne ne sache pourquoi. */
+  if (MODEL.truncated) {
+    var warning = el('div', 'jg-warning')
+    warning.appendChild(el('i', 'fas fa-exclamation-triangle'))
+    warning.appendChild(el('span', null, '{{Trop d\'équipements pour un seul dashboard : la liste est tronquée.}}'))
+    sectionsNode.parentNode.insertBefore(warning, sectionsNode)
+  }
+
+  indexModel()
+  buildRail()
+  renderView()
+  syncTone()
+
+  searchNode.addEventListener('input', renderView)
+  window.addEventListener('hashchange', onHashChange)
+  backdropNode.addEventListener('click', closePanel)
+  document.getElementById('jg-panel-close').addEventListener('click', closePanel)
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && ROOT.dataset.panel === '1') {
+      closePanel()
+    }
+  })
   document.addEventListener('visibilitychange', refreshModel)
   document.getElementById('jg-fullscreen').addEventListener('click', function () {
     setFullscreen(!document.body.classList.contains('fullscreen'))
@@ -1459,7 +1825,7 @@
     document.body.removeEventListener('changeTheme', onThemeChange)
     document.body.removeEventListener('checkThemechange', onThemeChange)
     document.removeEventListener('visibilitychange', refreshModel)
-    window.removeEventListener('hashchange', applyFilter)
+    window.removeEventListener('hashchange', onHashChange)
     document.body.classList.remove('fullscreen')
     if (observer !== null) {
       observer.disconnect()

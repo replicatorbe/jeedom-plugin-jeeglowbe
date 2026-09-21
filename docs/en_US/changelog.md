@@ -9,6 +9,8 @@ First release.
   generic fallback card for everything else.
 - Real time value updates.
 - Room filter, search, full screen mode for wall tablets.
+- Rail and sub-tab navigation: Home, Functions, Rooms, System.
+- Arrangement by domain rather than by room, and a per-device detail panel.
 - Light or dark theme, matched automatically to the Jeedom theme.
 - Commands returning a structure are no longer printed raw: the card shows the
   most readable field, the detail unfolds on tap, and timestamps are rendered as

@@ -6,6 +6,40 @@ jeeGlow reads your objects, devices and commands, and draws a modern
 presentation of them, usable on a desktop screen as well as on a wall tablet or
 a phone.
 
+## How the dashboard is organised
+
+A **rail** on the left holds the views, and **sub-tabs** at the top split the
+current one. On a phone the rail becomes a bottom bar.
+
+| View | What it shows |
+|---|---|
+| **Home** | The state of the house: a few measurements as badges, then one tile per domain with what is running |
+| **Functions** | The default arrangement: Lights, Sockets, Shutters, Heating, Security, Cameras, Media, Appliances, Weather, Energy, Sensors, Information |
+| **Rooms** | Your Jeedom objects, plus "Unassigned" |
+| **System** | Your devices by plugin — the troubleshooting view |
+
+The default arrangement is **function, not room**, for a stubborn reason: on an
+ordinary installation half the devices belong to no object. A dashboard arranged
+by room is half empty on day one. Rooms remain a view of their own, which
+becomes the right one as you tidy up.
+
+A device's domain is derived from the core's generic type families. A device
+with no typed command lands in "Information".
+
+The address carries the view and the tab — `#view=functions&tab=light` — so a
+tablet can start exactly where you want.
+
+## The detail panel
+
+A card only shows the essentials: its state, its main controls and up to three
+measurements. **Tapping the card header opens the detail**, as a side panel on a
+computer and as a bottom sheet on tablets and phones: every piece of
+information, every command, the plugin widget.
+
+The body of the card acts: a tap turns on, turns off, raises or lowers. Two
+distinct gestures, with no long press — on a wall tablet a long press is a
+lottery.
+
 ## Opening the dashboard
 
 Menu **Plugins → Other → jeeGlow**, or directly:
