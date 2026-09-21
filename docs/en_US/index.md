@@ -72,6 +72,19 @@ otherwise — rather than as a number of seconds. A numeric command without a
 unit whose value looks like a timestamp gets the same treatment: an energy
 counter carries a unit and stays a number.
 
+## Images
+
+A command whose value is the address of an image — a robot's map, a doorbell
+snapshot, a camera still — is displayed **as an image**, not as an address. If
+it fails to load, the text line takes its place again rather than leaving a
+hole.
+
+## What a card does not show at first
+
+A card shows at most six pieces of information and eight commands. Beyond that
+it says so: **"+ 4 more"**, one tap unfolds the rest. Nothing disappears
+silently.
+
 ## Kiosk mode
 
 The button in the top right corner switches to full screen: the Jeedom menu and

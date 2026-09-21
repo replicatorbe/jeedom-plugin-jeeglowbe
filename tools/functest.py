@@ -102,6 +102,12 @@ DEMOS = [
      'cmds': [cmd(90101, 'Collecte', 'info', 'string', 'GENERIC_INFO',
                   json.dumps({'label': 'jeudi 24/09', 'days': 3, 'countdown': 'dans 3 jours',
                               'fractions': ['Organique', 'PMC']}, ensure_ascii=False))]},
+    {'id': 90011, 'name': 'Robot bavard', 'roomId': 9001, 'eqType': 'demo', 'category': '',
+     'order': 10, 'battery': None, 'card': 'generic', 'roles': {},
+     'cmds': [cmd(90110 + i, 'Mesure %d' % i, 'info', 'numeric', 'GENERIC_INFO', i) for i in range(1, 10)] +
+             [cmd(90130 + i, 'Nettoyer piece %d' % i, 'action', 'other', 'GENERIC_ACTION') for i in range(1, 13)] +
+             [cmd(90160, 'Carte', 'info', 'string', '', 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='),
+              cmd(90161, 'Plan absent', 'info', 'string', '', 'plugins/inexistant/core/php/map.php?id=1')]},
     {'id': 90005, 'name': 'Prise TV', 'roomId': 9001, 'eqType': 'demo', 'category': 'energy',
      'order': 4, 'battery': None, 'card': 'switch',
      'roles': {'state': 90051, 'on': 90052, 'off': 90053},
@@ -285,7 +291,8 @@ def main():
     check('capteur : valeur suit cmd::update', sensor.querySelector('.jg-value').textContent === '19.3 °C',
           sensor.querySelector('.jg-value').textContent)
     update(90044, 0)
-    check('capteur : binaire relibellé', sensor.textContent.indexOf('Aucune') !== -1)
+    check('capteur : binaire relibellé', sensor.textContent.indexOf('Absent') !== -1,
+          sensor.textContent.slice(0, 80))
 
     // --- valeur JSON (90009) ------------------------------------------------
     var jsonCard = card(90009)
@@ -301,6 +308,9 @@ def main():
     jsonNode.click()
     var details = jsonCard.querySelector('.jg-json')
     check('JSON : détail ouvert au clic', details !== null)
+    check('JSON : chaque élément garde son état',
+          details !== null && /PJF Mons-Tournai[^]*RIEN/.test(details.textContent),
+          details ? details.textContent.slice(0, 120) : '')
     check('JSON : les champs sont listés', details !== null && details.textContent.indexOf('offres') !== -1 &&
           details.textContent.indexOf('PJF Mons-Tournai') !== -1, details ? details.textContent.slice(0, 80) : '')
     check('JSON : le tableau est compté', details !== null && details.textContent.indexOf('2 éléments') !== -1,
@@ -362,6 +372,26 @@ def main():
     update(90071, 0)
     check('inversion : 0 affiché comme ouvert', door.querySelector('.jg-value').textContent === 'Ouvert',
           door.querySelector('.jg-value').textContent)
+
+    // --- ce qu'une carte ne montre pas d'emblée (90011) ----------------------
+    var talkative = card(90011)
+    var shownRows = talkative.querySelectorAll('.jg-row').length
+    check('carte bavarde : lignes limitées', shownRows <= 6, shownRows + ' lignes')
+    var shownButtons = talkative.querySelectorAll('.jg-actions .jg-btn').length
+    check('carte bavarde : actions limitées', shownButtons === 8, shownButtons + ' boutons')
+    var mores = talkative.querySelectorAll('.jg-more')
+    check('carte bavarde : le reste est annoncé', mores.length === 2, mores.length + ' invitations')
+    mores.forEach(function (button) { button.click() })
+    check('carte bavarde : tout est révélé après appui',
+          talkative.querySelectorAll('.jg-actions .jg-btn').length === 12,
+          talkative.querySelectorAll('.jg-actions .jg-btn').length + ' boutons')
+    check('carte bavarde : plus rien à annoncer', talkative.querySelectorAll('.jg-more').length === 0)
+
+    // --- images -------------------------------------------------------------
+    var picture = talkative.querySelector('.jg-media img')
+    check('image : rendue comme une image et non comme une adresse', picture !== null)
+    check('image : aucune adresse en clair', talkative.textContent.indexOf('map.php') === -1,
+          talkative.textContent.slice(-60))
 
     // --- recherche ----------------------------------------------------------
     var search = document.getElementById('jg-search')
