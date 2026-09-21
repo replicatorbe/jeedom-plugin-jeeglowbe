@@ -13,3 +13,5 @@ Première version.
 - Les commandes qui renvoient une structure ne sont plus affichées telles
   quelles : la carte montre le champ le plus lisible, le détail se déplie d'un
   appui, et les horodatages sont rendus en date.
+- Les valeurs qui désignent une image sont affichées comme des images.
+- Une carte annonce ce qu'elle ne montre pas : « + n autres ».

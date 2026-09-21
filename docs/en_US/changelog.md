@@ -13,3 +13,5 @@ First release.
 - Commands returning a structure are no longer printed raw: the card shows the
   most readable field, the detail unfolds on tap, and timestamps are rendered as
   dates.
+- Values pointing at an image are displayed as images.
+- A card announces what it does not show: "+ n more".

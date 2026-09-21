@@ -76,6 +76,19 @@ jour et l'heure sinon — plutôt qu'en nombre de secondes. Une commande numéri
 sans unité dont la valeur ressemble à un horodatage bénéficie du même
 traitement : un compteur d'énergie, lui, porte une unité et reste un nombre.
 
+## Images
+
+Une commande dont la valeur est l'adresse d'une image — la carte d'un robot, la
+photo d'un portier, l'instantané d'une caméra — est affichée **comme une
+image**, pas comme une adresse. Si le chargement échoue, la ligne de texte
+reprend sa place plutôt que de laisser un trou.
+
+## Ce qu'une carte ne montre pas d'emblée
+
+Une carte affiche au plus six informations et huit commandes. Au-delà, elle
+l'annonce : **« + 4 autres »**, d'un appui, dépliez le reste. Rien ne disparaît
+en silence.
+
 ## Mode kiosque
 
 Le bouton en haut à droite passe en plein écran : le menu et le pied de page de

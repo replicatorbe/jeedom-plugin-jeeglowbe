@@ -92,7 +92,7 @@
     GARAGE_STATE: ['{{Ouvert}}', '{{Fermé}}'],
     BARRIER_STATE: ['{{Ouverte}}', '{{Fermée}}'],
     LOCK_STATE: ['{{Déverrouillé}}', '{{Verrouillé}}'],
-    PRESENCE: ['{{Détectée}}', '{{Aucune}}'],
+    PRESENCE: ['{{Présent}}', '{{Absent}}'],
     SMOKE: ['{{Fumée détectée}}', '{{Rien à signaler}}'],
     FLOOD: ['{{Inondation}}', '{{Rien à signaler}}'],
     WATER_LEAK: ['{{Fuite}}', '{{Rien à signaler}}'],
@@ -216,7 +216,10 @@
 
   function labelled(key, value) {
     var text = scalarText(value)
-    if (key.length <= 2 || MUTE_KEYS.indexOf(key.toLowerCase()) !== -1) {
+    /* Une valeur qui est déjà une phrase se suffit : « countdown dans 3 jours »
+     * répète en anglais technique ce que le français dit juste après. La clé ne
+     * sert que devant un nombre ou un mot isolé, où elle dit de quoi on parle. */
+    if (key.length <= 2 || scoreScalar(value) >= 4 || MUTE_KEYS.indexOf(key.toLowerCase()) !== -1) {
       return text
     }
     return key + ' ' + text
@@ -248,10 +251,45 @@
     return count + ' ' + (count > 1 ? '{{champs}}' : '{{champ}}')
   }
 
+  /* Un élément de liste, réduit à ce qui l'identifie et à ce qui le qualifie :
+   * son nom d'un côté, son état de l'autre. Les champs restants attendent dans
+   * la valeur, séparés par des points médians, tant qu'ils tiennent. */
+  function elementPair(item) {
+    var ranked = Object.keys(item).map(function (key) {
+      return { key: key, score: scoreScalar(item[key]) }
+    }).filter(function (entry) {
+      return entry.score > 0
+    }).sort(function (a, b) {
+      return b.score - a.score
+    })
+    if (ranked.length === 0) {
+      return { name: '', value: jsonSummary(item) }
+    }
+    var name = scalarText(item[ranked[0].key])
+    /* Ce qui qualifie l'élément, pas ce qui le décrit en détail : sur onze
+     * unités de police, « RIEN » est la réponse, « RIEN · 1 · 0 · 1 » est un
+     * vidage de mémoire. On ne descend aux nombres qu'à défaut de mots. */
+    var rest = ranked.slice(1).filter(function (entry) { return entry.score >= 3 })
+    if (rest.length === 0) {
+      rest = ranked.slice(1).filter(function (entry) { return entry.score >= 2 })
+    }
+    return {
+      name: name,
+      value: rest.slice(0, 2).map(function (entry) {
+        return labelled(entry.key, item[entry.key])
+      }).join(' · ')
+    }
+  }
+
   /* Le détail, à la demande : une ligne par champ, les structures imbriquées
    * annoncées par leur taille et leurs éléments résumés à leur tour. Le JSON
    * brut serait plus fidèle et illisible — c'est précisément ce qu'on répare. */
   var DETAIL_MAX = 24
+
+  /* Ce qu'une carte montre d'emblée. Au-delà, elle cesse d'être une tuile ;
+   * le reste est à un appui. */
+  var ROW_LIMIT = 6
+  var ACTION_LIMIT = 8
 
   function jsonDetails(parsed) {
     var box = el('div', 'jg-json')
@@ -277,7 +315,11 @@
         line(key, value.length + ' ' + (value.length > 1 ? '{{éléments}}' : '{{élément}}'))
         value.forEach(function (item) {
           if (item !== null && typeof item === 'object') {
-            line('', jsonSummary(item))
+            /* Deux champs, pas un : « PJF Mons-Tournai » seul ne dit pas si
+             * cette unité a une offre, et c'est toute la question qu'on se pose
+             * en dépliant une liste. */
+            var pair = elementPair(item)
+            line(pair.name, pair.value)
           } else {
             line('', scalarText(item))
           }
@@ -300,6 +342,47 @@
       box.appendChild(el('div', 'jg-json-more', '…'))
     }
     return box
+  }
+
+  /* ------------------------------------------------------------------ images
+   *
+   * Une poignée de commandes ne contiennent pas une valeur mais l'adresse d'une
+   * image : la carte d'un robot, l'instantané d'une caméra, la photo d'un
+   * portier. Afficher l'adresse, c'est montrer le chemin plutôt que le lieu.
+   *
+   * On ne peut pas savoir à coup sûr ce que rend « map.php?id=237 ». On tente
+   * donc le chargement, et le texte reprend sa place si ce n'était pas une
+   * image : c'est la seule méthode qui marche sans connaître chaque plugin. */
+  /* Les adresses qui ont déjà échoué. Sans cette mémoire, le repli en texte
+   * reconstruirait une image, qui échouerait, qui replierait en texte : la page
+   * tournerait en rond. La clé est l'adresse et non la commande, pour qu'un
+   * nouvel instantané ait droit à sa chance. */
+  JG.BROKEN = JG.BROKEN || {}
+
+  function imageUrl(cmdId) {
+    var cmd = JG.CMDS[cmdId]
+    var value = JG.VALUES[cmdId]
+    if (cmd === undefined || typeof value !== 'string') {
+      return null
+    }
+    var text = value.trim()
+    if (text === '' || text.length > 500 || /\s/.test(text)) {
+      return null
+    }
+    if (/^data:image\//i.test(text)) {
+      return text
+    }
+    if (!/^https?:\/\//i.test(text) && text.indexOf('/') === -1) {
+      return null
+    }
+    if (JG.BROKEN[text]) {
+      return null
+    }
+    if (cmd.generic === 'CAMERA_URL' || /\.(png|jpe?g|gif|webp|svg|bmp)(\?|$)/i.test(text) ||
+        /\.php(\?|$)/i.test(text)) {
+      return text
+    }
+    return null
   }
 
   function format(cmdId) {
@@ -516,7 +599,16 @@
      * champ le plus lisible, l'appui montre le reste. */
     infoRows(cmds) {
       var list = el('div', 'jg-rows')
+      this.fillRows(list, cmds)
+      return list
+    }
+
+    fillRows(list, cmds) {
       cmds.forEach(function (cmd) {
+        if (imageUrl(cmd.id) !== null) {
+          list.appendChild(this.imageRow(cmd))
+          return
+        }
         var row = el('div', 'jg-row')
         row.appendChild(el('span', 'jg-row-name', cmd.name))
         var value = el('span', 'jg-row-value', format(cmd.id))
@@ -534,7 +626,59 @@
         this._rows.push(entry)
         watch(cmd.id, this)
       }, this)
-      return list
+    }
+
+    /* Les premières lignes tout de suite, les suivantes à la demande. */
+    appendRows(cmds) {
+      if (cmds.length === 0) {
+        return
+      }
+      var list = this.infoRows(cmds.slice(0, ROW_LIMIT))
+      this.appendChild(list)
+      var hidden = cmds.slice(ROW_LIMIT)
+      if (hidden.length > 0) {
+        this.appendChild(this.moreButton(hidden.length, function () {
+          this.fillRows(list, hidden)
+        }.bind(this)))
+      }
+    }
+
+    /* Une image, et non son adresse. Si le chargement échoue — l'adresse ne
+     * désignait pas une image, ou le fichier a disparu — la ligne de texte
+     * reprend sa place : mieux vaut une adresse affichée qu'un trou. */
+    imageRow(cmd) {
+      var figure = el('div', 'jg-media')
+      var image = document.createElement('img')
+      image.alt = cmd.name
+      image.loading = 'lazy'
+      var entry = { id: cmd.id, image: image, figure: figure }
+      image.addEventListener('error', function () {
+        JG.BROKEN[image.getAttribute('src')] = true
+        var fallback = el('div', 'jg-rows')
+        this.fillRows(fallback, [cmd])
+        entry.image = null
+        figure.replaceWith(fallback)
+      }.bind(this))
+      image.src = imageUrl(cmd.id)
+      figure.appendChild(image)
+      this._rows.push(entry)
+      watch(cmd.id, this)
+      return figure
+    }
+
+    /* Les cartes ne montrent qu'une partie de ce qu'un équipement expose : au
+     * delà, elles deviennent des listes. Mais tronquer sans le dire fait
+     * disparaître des commandes — six boutons de nettoyage sur douze — sans que
+     * personne ne sache qu'il en manque. */
+    moreButton(count, reveal) {
+      var button = el('button', 'jg-more', '+ ' + count + ' {{autres}}')
+      button.addEventListener('click', function (event) {
+        event.stopPropagation()
+        event.preventDefault()
+        reveal()
+        button.remove()
+      })
+      return button
     }
 
     /* Rend une valeur dépliable si, et seulement si, elle cache une structure.
@@ -576,6 +720,18 @@
 
     syncRows() {
       ;(this._rows || []).forEach(function (entry) {
+        if (entry.image) {
+          /* L'adresse d'un instantané porte l'heure de la prise : la relire,
+           * c'est rafraîchir l'image. */
+          var fresh = imageUrl(entry.id)
+          if (fresh !== null && entry.image.getAttribute('src') !== fresh) {
+            entry.image.src = fresh
+          }
+          return
+        }
+        if (!entry.node) {
+          return
+        }
         entry.node.textContent = format(entry.id)
         if (entry.node.parentNode && entry.node.parentNode.classList.contains('jg-row')) {
           entry.node.parentNode.classList.toggle('jg-row-stacked', entry.node.textContent.length > 30)
@@ -848,10 +1004,8 @@
 
       var rest = infos.filter(function (cmd) {
         return this._primary === null || cmd.id !== this._primary.id
-      }, this).slice(0, 6)
-      if (rest.length > 0) {
-        this.appendChild(this.infoRows(rest))
-      }
+      }, this)
+      this.appendRows(rest)
     }
 
     sync() {
@@ -872,10 +1026,7 @@
     build() {
       this.header()
       this._rows = []
-      var infos = this.device.cmds.filter(function (cmd) { return cmd.type === 'info' && cmd.visible }).slice(0, 6)
-      if (infos.length > 0) {
-        this.appendChild(this.infoRows(infos))
-      }
+      this.appendRows(this.device.cmds.filter(function (cmd) { return cmd.type === 'info' && cmd.visible }))
 
       /* Les commandes « message » attendent un titre et un corps ; un bouton qui
        * les enverrait vides ne rendrait service à personne, et l'échec est
@@ -887,13 +1038,19 @@
         /* Une liste sans valeurs déclarées n'a rien à proposer : le bouton de
          * repli partirait sans le { select: … } que le coeur attend. */
         return !(cmd.subType === 'select' && !cmd.list)
-      }).slice(0, 8)
+      })
       if (actions.length > 0) {
         var bar = el('div', 'jg-actions jg-actions-wrap')
-        actions.forEach(function (cmd) {
+        actions.slice(0, ACTION_LIMIT).forEach(function (cmd) {
           bar.appendChild(this.actionNode(cmd))
         }, this)
         this.appendChild(bar)
+        var hidden = actions.slice(ACTION_LIMIT)
+        if (hidden.length > 0) {
+          this.appendChild(this.moreButton(hidden.length, function () {
+            hidden.forEach(function (cmd) { bar.appendChild(this.actionNode(cmd)) }, this)
+          }.bind(this)))
+        }
       }
     }
 

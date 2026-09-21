@@ -366,9 +366,23 @@
 .jg-card[data-on="1"] .jg-json { background: rgba(255, 255, 255, 0.3); }
 
 .jg-json-row { display: flex; justify-content: space-between; gap: 10px; }
-.jg-json-key { color: var(--jg-muted); white-space: nowrap; }
+/* Le nom d'un élément peut être long et passer à la ligne ; son état, lui, ne
+ * doit jamais se couper — « RIEN » écrit « RI EN » sur deux lignes ne veut plus
+ * rien dire. */
+.jg-json-key { color: var(--jg-muted); flex: 1 1 auto; min-width: 0; overflow-wrap: break-word; }
 .jg-card[data-on="1"] .jg-json-key { color: var(--jg-on-text); opacity: 0.72; }
-.jg-json-value { text-align: right; word-break: break-word; }
+
+/* Ni coupé au milieu d'un mot, ni tronqué : « RIEN » doit rester « RIEN ». Le
+ * texte passe à la ligne entre les mots, et seule une suite de caractères plus
+ * large que la colonne peut être brisée. */
+.jg-json-value {
+    flex: 0 1 auto;
+    max-width: 60%;
+    text-align: right;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: break-word;
+}
 .jg-json-more { color: var(--jg-muted); text-align: center; }
 
 /* ----------------------------------------------------------- les commandes */
@@ -557,3 +571,35 @@
     white-space: normal;
     max-width: 100%;
 }
+
+/* --------------------------------------------------------------- images */
+
+.jg-media {
+    margin-top: 2px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--jg-surface-2);
+    line-height: 0;
+}
+
+.jg-media img {
+    display: block;
+    width: 100%;
+    max-height: 190px;
+    object-fit: cover;
+}
+
+/* Ce qui reste à voir. Discret : c'est une invitation, pas une commande. */
+.jg-more {
+    align-self: flex-start;
+    border: 0;
+    background: transparent;
+    color: var(--jg-muted);
+    padding: 2px 0;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.jg-more:hover { color: var(--jg-text); }
+.jg-card[data-on="1"] .jg-more { color: var(--jg-on-text); opacity: 0.8; }
