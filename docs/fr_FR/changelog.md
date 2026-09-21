@@ -14,4 +14,6 @@ Première version.
   quelles : la carte montre le champ le plus lisible, le détail se déplie d'un
   appui, et les horodatages sont rendus en date.
 - Les valeurs qui désignent une image sont affichées comme des images.
+- Le widget d'un plugin, quand il en a écrit un pour sa commande, est affiché
+  tel quel dans la carte.
 - Une carte annonce ce qu'elle ne montre pas : « + n autres ».

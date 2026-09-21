@@ -202,6 +202,12 @@
     if (/^[0-9a-f._:-]{12,}$/i.test(text)) {
       return 0
     }
+    /* « fas fa-cloud-sun » est une consigne de dessin, pas une information : le
+     * bulletin météo du plugin range son icône à côté de sa condition, et le
+     * classement la trouvait aussi lisible que « Peu nuageux ». */
+    if (/(^|\s)fa[srlbdk]?(\s+fa-|-)/i.test(text) || /^(mdi|icon|jeedom)-/i.test(text)) {
+      return 0
+    }
     if (/[A-Za-zÀ-ÿ]/.test(text)) {
       return /\s/.test(text) ? 4 : 3
     }
@@ -605,6 +611,10 @@
 
     fillRows(list, cmds) {
       cmds.forEach(function (cmd) {
+        if (cmd.widget) {
+          list.appendChild(this.widgetHolder(cmd))
+          return
+        }
         if (imageUrl(cmd.id) !== null) {
           list.appendChild(this.imageRow(cmd))
           return
@@ -641,6 +651,28 @@
           this.fillRows(list, hidden)
         }.bind(this)))
       }
+    }
+
+    /* Le rendu que le plugin a écrit pour cette commande, quand il en a écrit
+     * un. On ne le coud pas dans la page — dix-neuf widgets pèsent 331 ko — on
+     * réserve sa place et on le demande ensuite, tous ensemble.
+     *
+     * En attendant, et si l'appel échoue, la ligne ordinaire tient le terrain :
+     * une valeur affichée sobrement vaut mieux qu'un rectangle vide. */
+    widgetHolder(cmd) {
+      var holder = el('div', 'jg-widget')
+      holder.dataset.cmdId = cmd.id
+      holder.dataset.pending = '1'
+      var plain = {}
+      Object.keys(cmd).forEach(function (key) { plain[key] = cmd[key] })
+      plain.widget = false
+      this.fillRows(holder, [plain])
+      /* La ligne de repli vient d'être poussée : on lui attache son porteur
+       * pour que la mise à jour cesse dès que le widget a pris la main. */
+      if (this._rows.length > 0) {
+        this._rows[this._rows.length - 1].holder = holder
+      }
+      return holder
     }
 
     /* Une image, et non son adresse. Si le chargement échoue — l'adresse ne
@@ -720,6 +752,11 @@
 
     syncRows() {
       ;(this._rows || []).forEach(function (entry) {
+        /* Le widget d'un plugin se tient à jour tout seul : il s'est inscrit
+         * auprès de jeedom.cmd au moment de son insertion. */
+        if (entry.holder && entry.holder.classList.contains('jg-widget-ready')) {
+          return
+        }
         if (entry.image) {
           /* L'adresse d'un instantané porte l'heure de la prise : la relire,
            * c'est rafraîchir l'image. */
@@ -977,14 +1014,20 @@
       }
       /* Une mesure passe avant une structure : montrer 21,4 °C en grand et
        * reléguer la collecte en dessous est plus juste que l'inverse. */
-      var plain = infos.filter(function (cmd) { return jsonOf(cmd.id) === null })
-      this._primary = (plain.length > 0) ? plain[0] : (infos.length > 0 ? infos[0] : null)
+      /* Une commande qui a son propre widget ne se résume pas : elle se montre.
+       * Elle ne peut donc pas tenir la valeur principale, qui est une ligne de
+       * texte. */
+      var candidates = infos.filter(function (cmd) { return !cmd.widget })
+      var plain = candidates.filter(function (cmd) { return jsonOf(cmd.id) === null })
+      this._primary = plain[0] || candidates[0] || null
       this.header()
 
-      var body = el('div', 'jg-card-body')
-      this._value = el('span', 'jg-value', this._primary ? format(this._primary.id) : '—')
-      body.appendChild(this._value)
-      this.appendChild(body)
+      if (this._primary !== null) {
+        var body = el('div', 'jg-card-body')
+        this._value = el('span', 'jg-value', format(this._primary.id))
+        body.appendChild(this._value)
+        this.appendChild(body)
+      }
 
       this._rows = []
       if (this._primary) {
@@ -1279,6 +1322,61 @@
     window.history.replaceState(null, '', url.toString())
   }
 
+  /* ----------------------------------------------------------- les widgets */
+
+  /* Les rendus écrits par les plugins, demandés en un seul appel une fois la
+   * page dessinée. Le coeur sait les produire : core/ajax/cmd.ajax.php, action
+   * toHtml, accepte une liste d'identifiants — dix-neuf widgets en une requête
+   * plutôt que dix-neuf. */
+  function loadWidgets() {
+    var holders = Array.prototype.slice.call(ROOT.querySelectorAll('.jg-widget[data-pending="1"]'))
+    if (holders.length === 0) {
+      return
+    }
+    var ids = {}
+    holders.forEach(function (holder) {
+      holder.removeAttribute('data-pending')
+      ids[holder.dataset.cmdId] = { version: 'dashboard' }
+    })
+    var form = new FormData()
+    form.append('action', 'toHtml')
+    form.append('ids', JSON.stringify(ids))
+    fetch('core/ajax/cmd.ajax.php', { method: 'POST', body: form, credentials: 'same-origin' })
+      .then(function (response) {
+        return response.json()
+      }).then(function (data) {
+        if (!data || data.state !== 'ok' || !data.result) {
+          return
+        }
+        Object.keys(data.result).forEach(function (id) {
+          var holder = ROOT.querySelector('.jg-widget[data-cmd-id="' + id + '"]')
+          if (holder === null || !data.result[id] || !data.result[id].html) {
+            return
+          }
+          insertWidget(holder, data.result[id].html)
+        })
+      }).catch(function () {
+        /* Pas de widget : les lignes de repli sont déjà à l'écran. */
+      })
+  }
+
+  /* Le HTML vient du coeur, comme celui du dashboard d'origine — même origine,
+   * même confiance. Ses scripts, eux, demandent un détour : ceux qu'innerHTML
+   * dépose ne s'exécutent jamais, et un widget de plugin est presque
+   * entièrement dans son script. Il faut donc les recréer. */
+  function insertWidget(holder, html) {
+    holder.innerHTML = html
+    holder.querySelectorAll('script').forEach(function (previous) {
+      var script = document.createElement('script')
+      Array.prototype.forEach.call(previous.attributes, function (attribute) {
+        script.setAttribute(attribute.name, attribute.value)
+      })
+      script.textContent = previous.textContent
+      previous.parentNode.replaceChild(script, previous)
+    })
+    holder.classList.add('jg-widget-ready')
+  }
+
   /* ------------------------------------------------------------- rafraîchir */
 
   /* Le modèle est rendu avec la page. Un équipement ajouté, renommé ou rangé
@@ -1292,6 +1390,12 @@
   function render(model) {
     MODEL = model
     indexModel()
+    /* Les widgets insérés au tour précédent se sont inscrits auprès de
+     * jeedom.cmd ; leurs fonctions survivraient à la reconstruction et
+     * s'empileraient à chaque relecture du modèle. */
+    if (typeof jeedom !== 'undefined' && jeedom.cmd && jeedom.cmd.resetUpdateFunction) {
+      jeedom.cmd.resetUpdateFunction()
+    }
     sections = {}
     sectionsNode.textContent = ''
     roomsNode.textContent = ''
@@ -1299,6 +1403,7 @@
     buildSections()
     buildRoomFilter()
     applyFilter()
+    loadWidgets()
   }
 
   function refreshModel() {
@@ -1330,6 +1435,7 @@
   buildRoomFilter()
   applyFilter()
   syncTone()
+  loadWidgets()
 
   searchNode.addEventListener('input', applyFilter)
   window.addEventListener('hashchange', applyFilter)
@@ -1367,7 +1473,11 @@
         teardown()
       }
     })
-    observer.observe(document.getElementById('div_pageContainer') || document.body, { childList: true })
+    /* Tout l'arbre, et non les seuls enfants du conteneur : selon la page
+     * quittée, le dashboard est retiré à des profondeurs différentes, et un
+     * observateur posé trop haut ne voit jamais partir ce qui est imbriqué. Le
+     * rappel se réduit à un contains(), joué une fois par lot de mutations. */
+    observer.observe(document.body, { childList: true, subtree: true })
   }
 
   function onCmdUpdate(event) {

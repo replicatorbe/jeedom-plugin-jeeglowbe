@@ -108,6 +108,11 @@ DEMOS = [
              [cmd(90130 + i, 'Nettoyer piece %d' % i, 'action', 'other', 'GENERIC_ACTION') for i in range(1, 13)] +
              [cmd(90160, 'Carte', 'info', 'string', '', 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='),
               cmd(90161, 'Plan absent', 'info', 'string', '', 'plugins/inexistant/core/php/map.php?id=1')]},
+    {'id': 90012, 'name': 'Alerte caméra', 'roomId': 9001, 'eqType': 'demo', 'category': 'security',
+     'order': 11, 'battery': None, 'card': 'sensor', 'roles': {},
+     'cmds': [dict(cmd(90201, 'Images de alerte', 'info', 'string', '', '{"a":"x","d":"quelque chose"}'),
+                   widget=True),
+              cmd(90202, 'Déclenchée', 'info', 'binary', 'GENERIC_INFO', 1)]},
     {'id': 90005, 'name': 'Prise TV', 'roomId': 9001, 'eqType': 'demo', 'category': 'energy',
      'order': 4, 'battery': None, 'card': 'switch',
      'roles': {'state': 90051, 'on': 90052, 'off': 90053},
@@ -186,6 +191,22 @@ def main():
     var SRC = document.getElementById('jgsrc').textContent
     var CALLS = []
     var ERRORS = []
+    var WIDGET_HTML = '<div class="cmd-widget faux">vignette du plugin</div>' +
+      '<scr' + 'ipt>window.WIDGET_RAN = true</scr' + 'ipt>'
+    window.WIDGET_RAN = false
+    var FETCHES = []
+    window.fetch = function (url, options) {
+      FETCHES.push(url)
+      var action = (options && options.body && options.body.get) ? options.body.get('action') : ''
+      if (action === 'toHtml') {
+        return Promise.resolve({
+          json: function () {
+            return Promise.resolve({ state: 'ok', result: { '90201': { id: 90201, html: WIDGET_HTML } } })
+          }
+        })
+      }
+      return new Promise(function () {})
+    }
     window.onerror = function (message, source, line) { ERRORS.push(message + ' @' + line) }
     window.jeeglowbeModel = """ + json.dumps(model, ensure_ascii=False) + """
     window.jeedom = { cmd: { execute: function (p) { CALLS.push(p) } } }
@@ -393,6 +414,15 @@ def main():
     check('image : aucune adresse en clair', talkative.textContent.indexOf('map.php') === -1,
           talkative.textContent.slice(-60))
 
+    // --- widget de plugin (90012) -------------------------------------------
+    var holder = document.querySelector('.jg-widget[data-cmd-id="90201"]')
+    check('widget : place réservée', holder !== null)
+    check('widget : repli affiché en attendant', holder !== null && holder.querySelector('.jg-row') !== null)
+    check('widget : pas encore chargé', holder !== null && !holder.classList.contains('jg-widget-ready'))
+    check('widget : un seul appel groupé', FETCHES.length === 1, FETCHES.length + ' appel(s) : ' + FETCHES.join(', '))
+    check('widget : la commande ordinaire reste une ligne',
+          card(90012).querySelectorAll('.jg-row').length >= 1)
+
     // --- recherche ----------------------------------------------------------
     var search = document.getElementById('jg-search')
     search.value = 'plafonnier'
@@ -452,22 +482,34 @@ def main():
     check('rechargement : temps réel encore branché',
           light2 !== null && light2.dataset.on === '1', light2 ? light2.dataset.on : 'pas de carte')
 
-    // --- sortie de page : Jeedom doit retrouver son menu ---------------------
-    document.getElementById('jg-fullscreen').click()
-    document.getElementById('host').innerHTML = ''
-    var fetched = 0
-    window.fetch = function () { fetched++; return new Promise(function () {}) }
-    document.dispatchEvent(new Event('visibilitychange'))
-
     setTimeout(function () {
-      check('sortie : la classe fullscreen est retirée du body',
-            !document.body.classList.contains('fullscreen'))
-      check('sortie : le menu de Jeedom revient',
-            getComputedStyle(document.getElementById('jeedomMenuBar')).display !== 'none')
-      check('sortie : plus de relecture du modèle', fetched === 0, fetched + ' appel(s)')
-      document.getElementById('results').textContent = results.join('\\n') +
-        '\\nERREURS JS: ' + (ERRORS.length ? ERRORS.join(' / ') : 'aucune')
-    }, 80)
+      // --- le widget est arrivé --------------------------------------------
+      var ready = document.querySelector('.jg-widget[data-cmd-id="90201"]')
+      check('widget : inséré', ready !== null && ready.classList.contains('jg-widget-ready'))
+      check('widget : contenu du plugin affiché',
+            ready !== null && ready.textContent.indexOf('vignette du plugin') !== -1,
+            ready ? ready.textContent.slice(0, 40) : '')
+      check('widget : son script est exécuté', window.WIDGET_RAN === true)
+      check('widget : la ligne de repli a cédé la place',
+            ready !== null && ready.querySelector('.jg-row') === null)
+
+      // --- sortie de page : Jeedom doit retrouver son menu -------------------
+      document.getElementById('jg-fullscreen').click()
+      document.getElementById('host').innerHTML = ''
+      var fetched = 0
+      window.fetch = function () { fetched++; return new Promise(function () {}) }
+      document.dispatchEvent(new Event('visibilitychange'))
+
+      setTimeout(function () {
+        check('sortie : la classe fullscreen est retirée du body',
+              !document.body.classList.contains('fullscreen'))
+        check('sortie : le menu de Jeedom revient',
+              getComputedStyle(document.getElementById('jeedomMenuBar')).display !== 'none')
+        check('sortie : plus de relecture du modèle', fetched === 0, fetched + ' appel(s)')
+        document.getElementById('results').textContent = results.join('\\n') +
+          '\\nERREURS JS: ' + (ERRORS.length ? ERRORS.join(' / ') : 'aucune')
+      }, 80)
+    }, 60)
     </script>
     </body></html>"""
 

@@ -14,4 +14,6 @@ First release.
   most readable field, the detail unfolds on tap, and timestamps are rendered as
   dates.
 - Values pointing at an image are displayed as images.
+- A plugin's own widget, when it wrote one for its command, is shown as is
+  inside the card.
 - A card announces what it does not show: "+ n more".
