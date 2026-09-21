@@ -1234,10 +1234,39 @@
         this.appendChild(bar)
       }
       this.charts(infos)
+      this.roomPicker()
 
       var foot = el('div', 'jg-detail-foot')
       foot.appendChild(el('span', null, this.device.realName ? this.device.realName : this.device.eqType))
       this.appendChild(foot)
+    }
+
+    /* Le rangement, là où l'on regarde déjà l'équipement. La moitié d'une
+     * installation ordinaire n'appartient à aucune pièce, et personne n'ira
+     * ouvrir la page d'un plugin pour corriger ça : la seule occasion de ranger
+     * est celle où l'on a l'équipement sous les yeux. */
+    roomPicker() {
+      if (!MODEL.admin || !Array.isArray(MODEL.objects) || MODEL.objects.length === 0) {
+        return
+      }
+      var row = el('div', 'jg-row jg-room-row')
+      row.appendChild(el('span', 'jg-row-name', '{{Pièce}}'))
+      var select = document.createElement('select')
+      select.className = 'jg-select'
+      var none = el('option', null, '{{Non classé}}')
+      none.value = '0'
+      select.appendChild(none)
+      MODEL.objects.forEach(function (object) {
+        var option = el('option', null, object.name)
+        option.value = String(object.id)
+        select.appendChild(option)
+      })
+      select.value = String(this.device.roomId || 0)
+      select.addEventListener('change', function () {
+        setRoom(this.device, select.value, select)
+      }.bind(this))
+      row.appendChild(select)
+      this.appendChild(row)
     }
 
     /* Une courbe pour les commandes historisées. Highstock est déjà chargé par
@@ -1530,6 +1559,14 @@
   function buildHome() {
     var groups = domainGroups()
 
+    /* L'heure et la date. Aucune donnée à calculer, mais c'est ce qui distingue
+     * un écran mural d'une page web laissée ouverte. */
+    var clock = el('div', 'jg-clock')
+    clock.appendChild(el('div', 'jg-clock-time', ''))
+    clock.appendChild(el('div', 'jg-clock-date', ''))
+    sectionsNode.appendChild(clock)
+    syncClock()
+
     var badges = el('div', 'jg-badges')
     badgeValues().forEach(function (badge) {
       var node = el('div', 'jg-badge')
@@ -1751,6 +1788,33 @@
     input.addEventListener('blur', function () { finish(true) })
   }
 
+  /* Après un rangement, le modèle entier est relu : une pièce peut apparaître
+   * ou disparaître de la navigation, et recoudre tout cela à la main dans le
+   * modèle en mémoire serait un nid à incohérences. */
+  function setRoom(device, roomId, source) {
+    source.disabled = true
+    var form = new FormData()
+    form.append('action', 'setRoom')
+    form.append('id', device.id)
+    form.append('room', roomId)
+    fetch('plugins/jeeglowbe/core/ajax/jeeglowbe.ajax.php', {
+      method: 'POST', body: form, credentials: 'same-origin'
+    }).then(function (response) {
+      return response.json()
+    }).then(function (data) {
+      source.disabled = false
+      if (!data || data.state !== 'ok') {
+        return
+      }
+      reloadModel(true)
+    }).catch(function () {
+      source.disabled = false
+      if (typeof jeedomUtils !== 'undefined' && jeedomUtils.showAlert) {
+        jeedomUtils.showAlert({ message: '{{La pièce n\'a pas pu être changée.}}', level: 'danger' })
+      }
+    })
+  }
+
   /* Une carte retirée du document doit cesser d'être rafraîchie : sans cela,
    * chaque ouverture du panneau laisse derrière elle une carte fantôme que le
    * temps réel continue de mettre à jour. */
@@ -1816,6 +1880,7 @@
     remember('kiosk', on ? '1' : '0')
     watchIdle()
     syncDim()
+    syncWakeLock()
     var icon = document.querySelector('#jg-fullscreen i')
     icon.className = on ? 'fas fa-compress' : 'fas fa-expand'
 
@@ -1881,6 +1946,56 @@
     var now = new Date()
     var minutes = now.getHours() * 60 + now.getMinutes()
     return (night > day) ? (minutes >= night || minutes < day) : (minutes >= night && minutes < day)
+  }
+
+  /* Mise à jour minute par minute, et seulement si l'horloge est à l'écran :
+   * elle n'existe que sur l'accueil. */
+  function syncClock() {
+    var time = ROOT.querySelector('.jg-clock-time')
+    if (time === null) {
+      return
+    }
+    var now = new Date()
+    time.textContent = pad(now.getHours()) + ':' + pad(now.getMinutes())
+    var date = ROOT.querySelector('.jg-clock-date')
+    if (date !== null) {
+      date.textContent = now.toLocaleDateString(MODEL.lang || undefined, {
+        weekday: 'long', day: 'numeric', month: 'long'
+      })
+    }
+  }
+
+  /* L'écran qui reste allumé, demandé au navigateur et non à Jeedom.
+   *
+   * L'API n'existe qu'en contexte sécurisé : sur un Jeedom ouvert en clair par
+   * son adresse IP, elle est absente, et la tablette s'éteindra comme avant.
+   * On ne fait alors rien plutôt que d'échouer bruyamment — mais la
+   * documentation le dit, pour que la déception ait une explication. */
+  var wakeLock = null
+
+  function syncWakeLock() {
+    if (typeof navigator === 'undefined' || !navigator.wakeLock) {
+      return
+    }
+    if (kioskOn() && !document.hidden) {
+      if (wakeLock !== null) {
+        return
+      }
+      navigator.wakeLock.request('screen').then(function (lock) {
+        wakeLock = lock
+        /* Le navigateur relâche de lui-même quand l'onglet passe en arrière
+         * plan : sans cette remise à zéro, on croirait le verrou encore tenu. */
+        lock.addEventListener('release', function () { wakeLock = null })
+      }).catch(function () {
+        wakeLock = null
+      })
+      return
+    }
+    if (wakeLock !== null) {
+      var held = wakeLock
+      wakeLock = null
+      held.release().catch(function () {})
+    }
   }
 
   function syncDim() {
@@ -1982,7 +2097,14 @@
   }
 
   function refreshModel() {
-    if (document.hidden || !document.body.contains(ROOT) || Date.now() - loadedAt < REFRESH_AFTER) {
+    reloadModel(false)
+  }
+
+  function reloadModel(force) {
+    if (!document.body.contains(ROOT)) {
+      return
+    }
+    if (!force && (document.hidden || Date.now() - loadedAt < REFRESH_AFTER)) {
       return
     }
     var form = new FormData()
@@ -2037,7 +2159,13 @@
   })
   /* L'atténuation se décide à la minute, pas au chargement : une tablette
    * allumée à 19 h doit s'assombrir à 20 h sans qu'on y touche. */
-  var dimTimer = setInterval(syncDim, 60000)
+  var dimTimer = setInterval(function () {
+    syncDim()
+    syncClock()
+  }, 60000)
+  /* Revenir sur l'onglet redemande le verrou : le navigateur l'a rendu en
+   * partant. */
+  document.addEventListener('visibilitychange', syncWakeLock)
   document.getElementById('jg-fullscreen').addEventListener('click', function () {
     setFullscreen(!document.body.classList.contains('fullscreen'))
   })
@@ -2057,6 +2185,12 @@
     document.body.removeEventListener('changeTheme', onThemeChange)
     document.body.removeEventListener('checkThemechange', onThemeChange)
     document.removeEventListener('visibilitychange', refreshModel)
+    document.removeEventListener('visibilitychange', syncWakeLock)
+    if (wakeLock !== null) {
+      var held = wakeLock
+      wakeLock = null
+      held.release().catch(function () {})
+    }
     window.removeEventListener('hashchange', onHashChange)
     /* Seul le dashboard encore en place rend son menu à Jeedom. Si un autre
      * l'a remplacé, c'est lui qui décide. */

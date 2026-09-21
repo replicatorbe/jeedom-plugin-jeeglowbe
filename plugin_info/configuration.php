@@ -16,6 +16,15 @@ if (!isConnect('admin')) {
 			</div>
 		</div>
 		<div class="form-group">
+			<label class="col-md-4 control-label">{{Noms courts}}</label>
+			<div class="col-md-1">
+				<input type="checkbox" class="configKey" data-l1key="shortNames" checked>
+			</div>
+			<div class="col-md-7">
+				<span class="help-block" style="margin:0;">{{Retire des noms affichés les identifiants matériels et ce qui précède un tiret : « OpenMQTTGateway 1629AC — OMG_ESP32_BLE_SALON » devient « OMG_ESP32_BLE_SALON ». N'affecte que l'affichage dans jeeGlow, jamais le nom dans Jeedom, et un nom donné à la main l'emporte toujours.}}</span>
+			</div>
+		</div>
+		<div class="form-group">
 			<label class="col-md-4 control-label">{{Afficher les équipements sans objet}}</label>
 			<div class="col-md-1">
 				<input type="checkbox" class="configKey" data-l1key="showUnassigned" checked>

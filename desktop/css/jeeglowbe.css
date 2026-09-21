@@ -890,3 +890,26 @@
     background: rgba(0, 0, 0, var(--jg-dim, 0));
     transition: background 1.2s ease;
 }
+
+/* ------------------------------------------------------------------ horloge */
+
+.jg-clock { margin: 2px 2px 18px; line-height: 1.1; }
+
+.jg-clock-time {
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: -1.5px;
+}
+
+.jg-clock-date {
+    font-size: 13px;
+    color: var(--jg-muted);
+    text-transform: capitalize;
+    margin-top: 2px;
+}
+
+/* En kiosque, l'heure est ce qu'on lit de loin. */
+.jg-root[data-kiosk="1"] .jg-clock-time { font-size: 54px; }
+
+.jg-room-row { align-items: center; gap: 12px; }
+.jg-room-row .jg-select { max-width: 60%; }

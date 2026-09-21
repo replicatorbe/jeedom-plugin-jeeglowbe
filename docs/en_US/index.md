@@ -133,6 +133,17 @@ A card shows at most six pieces of information and eight commands. Beyond that
 it says so: **"+ 4 more"**, one tap unfolds the rest. Nothing disappears
 silently.
 
+## Readable names
+
+Plugins name things for themselves: `OpenMQTTGateway 1629AC — OMG_ESP32_BLE_SALON`
+states the model, the serial number, and finally what you care about. jeeGlow
+shortens those names for display — the **Short names** setting, on by default —
+by removing hardware identifiers and whatever precedes a dash surrounded by
+spaces. "Detection OUEST-NORD" is left alone, because its dash is not a
+separator, and a shortening that would leave nothing keeps the original name.
+
+The name in Jeedom is never modified, and a name you give by hand always wins.
+
 ## Your own names
 
 `Shelly 1 91E2EE — spotcuisinep` will never look good on a wall. Open a device's
@@ -142,6 +153,13 @@ detail and click the pencil: the name you give is used everywhere in jeeGlow.
 other plugins rely on it. The chosen name lives in jeeGlow's configuration.
 Clear it to go back to the original name. Renaming writes to the plugin
 configuration, so it is reserved for administrators.
+
+## Assigning a room without leaving the dashboard
+
+The detail panel offers a **room** selector to administrators. Half of an
+ordinary installation belongs to no object, and nobody opens a plugin page to
+fix that: the only moment you will tidy up is the one where the device is in
+front of you. The write is direct, without running the owning plugin's hooks.
 
 ## Charts
 
@@ -164,6 +182,13 @@ The address works too, for a bookmark or a start page:
 ```
 index.php?v=d&m=jeeglowbe&p=jeeglowbe&fullscreen=1
 ```
+
+The time and date are shown at the top of the home view, in Jeedom's language —
+not the browser's, which is not necessarily yours on a tablet.
+
+In kiosk mode jeeGlow also asks the browser to **keep the screen on**. That
+request only exists in a secure context: if you open Jeedom over plain HTTP by
+its IP address, it is unavailable and the tablet will go to sleep as before.
 
 Two settings go with this mode, in the plugin configuration, and apply to it
 only:

@@ -149,6 +149,7 @@ def prepare(model):
             else:
                 entry['value'] = random.choice(TEXTES)
     model['admin'] = True
+    model['objects'] = [{'id': 9001, 'name': 'Salon'}, {'id': 9002, 'name': 'Cuisine'}]
     # Une veille de 120 ms et une nuit permanente : le banc ne peut pas
     # attendre cinq minutes ni changer d'heure.
     model['kiosk'] = {'idle': 0.002, 'dim': 40, 'night': '00:00', 'day': '23:59'}
@@ -209,9 +210,21 @@ def main():
     window.WIDGET_RAN = false
     var FETCHES = []
     var RENAMED = null
+    var ROOMED = null
+    var MODEL_RELOADS = 0
     window.fetch = function (url, options) {
       FETCHES.push(url)
       var action = (options && options.body && options.body.get) ? options.body.get('action') : ''
+      if (action === 'setRoom') {
+        ROOMED = options.body.get('id') + '->' + options.body.get('room')
+        return Promise.resolve({
+          json: function () { return Promise.resolve({ state: 'ok', result: { id: 90013, room: 9002 } }) }
+        })
+      }
+      if (action === 'model') {
+        MODEL_RELOADS++
+        return new Promise(function () {})
+      }
       if (action === 'rename') {
         RENAMED = options.body.get('name')
         return Promise.resolve({
@@ -482,6 +495,15 @@ def main():
     check('widget : la commande ordinaire reste une ligne',
           card(90012).querySelectorAll('.jg-row').length >= 1)
 
+    // --- horloge de l'accueil -------------------------------------------------
+    document.querySelector('.jg-rail-item[data-view="home"]').click()
+    var clock = document.querySelector('.jg-clock-time')
+    check('accueil : horloge affichée', clock !== null && /^[0-9]{2}:[0-9]{2}$/.test(clock.textContent),
+          clock ? clock.textContent : 'absente')
+    check('accueil : date affichée', document.querySelector('.jg-clock-date').textContent.length > 5,
+          document.querySelector('.jg-clock-date').textContent)
+    document.querySelector('.jg-rail-item[data-view="functions"]').click()
+
     // --- mesures secondaires : le bruit d'entrée écarté ---------------------
     var chatty = card(90013)
     check('mesures : les entrées physiques sont écartées',
@@ -498,6 +520,17 @@ def main():
     check('panneau : la courbe a un identifiant unique',
           document.querySelector('.jg-chart') !== null && document.querySelector('.jg-chart').id === 'jg-chart-90216',
           document.querySelector('.jg-chart') ? document.querySelector('.jg-chart').id : '')
+
+    // --- ranger une pièce -----------------------------------------------------
+    var roomSelect = document.querySelector('.jg-room-row .jg-select')
+    check('rangement : sélecteur de pièce offert à l administrateur', roomSelect !== null)
+    check('rangement : la pièce courante est présélectionnée',
+          roomSelect !== null && roomSelect.value === String(card(90013).device.roomId || 0),
+          roomSelect ? roomSelect.value : '')
+    MODEL_RELOADS = 0
+    roomSelect.value = '9002'
+    roomSelect.dispatchEvent(new Event('change'))
+    check('rangement : envoyé au serveur', ROOMED === '90013->9002', String(ROOMED))
 
     // --- renommer ------------------------------------------------------------
     var renameBtn = document.getElementById('jg-panel-rename')
