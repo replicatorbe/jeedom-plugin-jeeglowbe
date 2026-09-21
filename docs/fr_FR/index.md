@@ -59,6 +59,19 @@ Seules les commandes **visibles** apparaissent, plus celles dont la carte a
 besoin. Pour retirer une information du dashboard, décochez *Afficher* sur la
 commande ; pour la faire apparaître, cochez-la.
 
+## Quand un plugin a écrit son propre widget
+
+Certains plugins ne se contentent pas d'une valeur : ils fournissent avec leur
+commande un rendu qu'ils ont dessiné — les vignettes d'une alerte caméra, le
+plan d'un robot, un bulletin météo complet, une liste de veille. **jeeGlow
+affiche ce rendu-là**, à l'intérieur de sa carte, plutôt que la valeur brute.
+Son auteur sait mieux que nous ce qu'il y a à montrer.
+
+Ces widgets ne sont pas cousus dans la page — sur une installation ordinaire ils
+pèsent plus de trois cents kilo-octets. Ils sont demandés en un seul appel une
+fois la page dessinée, et en attendant, la valeur s'affiche sobrement. Si
+l'appel échoue, elle y reste.
+
 ## Commandes qui renvoient une structure
 
 Plusieurs plugins rangent tout un état dans une seule commande texte : une
@@ -66,7 +79,8 @@ prochaine collecte, l'état d'un onduleur, la dernière alerte d'une caméra. Su
 un dashboard, la valeur brute donne une accolade suivie de trois cents
 caractères, et l'information se perd dans sa propre syntaxe.
 
-jeeGlow reconnaît ces valeurs et affiche à la place le champ le plus lisible,
+Pour les commandes **sans** widget de plugin, jeeGlow reconnaît ces valeurs et
+affiche à la place le champ le plus lisible,
 souligné en pointillés. **Un appui dessus déplie le détail** : un champ par
 ligne, les listes annoncées par leur nombre d'éléments, chacun résumé à son
 tour. Un second appui referme.

@@ -603,3 +603,28 @@
 
 .jg-more:hover { color: var(--jg-text); }
 .jg-card[data-on="1"] .jg-more { color: var(--jg-on-text); opacity: 0.8; }
+
+/* ------------------------------------------------- widgets de plugin */
+
+/* Le rendu qu'un plugin a écrit pour sa commande, accueilli dans la carte. Il
+ * apporte ses propres styles et ceux de coreWidgets.css, déjà chargés par la
+ * page : on se contente de lui donner la largeur et de neutraliser la marge des
+ * tuiles natives, prévue pour une grille qui n'est pas la nôtre. */
+.jg-widget {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+
+.jg-widget-ready > .cmd-widget,
+.jg-widget-ready > div {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+.jg-widget-ready .cmdName {
+    font-size: 12px;
+    color: var(--jg-muted);
+}

@@ -55,6 +55,19 @@ up on a wall tablet on its own, without touching it.
 Only **visible** commands are shown, plus the ones a card needs. To remove a
 value from the dashboard, untick *Display* on the command.
 
+## When a plugin wrote its own widget
+
+Some plugins do not settle for a value: they ship a rendering of their own with
+the command — a camera alert's thumbnails, a robot's map, a full weather
+bulletin, a watch list. **jeeGlow shows that rendering**, inside its card,
+rather than the raw value. Its author knows better than we do what is worth
+showing.
+
+Those widgets are not sewn into the page — on an ordinary installation they
+weigh more than three hundred kilobytes. They are requested in a single call
+once the page is drawn, and until then the value is shown plainly. If the call
+fails, it stays.
+
 ## Commands returning a structure
 
 Several plugins pack a whole state into a single text command: a next
@@ -62,7 +75,8 @@ collection, the state of an inverter, a camera's last alert. On a dashboard the
 raw value is a brace followed by three hundred characters, and the information
 is lost inside its own syntax.
 
-jeeGlow recognises those values and shows the most readable field instead,
+For commands **without** a plugin widget, jeeGlow recognises those values and
+shows the most readable field instead,
 underlined with dots. **Tapping it unfolds the detail**: one field per line,
 lists announced by their number of items, each one summarised in turn. Tapping
 again folds it back.

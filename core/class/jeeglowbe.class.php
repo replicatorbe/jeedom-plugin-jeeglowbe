@@ -233,6 +233,21 @@ class jeeglowbe extends eqLogic {
             if ($cmd->getConfiguration('listValue', '') != '') {
                 $entry['list'] = self::parseListValue($cmd->getConfiguration('listValue'));
             }
+            /*
+             * Quand un plugin a écrit son propre widget, il sait mieux que nous
+             * ce qu'il a à montrer : les vignettes d'une alerte caméra, le plan
+             * d'un robot, un bulletin météo. Réafficher la valeur brute à la
+             * place, c'est remplacer un rendu pensé par une chaîne de trois
+             * cents caractères.
+             *
+             * Seul le signalement voyage dans le modèle. Les dix-neuf widgets
+             * visibles de l'installation d'essai pèsent 331 ko de HTML : les
+             * coudre dans la page la ferait passer de 92 ko à plus de quatre
+             * cents. Ils sont demandés après coup, en un seul appel groupé.
+             */
+            if (self::hasPluginWidget($cmd)) {
+                $entry['widget'] = true;
+            }
             if ($entry['type'] == 'action' && !$canExecute) {
                 continue;
             }
@@ -331,6 +346,21 @@ class jeeglowbe extends eqLogic {
             }
         }
         return array('card' => 'sensor', 'named' => array(), 'roles' => array());
+    }
+
+    /*
+     * Le nom du gabarit porte sa provenance : « core::line » vient du coeur,
+     * « custom::… » et « customtemp::… » de la page Widgets, et tout autre
+     * préfixe est l'identifiant d'un plugin. Seul ce dernier cas désigne un
+     * rendu que son auteur a écrit pour cette commande précise.
+     */
+    private static function hasPluginWidget($_cmd) {
+        $template = $_cmd->getTemplate('dashboard');
+        if ($template == '' || strpos($template, '::') === false) {
+            return false;
+        }
+        $prefix = substr($template, 0, strpos($template, '::'));
+        return !in_array($prefix, array('core', 'custom', 'customtemp'));
     }
 
     /* « 1|Confort;2|Eco » -> [{value:'1', label:'Confort'}, ...] */
