@@ -1707,24 +1707,51 @@
         return cmd.history && cmd.subType === 'numeric'
       }).slice(0, 2).forEach(function (cmd) {
         var box = el('div', 'jg-chart')
-        box.id = 'jg-chart-' + cmd.id
+        /* Un identifiant neuf à chaque ouverture. Le coeur range ses courbes
+         * sous cet identifiant (jeedom.history.chart) : repris tel quel, il
+         * désignait la courbe de l'ouverture précédente, dessinée dans un
+         * cadre qui n'était plus dans la page. Et la réponse tardive d'une
+         * ouverture refermée aussitôt ne doit pas tomber dans le cadre de la
+         * suivante. */
+        JG.CHART_SEQ = (JG.CHART_SEQ || 0) + 1
+        box.id = 'jg-chart-' + cmd.id + '-' + JG.CHART_SEQ
         var title = el('div', 'jg-chart-title', cmd.name)
         this.appendChild(title)
         this.appendChild(box)
+        JG.CHARTS.push(box)
         /* Après insertion dans le document : Highcharts dessine dans un
          * élément, pas dans une intention. */
         setTimeout(function () {
+          /* Refermé avant même d'avoir demandé : rien à dessiner. */
+          if (JG.CHARTS.indexOf(box) === -1) {
+            box.remove()
+            return
+          }
+          box._asked = true
           try {
             jeedom.history.drawChart({
               cmd_id: cmd.id,
               el: box.id,
+              newGraph: true,
               dateRange: '1 day',
               height: 170,
               noError: true,
-              option: { displayAlert: false }
+              option: { displayAlert: false },
+              /* Le panneau a pu se refermer pendant la requête : la courbe
+               * vient d'être dessinée dans le cadre mis de côté, on la défait
+               * aussitôt. */
+              success: function () {
+                if (JG.CHARTS.indexOf(box) === -1) {
+                  dropChart(box)
+                }
+              }
             })
           } catch (error) {
-            box.remove()
+            var index = JG.CHARTS.indexOf(box)
+            if (index !== -1) {
+              JG.CHARTS.splice(index, 1)
+            }
+            dropChart(box)
             title.remove()
           }
         }, 0)
@@ -3831,6 +3858,7 @@
     var here = state()
     var needle = searchNode.value.trim().toLowerCase()
     forgetAll(sectionsNode)
+    dropWidgets(sectionsNode)
     sectionsNode.textContent = ''
     ROOT.dataset.view = here.view
 
@@ -3928,10 +3956,74 @@
   function closePanel() {
     PANEL_ON = 0
     Array.prototype.forEach.call(panelBody.children, forget)
+    dropCharts(panelBody)
+    dropWidgets(panelBody)
     panelBody.textContent = ''
     panelNode.hidden = true
     backdropNode.hidden = true
     ROOT.dataset.panel = '0'
+  }
+
+  /* Les courbes du panneau ouvert. Le coeur garde chaque courbe qu'il trace
+   * dans jeedom.history.chart, sous l'identifiant de son cadre, et ne l'en
+   * retire jamais : c'est à qui la jette de la défaire. Sans cela, chaque
+   * ouverture laisse derrière elle un Highstock complet, que graphUpdate()
+   * continue d'alimenter à chaque valeur reçue — sur une tablette qu'on ne
+   * recharge jamais. La liste vit sur JG : c'est la classe du premier passage
+   * qui la remplit. */
+  JG.CHARTS = JG.CHARTS || []
+
+  function chartEntry(id) {
+    if (typeof jeedom === 'undefined' || !jeedom.history || !jeedom.history.chart) {
+      return undefined
+    }
+    return jeedom.history.chart[id]
+  }
+
+  function dropChart(box) {
+    clearTimeout(box._parked)
+    var entry = chartEntry(box.id)
+    if (entry !== undefined) {
+      if (entry.chart && typeof entry.chart.destroy === 'function') {
+        try {
+          entry.chart.destroy()
+        } catch (error) {
+          /* Déjà défaite : il ne reste que l'inscription à retirer. */
+        }
+      }
+      delete jeedom.history.chart[box.id]
+    }
+    box.remove()
+  }
+
+  /* Une courbe déjà tracée se défait tout de suite. Une courbe encore en
+   * route, non : le coeur la dessinera à l'arrivée de l'historique, dans un
+   * cadre qu'il cherche par son identifiant, et un cadre introuvable le fait
+   * échouer à mi-chemin — une inscription sans courbe, sur laquelle
+   * graphUpdate() trébuche ensuite à chaque valeur. Ce cadre-là est donc mis
+   * de côté, caché, le temps que la réponse arrive ; la courbe est défaite à
+   * son arrivée, et le cadre jeté de toute façon au bout de deux minutes,
+   * puisqu'un historique vide n'appelle jamais de retour.
+   *
+   * Sans argument, toutes ; avec un noeud, celles qu'il contient — le ménage
+   * d'un dashboard remplacé ne doit pas défaire les courbes de son
+   * successeur, qui partage la même liste. */
+  function dropCharts(within) {
+    var gone = JG.CHARTS.filter(function (box) {
+      return within === undefined || within.contains(box)
+    })
+    JG.CHARTS = JG.CHARTS.filter(function (box) {
+      return gone.indexOf(box) === -1
+    })
+    gone.forEach(function (box) {
+      if (chartEntry(box.id) !== undefined || !box._asked) {
+        dropChart(box)
+        return
+      }
+      box.hidden = true
+      document.body.appendChild(box)
+      box._parked = setTimeout(function () { dropChart(box) }, 120000)
+    })
   }
 
   /* Renommer dans jeeGlow, et nulle part ailleurs. Le nom d'un équipement
@@ -4155,11 +4247,19 @@
       return
     }
     idleTimer = setTimeout(function () {
-      /* Le panneau ouvert compte comme une consultation en cours : on ne le
-       * referme pas dans le dos de quelqu'un qui lit. */
-      if (ROOT.dataset.panel === '1') {
-        watchIdle()
-        return
+      idleTimer = null
+      /* Tout ce qu'on a laissé ouvert se referme, panneau et recherche
+       * compris. Le délai court depuis le dernier geste : un panneau resté
+       * ouvert tout ce temps n'est plus lu par personne. L'épargner le
+       * gardait ouvert pour toujours, et une recherche oubliée recouvrait
+       * l'accueil sans fin — or modelChanged() s'abstient tant que l'un ou
+       * l'autre est là : la tablette ne relisait plus jamais son modèle. */
+      closePanel()
+      clearTimeout(searchTimer)
+      searchTimer = null
+      searchNode.value = ''
+      if (document.activeElement === searchNode) {
+        searchNode.blur()
       }
       goTo('home', 'all')
     }, minutes * 60000)
@@ -4250,6 +4350,10 @@
    * toHtml, accepte une liste d'identifiants — dix-neuf widgets en une requête
    * plutôt que dix-neuf. */
   JG.WIDGETS = JG.WIDGETS || {}
+  /* La dernière annonce reçue pour chaque commande, entière : un widget ne se
+   * contente pas de la valeur, il lit aussi display_value, l'unité, les dates
+   * et le niveau d'alerte. */
+  JG.EVENTS = JG.EVENTS || {}
 
   function loadWidgets() {
     var holders = Array.prototype.slice.call(ROOT.querySelectorAll('.jg-widget[data-pending="1"]'))
@@ -4302,6 +4406,24 @@
    * dépose ne s'exécutent jamais, et un widget de plugin est presque
    * entièrement dans son script. Il faut donc les recréer. */
   function insertWidget(holder, html) {
+    /* Le rendu en cache porte l'uid tiré par le coeur (cmd.class.php, #uid#),
+     * et le script du modèle retrouve son widget par lui :
+     * document.querySelector('.cmd[data-cmd_uid=…]'). Deux copies du même
+     * HTML — la carte et le panneau — partageaient donc cet uid, et chaque
+     * script tombait sur la première : bouton du panneau inerte, double
+     * écouteur et double exécution sur la carte, panneau jamais mis à jour.
+     * Chaque insertion reçoit le sien, dans toutes ses occurrences, scripts
+     * compris. Du même coup, les fonctions de mise à jour ne se ressemblent
+     * plus : addUpdateFunction() écarte celles dont le texte est identique,
+     * et ne gardait qu'une copie vivante sur deux. */
+    unhook(holder)
+    var found = /data-cmd_uid=["']?([^"'\s>]+)/.exec(html)
+    if (found !== null) {
+      JG.UID_SEQ = (JG.UID_SEQ || 0) + 1
+      var uid = 'cmd' + holder.dataset.cmdId + '__jg' + JG.UID_SEQ + '__'
+      html = html.split(found[1]).join(uid)
+      holder.dataset.uid = uid
+    }
     holder.innerHTML = html
     holder.querySelectorAll('script').forEach(function (previous) {
       var script = document.createElement('script')
@@ -4312,6 +4434,46 @@
       previous.parentNode.replaceChild(script, previous)
     })
     holder.classList.add('jg-widget-ready')
+    /* Le script vient d'appeler refreshValue() avec la valeur figée dans le
+     * HTML au moment où on l'a demandé — et refreshValue() la pousse à toutes
+     * les copies inscrites, pas seulement à la nouvelle. La dernière annonce
+     * connue remet tout le monde à l'heure. */
+    var last = JG.EVENTS[holder.dataset.cmdId]
+    if (last !== undefined && typeof jeedom !== 'undefined' && jeedom.cmd && jeedom.cmd.refreshValue) {
+      try {
+        jeedom.cmd.refreshValue([last])
+      } catch (error) {
+        /* Un widget qui ne sait pas se relire garde la valeur de son HTML. */
+      }
+    }
+  }
+
+  /* Retire du coeur les fonctions de mise à jour d'un widget qu'on jette.
+   * Elles restent inoffensives — leur querySelector ne trouve plus rien —
+   * mais chaque insertion en ajoute une, et une tablette qu'on ne recharge
+   * jamais les accumulerait par milliers. On les reconnaît à l'uid qu'on
+   * leur a donné, écrit en toutes lettres dans leur texte. */
+  function unhook(holder) {
+    var uid = holder.dataset.uid
+    if (!uid || typeof jeedom === 'undefined' || !jeedom.cmd || !jeedom.cmd.update) {
+      return
+    }
+    delete holder.dataset.uid
+    var id = holder.dataset.cmdId
+    var list = jeedom.cmd.update[id]
+    if (typeof list === 'function') {
+      if (String(list).indexOf(uid) !== -1) {
+        delete jeedom.cmd.update[id]
+      }
+    } else if (Array.isArray(list)) {
+      jeedom.cmd.update[id] = list.filter(function (update) {
+        return String(update).indexOf(uid) === -1
+      })
+    }
+  }
+
+  function dropWidgets(node) {
+    node.querySelectorAll('.jg-widget[data-uid]').forEach(unhook)
   }
 
   /* ------------------------------------------------------------- rafraîchir */
@@ -4645,6 +4807,8 @@
     clearTimeout(searchTimer)
     searchTimer = null
     pending = []
+    dropCharts(ROOT)
+    dropWidgets(ROOT)
     clearInterval(dimTimer)
     if (observer !== null) {
       observer.disconnect()
@@ -4728,6 +4892,7 @@
         return
       }
       JG.VALUES[id] = update.value
+      JG.EVENTS[id] = update
       if (JG.STATES[id]) {
         states = true
       }

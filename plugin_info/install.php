@@ -18,22 +18,15 @@
 require_once __DIR__ . '/../../../core/php/core.inc.php';
 
 /*
- * jeeGlow ne crée rien et ne migre rien : il lit. L'installation se limite donc
- * à poser les réglages par défaut, une fois, pour que la page de configuration
- * ne s'ouvre pas sur des champs vides dont personne ne sait ce qu'ils valent.
+ * jeeGlow ne crée rien et ne migre rien : il lit. Les réglages par défaut vivent
+ * dans core/config/jeeglowbe.config.ini, que le coeur consulte pour toute clé
+ * absente de la base : rien à écrire ici. Les installations qui ont déjà une
+ * valeur en base la gardent, puisque la base l'emporte sur le fichier.
  */
 function jeeglowbe_install() {
-    /* config::byKey() ne renvoie jamais null sur une clé absente : elle place le
-     * défaut en cache puis retourne '' parce que isset() est faux sur null. Le
-     * test doit donc porter sur la chaîne vide, sans quoi la valeur par défaut
-     * n'est jamais écrite et la fonction ne sert à rien. */
-    if (config::byKey('showUnassigned', 'jeeglowbe', '') === '') {
-        config::save('showUnassigned', 1, 'jeeglowbe');
-    }
 }
 
 function jeeglowbe_update() {
-    jeeglowbe_install();
 }
 
 /*

@@ -13,7 +13,8 @@
         "Pièce introuvable": "Room not found",
         "Scénario introuvable": "Scenario not found",
         "État de scénario non géré :": "Unsupported scenario state:",
-        "Impossible de lancer le scénario car il est désactivé": "The scenario cannot be started because it is disabled"
+        "Impossible de lancer le scénario car il est désactivé": "The scenario cannot be started because it is disabled",
+        "Impossible de lancer le scénario car les scénarios sont désactivés dans Jeedom": "The scenario cannot be started because scenarios are disabled in Jeedom"
     },
     "plugins/jeeglowbe/desktop/php/jeeglowbe.php": {
         "401 - Accès non autorisé": "401 - Unauthorized access",

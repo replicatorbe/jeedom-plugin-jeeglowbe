@@ -748,7 +748,7 @@ def main():
     check('panneau : une courbe par commande historisée', document.querySelectorAll('.jg-chart').length === 1,
           document.querySelectorAll('.jg-chart').length + ' conteneurs')
     check('panneau : la courbe a un identifiant unique',
-          document.querySelector('.jg-chart') !== null && document.querySelector('.jg-chart').id === 'jg-chart-90216',
+          document.querySelector('.jg-chart') !== null && document.querySelector('.jg-chart').id.indexOf('jg-chart-90216-') === 0,
           document.querySelector('.jg-chart') ? document.querySelector('.jg-chart').id : '')
 
     // --- ranger une pièce -----------------------------------------------------

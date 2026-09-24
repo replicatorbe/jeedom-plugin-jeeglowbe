@@ -164,7 +164,12 @@ try {
         $scenario->addTag('trigger', 'user');
         $scenario->addTag('trigger_value', is_object($user) ? $user->getLogin() : '');
         $scenario->addTag('trigger_message', $GLOBALS['JEEDOM_SCLOG_TEXT']['startManual']['txt']);
-        $scenario->launch(false);
+        /* launch() rend false quand les scénarios sont coupés dans la
+         * configuration de Jeedom : rien n'est lancé, et répondre « ok » ferait
+         * croire le contraire. */
+        if ($scenario->launch(false) === false) {
+            throw new Exception(__('Impossible de lancer le scénario car les scénarios sont désactivés dans Jeedom', __FILE__));
+        }
         ajax::success(array(
             'id' => intval($scenario->getId()),
             /* L'état relu après coup, et non « start » supposé : en mode

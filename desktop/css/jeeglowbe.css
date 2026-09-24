@@ -1847,10 +1847,6 @@
  * pastille suffisent à donner à la carte une hauteur décente. */
 .jg-card { min-height: 0; }
 
-/* En kiosque, la tuile retrouve du corps : on la regarde de loin, pas de
- * près, et une grille trop serrée y devient illisible. */
-.jg-root[data-kiosk="1"] .jg-card { min-height: 132px; }
-
 /* « Lundi 21 Septembre » n'est pas du français : ni le jour ni le mois ne
  * prennent la majuscule. Seule la première lettre de la ligne la prend, parce
  * qu'elle ouvre la phrase. */
